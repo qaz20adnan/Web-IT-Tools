@@ -1,0 +1,109 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--no-audit --no-fund"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["fast-xml-parser"]
+
+# Netlify does not expose nested directories as nested endpoint paths, so the
+# serverless functions are flat files (ai-models.ts, net-tls.ts, ...) and these
+# explicit rules map the public /api/* URLs onto them. Rules are evaluated in
+# order, so the specific routes must come before the generic wildcard below.
+
+[[redirects]]
+  from = "/api/content/admin"
+  to = "/.netlify/functions/content-admin"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ai/models"
+  to = "/.netlify/functions/ai-models"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ai/test"
+  to = "/.netlify/functions/ai-test"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ai/chat"
+  to = "/.netlify/functions/ai-chat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ai/analyze"
+  to = "/.netlify/functions/ai-analyze"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/ai/script"
+  to = "/.netlify/functions/ai-script"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/analyzer"
+  to = "/.netlify/functions/net-analyzer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/printer"
+  to = "/.netlify/functions/net-printer"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/dns"
+  to = "/.netlify/functions/net-dns"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/tls"
+  to = "/.netlify/functions/net-tls"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"

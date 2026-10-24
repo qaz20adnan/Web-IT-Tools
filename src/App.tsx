@@ -1,0 +1,132 @@
+import { lazy, Suspense, useEffect, type ComponentType } from 'react'
+import { Route, Routes, useLocation } from 'react-router-dom'
+import { AppShell } from '@/components/layout/AppShell'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { Toaster } from '@/components/ui/Toaster'
+import { DashboardPage } from '@/pages/DashboardPage'
+
+const load = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, key: K) =>
+  lazy(async () => {
+    const module = await loader()
+    return { default: module[key] as ComponentType<Record<string, unknown>> }
+  })
+
+const AboutPage = load(() => import('@/pages/AboutPage'), 'AboutPage')
+const AccountPage = load(() => import('@/pages/AccountPage'), 'AccountPage')
+const AdminPage = load(() => import('@/pages/AdminPage'), 'AdminPage')
+const CheckEmailPage = load(() => import('@/pages/CheckEmailPage'), 'CheckEmailPage')
+const ForgotPasswordPage = load(() => import('@/pages/ForgotPasswordPage'), 'ForgotPasswordPage')
+const LoginPage = load(() => import('@/pages/LoginPage'), 'LoginPage')
+const RegisterPage = load(() => import('@/pages/RegisterPage'), 'RegisterPage')
+const ResetPasswordPage = load(() => import('@/pages/ResetPasswordPage'), 'ResetPasswordPage')
+const VerifyEmailPage = load(() => import('@/pages/VerifyEmailPage'), 'VerifyEmailPage')
+const WorkspacePage = load(() => import('@/pages/WorkspacePage'), 'WorkspacePage')
+const AIModelRadarPage = load(() => import('@/pages/AIModelRadarPage'), 'AIModelRadarPage')
+const ArticlePage = load(() => import('@/pages/ArticlePage'), 'ArticlePage')
+const CopilotPage = load(() => import('@/pages/CopilotPage'), 'CopilotPage')
+const DocsHubPage = load(() => import('@/pages/DocsHubPage'), 'DocsHubPage')
+const DomainPage = load(() => import('@/pages/DomainPage'), 'DomainPage')
+const HistoryPage = load(() => import('@/pages/HistoryPage'), 'HistoryPage')
+const KnowledgePage = load(() => import('@/pages/KnowledgePage'), 'KnowledgePage')
+const KnowledgeBasePage = load(() => import('@/pages/KnowledgeBasePage'), 'KnowledgeBasePage')
+const NetworkToolsPage = load(() => import('@/pages/NetworkToolsPage'), 'NetworkToolsPage')
+const NotFoundPage = load(() => import('@/pages/NotFoundPage'), 'NotFoundPage')
+const ProviderHubPage = load(() => import('@/pages/ProviderHubPage'), 'ProviderHubPage')
+const ResearchPage = load(() => import('@/pages/ResearchPage'), 'ResearchPage')
+const SavedPage = load(() => import('@/pages/SavedPage'), 'SavedPage')
+const ScriptLabPage = load(() => import('@/pages/ScriptLabPage'), 'ScriptLabPage')
+const SettingsPage = load(() => import('@/pages/SettingsPage'), 'SettingsPage')
+const TechPulsePage = load(() => import('@/pages/TechPulsePage'), 'TechPulsePage')
+const ToolkitPage = load(() => import('@/pages/ToolkitPage'), 'ToolkitPage')
+const TroubleshootingLabPage = load(() => import('@/pages/TroubleshootingLabPage'), 'TroubleshootingLabPage')
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [pathname])
+  return null
+}
+
+function PageFallback() {
+  return (
+    <div role="status" aria-live="polite" className="flex min-h-[40vh] flex-col items-center justify-center gap-3">
+      <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-[var(--primary)]" aria-hidden />
+      <span className="text-xs text-subtle">Loading…</span>
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <>
+      <ScrollToTop />
+      <AppShell>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/lab" element={<TroubleshootingLabPage />} />
+            <Route path="/copilot" element={<CopilotPage />} />
+            <Route path="/research" element={<ResearchPage />} />
+            <Route path="/solutions" element={<KnowledgePage />} />
+            <Route path="/solutions/:slug" element={<ArticlePage />} />
+            <Route path="/scripts" element={<ScriptLabPage />} />
+            <Route path="/docs" element={<DocsHubPage />} />
+            <Route path="/toolkit" element={<ToolkitPage />} />
+            <Route path="/network-tools" element={<NetworkToolsPage />} />
+            <Route path="/kb" element={<KnowledgeBasePage />} />
+            <Route path="/windows-server" element={<DomainPage hub="windows" />} />
+            <Route path="/microsoft-365" element={<DomainPage hub="m365" />} />
+            <Route path="/cybersecurity" element={<DomainPage hub="security" />} />
+            <Route path="/datacenter" element={<DomainPage hub="datacenter" />} />
+            <Route path="/backup" element={<DomainPage hub="backup" />} />
+            <Route path="/cloud" element={<DomainPage hub="cloud" />} />
+            <Route path="/news" element={<TechPulsePage />} />
+            <Route path="/radar" element={<AIModelRadarPage />} />
+            <Route path="/saved" element={<SavedPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/providers" element={<ProviderHubPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify" element={<VerifyEmailPage />} />
+            <Route path="/check-email" element={<CheckEmailPage />} />
+            <Route
+              path="/workspace"
+              element={
+                <ProtectedRoute>
+                  <WorkspacePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute permission="reports.read">
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+      </AppShell>
+      <OnboardingWizard />
+      <Toaster />
+    </>
+  )
+}
+
+export default App
