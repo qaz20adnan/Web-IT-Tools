@@ -16,7 +16,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "owner:promote": "node --env-file=.env scripts/promote-admin.mjs --role=owner --confirm",
+    "admin:promote": "node --env-file=.env scripts/promote-admin.mjs --role=admin --confirm",
+    "super-admin:promote": "node --env-file=.env scripts/promote-admin.mjs --role=super_admin --confirm"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -69,7 +69,7 @@ function restError(status: number, text: string, area: string): HttpError {
   if (status === 400 && lower.includes('email not confirmed')) {
     return new HttpError(403, 'email_not_verified', 'Verify your email address before signing in.', detail)
   }
-  if (status === 400 && (lower.includes('already registered') || lower.includes('already exists') || lower.includes('user already'))) {
+  if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('user already')) {
     return new HttpError(409, 'already_exists', 'An account with this email already exists.', detail)
   }
   if (status === 422) return new HttpError(422, 'invalid_input', 'The submitted data was rejected.', detail)
@@ -181,6 +181,7 @@ export interface SupabaseAuthUser {
   updated_at?: string
   user_metadata?: Record<string, unknown>
   app_metadata?: Record<string, unknown>
+  identities?: unknown[] | null
 }
 
 export interface SupabaseSession {

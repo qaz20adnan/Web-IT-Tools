@@ -15,6 +15,14 @@ export interface FetchResult {
   text: string
 }
 
+function fetchFailureDetail(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  const cause = (error as Error & { cause?: unknown }).cause
+  if (cause instanceof Error && cause.message) return `${error.message}: ${cause.message}`.slice(0, 300)
+  if (typeof cause === 'string' && cause.trim()) return `${error.message}: ${cause}`.slice(0, 300)
+  return error.message
+}
+
 export async function fetchText(url: string, options: FetchOptions = {}): Promise<FetchResult> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000)
@@ -45,7 +53,12 @@ export async function fetchText(url: string, options: FetchOptions = {}): Promis
     if (error instanceof Error && error.name === 'AbortError') {
       throw new HttpError(504, 'timeout', 'The upstream request timed out.')
     }
-    throw new HttpError(502, 'upstream_error', 'The upstream request failed.', error instanceof Error ? error.message : undefined)
+    throw new HttpError(
+      502,
+      'upstream_error',
+      'The upstream service could not be reached. Check its URL and the server network connection.',
+      fetchFailureDetail(error),
+    )
   } finally {
     clearTimeout(timeout)
   }

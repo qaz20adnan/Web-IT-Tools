@@ -41,7 +41,7 @@ interface AuthContextValue {
   configured: boolean
   busy: boolean
   signIn: (email: string, password: string) => Promise<AuthSessionResponse>
-  signUp: (input: { email: string; password: string; fullName?: string }) => Promise<AuthSessionResponse>
+  signUp: (input: { username: string; email: string; password: string }) => Promise<AuthSessionResponse>
   signOut: () => Promise<void>
   recover: (email: string) => Promise<AuthSessionResponse>
   resendVerification: (email: string) => Promise<AuthSessionResponse>
@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const signUp = useCallback(
-    async (input: { email: string; password: string; fullName?: string }) => {
+    async (input: { username: string; email: string; password: string }) => {
       setBusy(true)
       try {
         return applySession(await authRegister(input))

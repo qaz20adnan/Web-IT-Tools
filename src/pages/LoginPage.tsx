@@ -5,6 +5,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { ApiError } from '@/services/api'
+import { safeRedirect } from '@/lib/redirect'
 
 interface LocationState {
   from?: string
@@ -13,7 +14,7 @@ interface LocationState {
 
 export function LoginPage() {
   const { t } = useApp()
-  const { status, account, signIn, configured } = useAuth()
+  const { status, account, signIn, configured, config } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -26,7 +27,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && account) {
-      navigate(state.from && state.from.startsWith('/') ? state.from : '/account', { replace: true })
+      navigate(safeRedirect(state.from), { replace: true })
     }
   }, [status, account, navigate, state.from])
 
@@ -73,6 +74,7 @@ export function LoginPage() {
         </Alert>
       ) : (
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
+          {config?.localMode ? <Alert tone="info">{t('auth.localAuthNotice')}</Alert> : null}
           {params.get('verify') === '1' ? (
             <Alert tone="success" title={t('auth.checkEmail')}>
               {t('auth.checkEmailBody', { email: params.get('email') ?? '' })}

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { HistoryEntry, SavedItem, ScriptTemplate } from '@/types'
-import { readJson, STORAGE_KEYS, writeJson } from '@/lib/storage'
+import { readJson, scopedStorageKey, STORAGE_KEYS, writeJson } from '@/lib/storage'
 import { uid } from '@/lib/utils'
 
 interface LibraryContextValue {
@@ -21,22 +21,25 @@ interface LibraryContextValue {
 
 const LibraryContext = createContext<LibraryContextValue | null>(null)
 
-export function LibraryProvider({ children }: { children: ReactNode }) {
-  const [saved, setSaved] = useState<SavedItem[]>(() => readJson<SavedItem[]>(STORAGE_KEYS.saved, []))
-  const [history, setHistory] = useState<HistoryEntry[]>(() => readJson<HistoryEntry[]>(STORAGE_KEYS.history, []))
+export function LibraryProvider({ children, userId = 'guest' }: { children: ReactNode; userId?: string }) {
+  const savedKey = scopedStorageKey(STORAGE_KEYS.saved, userId)
+  const historyKey = scopedStorageKey(STORAGE_KEYS.history, userId)
+  const scriptsKey = scopedStorageKey(STORAGE_KEYS.scripts, userId)
+  const [saved, setSaved] = useState<SavedItem[]>(() => readJson<SavedItem[]>(savedKey, []))
+  const [history, setHistory] = useState<HistoryEntry[]>(() => readJson<HistoryEntry[]>(historyKey, []))
   const [localScripts, setLocalScripts] = useState<ScriptTemplate[]>(() =>
-    readJson<ScriptTemplate[]>(STORAGE_KEYS.scripts, []),
+    readJson<ScriptTemplate[]>(scriptsKey, []),
   )
 
   useEffect(() => {
-    writeJson(STORAGE_KEYS.saved, saved)
-  }, [saved])
+    writeJson(savedKey, saved)
+  }, [saved, savedKey])
   useEffect(() => {
-    writeJson(STORAGE_KEYS.history, history)
-  }, [history])
+    writeJson(historyKey, history)
+  }, [history, historyKey])
   useEffect(() => {
-    writeJson(STORAGE_KEYS.scripts, localScripts)
-  }, [localScripts])
+    writeJson(scriptsKey, localScripts)
+  }, [localScripts, scriptsKey])
 
   const saveItem = useCallback((item: Omit<SavedItem, 'id' | 'createdAt'>) => {
     setSaved((current) => {

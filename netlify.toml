@@ -77,6 +77,36 @@
   force = true
 
 [[redirects]]
+  from = "/api/net/ping"
+  to = "/.netlify/functions/net-ping"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/traceroute"
+  to = "/.netlify/functions/net-traceroute"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/port"
+  to = "/.netlify/functions/net-port"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/http"
+  to = "/.netlify/functions/net-http"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/net/url"
+  to = "/.netlify/functions/net-url"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200

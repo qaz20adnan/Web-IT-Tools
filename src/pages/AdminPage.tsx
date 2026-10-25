@@ -41,6 +41,8 @@ interface AdminUser {
   role: AccountRole
   status: 'active' | 'suspended' | 'pending'
   created_at: string
+  last_sign_in_at: string | null
+  manageable?: boolean
 }
 
 interface AuditRow {
@@ -75,6 +77,8 @@ interface Overview {
 }
 
 const ROLES: AccountRole[] = [
+  'owner',
+  'admin',
   'super_admin',
   'content_manager',
   'technical_editor',
@@ -84,6 +88,8 @@ const ROLES: AccountRole[] = [
   'trial_member',
   'suspended_member',
 ]
+
+const PAGE_SIZE = 25
 
 function label(value: string): string {
   return value.replaceAll('_', ' ')
@@ -97,11 +103,13 @@ export function AdminPage() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [totalUsers, setTotalUsers] = useState(0)
+  const [assignableRoles, setAssignableRoles] = useState<AccountRole[]>(ROLES)
   const [audit, setAudit] = useState<AuditRow[]>([])
   const [feedback, setFeedback] = useState<FeedbackRow[]>([])
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -136,16 +144,18 @@ export function AdminPage() {
   }, [])
 
   const loadUsers = useCallback(async () => {
-    const response = await adminRequest<{ ok: true; items: AdminUser[]; total: number }>({
+    const response = await adminRequest<{ ok: true; items: AdminUser[]; total: number; assignableRoles?: AccountRole[] }>({
       action: 'users.list',
       q: query.trim() || undefined,
       role: roleFilter || undefined,
       status: statusFilter || undefined,
-      limit: 100,
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
     })
     setUsers(response.items)
     setTotalUsers(response.total)
-  }, [query, roleFilter, statusFilter])
+    if (response.assignableRoles?.length) setAssignableRoles(response.assignableRoles)
+  }, [query, roleFilter, statusFilter, page])
 
   const loadAudit = useCallback(async () => {
     const response = await adminRequest<{ ok: true; items: AuditRow[] }>({ action: 'audit.list', limit: 100 })
@@ -188,6 +198,14 @@ export function AdminPage() {
   }, [refresh])
 
   const updateUser = async (user: AdminUser, patch: { role?: AccountRole; status?: 'active' | 'suspended' }) => {
+    const confirmed = window.confirm(
+      patch.role
+        ? t('admin.confirmRoleChange')
+        : patch.status === 'suspended'
+          ? t('admin.confirmSuspend')
+          : t('admin.confirmActivate'),
+    )
+    if (!confirmed) return
     setError(null)
     try {
       await adminRequest({ action: 'users.update', userId: user.id, ...patch })
@@ -369,12 +387,31 @@ export function AdminPage() {
           <CardHeader title={`${t('admin.users')} (${totalUsers})`} />
           <CardBody className="space-y-4">
             <div className="grid gap-2 sm:grid-cols-[1fr_180px_160px]">
-              <Input placeholder={t('admin.searchUsers')} value={query} onChange={(event) => setQuery(event.target.value)} />
-              <Select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+              <Input
+                placeholder={t('admin.searchUsers')}
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(0)
+                }}
+              />
+              <Select
+                value={roleFilter}
+                onChange={(event) => {
+                  setRoleFilter(event.target.value)
+                  setPage(0)
+                }}
+              >
                 <option value="">{t('admin.allRoles')}</option>
                 {ROLES.map((role) => <option key={role} value={role}>{label(role)}</option>)}
               </Select>
-              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <Select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value)
+                  setPage(0)
+                }}
+              >
                 <option value="">{t('admin.allStatuses')}</option>
                 <option value="active">active</option>
                 <option value="suspended">suspended</option>
@@ -384,6 +421,10 @@ export function AdminPage() {
             <div className="space-y-2">
               {users.map((user) => {
                 const self = user.id === account.profile?.id
+                const manageable = user.manageable !== false && !self
+                const roleOptions = assignableRoles.includes(user.role)
+                  ? assignableRoles
+                  : [user.role, ...assignableRoles]
                 return (
                   <div key={user.id} className="rounded-lg border border-line p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -394,27 +435,32 @@ export function AdminPage() {
                           <Badge tone={user.status === 'active' ? 'success' : user.status === 'suspended' ? 'danger' : 'warning'}>{user.status}</Badge>
                           <Badge>{label(user.role)}</Badge>
                         </div>
+                        <p className="mt-1.5 text-[11px] text-subtle">
+                          {t('admin.created')}: {user.created_at ? formatDateTime(user.created_at, settings.language) : '—'}
+                          {' · '}
+                          {t('admin.lastLogin')}: {user.last_sign_in_at ? formatDateTime(user.last_sign_in_at, settings.language) : '—'}
+                        </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {can('roles.assign') ? (
                           <Select
                             aria-label={t('admin.role')}
                             value={user.role}
-                            disabled={self}
+                            disabled={!manageable}
                             onChange={(event) => void updateUser(user, { role: event.target.value as AccountRole })}
                             className="h-8 w-40 text-xs"
                           >
-                            {ROLES.map((role) => <option key={role} value={role}>{label(role)}</option>)}
+                            {roleOptions.map((role) => <option key={role} value={role}>{label(role)}</option>)}
                           </Select>
                         ) : null}
                         {can('users.suspend') ? (
                           <Button
                             size="sm"
                             variant={user.status === 'suspended' ? 'secondary' : 'danger'}
-                            disabled={self}
+                            disabled={!manageable}
                             onClick={() => void updateUser(user, { status: user.status === 'suspended' ? 'active' : 'suspended' })}
                           >
-                            {user.status === 'suspended' ? 'activate' : 'suspend'}
+                            {user.status === 'suspended' ? t('admin.activate') : t('admin.suspend')}
                           </Button>
                         ) : null}
                         {can('subscriptions.manage') ? (
@@ -423,7 +469,7 @@ export function AdminPage() {
                           </Button>
                         ) : null}
                         {can('users.delete') ? (
-                          <Button size="sm" variant="ghost" icon={<Trash2 className="h-3.5 w-3.5" />} disabled={self} onClick={() => void deleteUser(user)} aria-label={t('admin.deleteUser')} />
+                          <Button size="sm" variant="ghost" icon={<Trash2 className="h-3.5 w-3.5" />} disabled={!manageable} onClick={() => void deleteUser(user)} aria-label={t('admin.deleteUser')} />
                         ) : null}
                       </div>
                     </div>
@@ -433,6 +479,26 @@ export function AdminPage() {
               })}
               {!loading && users.length === 0 ? <p className="text-xs text-subtle">{t('common.noResults')}</p> : null}
             </div>
+            {totalUsers > PAGE_SIZE ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-muted">
+                <span>
+                  {t('admin.page')} {page + 1} / {Math.max(1, Math.ceil(totalUsers / PAGE_SIZE))}
+                </span>
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>
+                    {t('admin.previous')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={(page + 1) * PAGE_SIZE >= totalUsers}
+                    onClick={() => setPage((current) => current + 1)}
+                  >
+                    {t('admin.next')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </CardBody>
         </Card>
       ) : null}

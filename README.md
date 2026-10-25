@@ -2,7 +2,8 @@
 
 NEXORA AI is an IT engineering workspace with AI-assisted troubleshooting, a local
 tool suite, curated knowledge, live vendor news, model discovery, private case notes,
-and an optional account platform (Supabase Auth, RBAC, trials and administration).
+and an account platform (Supabase Auth, RBAC, trials and administration). The account
+platform is required for all internal pages; public entry pages remain available.
 
 Built by **Eng. Adnan Al Qadi / م. عدنان القاضي**.
 
@@ -32,11 +33,11 @@ Built by **Eng. Adnan Al Qadi / م. عدنان القاضي**.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Guest experience, local tools, knowledge, saved items | PASS | Works without any account or AI key |
-| OpenRouter AI, model discovery, provider testing | PASS | Requires a provider key; verified previously against live OpenRouter |
+| Public entry pages (`/login`, `/register`, `/about`, recovery/verification) | PASS | Internal pages redirect guests to sign-in |
+| OpenRouter AI, model discovery, provider testing | PASS | Requires a signed-in account; a provider key is optional but still supported |
 | News pipeline | PASS | 19 verified feeds, cached, partial-failure reporting |
-| DDNS/port analyzer, printer diagnostics, local knowledge base | PASS | Additive features; no auth required; cloud LAN probes blocked by default |
-| Auth, RBAC, trials, workspace, admin APIs | PARTIAL | Implemented and typechecked; no live Supabase project available to verify end-to-end |
+| DDNS/port analyzer, printer diagnostics, local knowledge base | PASS | Requires a signed-in verified account; cloud LAN probes blocked by default |
+| Auth, RBAC, trials, workspace, admin APIs | PARTIAL | Implemented, typechecked and unit-tested; no live Supabase project available to verify end-to-end |
 | Email verification/recovery | PARTIAL | Requires Supabase email configuration and correct templates |
 | Paid subscriptions | BLOCKED | No payment provider configured; admins can record manual plans only |
 | Scheduled jobs/Netlify deployment | BLOCKED | No Netlify CLI/site credentials in this environment |
@@ -54,10 +55,14 @@ npm run build
 
 `npm run dev` serves the handlers through `scripts/dev-api-plugin.ts`, so `/api/health`,
 `/api/news`, `/api/ai/*`, `/api/net/*`, `/api/auth`, `/api/workspace` and `/api/admin` work
-without the Netlify CLI. `npm run dev:netlify` is available for the real emulator.
+without the Netlify CLI. During `npm run dev`, `.env` values are loaded into
+`process.env` for the functions only; they are not added to the browser bundle.
+`npm run dev:netlify` is available for the real emulator.
 
-The app remains usable as a guest. Authentication UI shows a setup notice when Supabase
-credentials are absent.
+All internal pages and tool APIs require a signed-in, email-verified account. Guests can
+reach `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify`,
+`/check-email` and `/about`. If Supabase is not configured, protected APIs fail closed with
+a setup error instead of running anonymously.
 
 ## Configure AI
 
@@ -74,19 +79,25 @@ not persisted server-side.
 
 1. Create a Supabase project.
 2. Apply [`supabase/migrations/0001_nexora.sql`](supabase/migrations/0001_nexora.sql)
+   and then [`0002_nexora_owner_admin_roles.sql`](supabase/migrations/0002_nexora_owner_admin_roles.sql)
    (SQL editor or `supabase db push`).
 3. Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
    `NEXORA_SITE_URL` and a random `NEXORA_HASH_PEPPER` (32+ bytes).
-4. Set `NEXORA_OWNER_EMAIL` to the verified email that should become the one-time
-   super administrator, then register that account.
+4. Optionally set `OWNER_EMAIL` (and/or `ADMIN_EMAIL`) to verified addresses you
+   control. These variables do **not** grant a role during sign-in. Register and
+   verify the account first, then run one explicit local promotion command:
+   `npm run owner:promote` for the owner or `npm run admin:promote` for a platform
+   administrator. The legacy `npm run super-admin:promote` remains available.
 5. Configure Supabase Auth email templates so links reach the app:
    - Confirmation: `{{ .SiteURL }}/verify?token_hash={{ .TokenHash }}&type=signup`
    - Recovery: `{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery`
 6. Add the site URL and redirect URLs in Supabase Auth settings.
 
-The owner bootstrap requires a verified email and writes a one-time
-`platform_settings.owner_bootstrapped` marker. The first public signup is never promoted.
-Manual role changes are audited.
+There is no automatic administrator bootstrap. Promotion is an explicit,
+audited, local command that refuses unverified addresses and never creates
+accounts. Manual role changes are audited, only an owner may grant or revoke the
+`owner` role, and the last active owner cannot be demoted, suspended or deleted.
+See [`docs/NEXORA_AUTH_AND_RBAC.md`](docs/NEXORA_AUTH_AND_RBAC.md).
 
 ## Environment
 
@@ -94,7 +105,7 @@ Copy `.env.example` to `.env`. Key groups:
 
 - `AI_*` — provider, model, fallback, vision, limits and allowlist.
 - `SUPABASE_*` — project URL, anon key, service-role key (server only).
-- `NEXORA_OWNER_EMAIL`, `NEXORA_TRIAL_DAYS`, `NEXORA_SITE_URL`,
+- `OWNER_EMAIL`, `ADMIN_EMAIL`, `NEXORA_TRIAL_DAYS`, `NEXORA_SITE_URL`,
   `NEXORA_HASH_PEPPER`, `NEXORA_MAINTENANCE_MODE`.
 - `NEWS_FEEDS`, `TAVILY_API_KEY`, `BRAVE_SEARCH_API_KEY`, `CONTENT_ADMIN_TOKEN`.
 - `PRINTER_ALLOW_PRIVATE` / `PRINTER_ALLOW_PUBLIC` — opt-in network printer probing policy.
@@ -122,8 +133,8 @@ subscriptions are recorded with `provider='manual'` and an audit/billing event.
 - Every privileged endpoint re-checks the database-backed role and permission.
 - Workspace queries always filter by the authenticated user id; RLS provides
   defense-in-depth.
-- Profile privilege fields are protected by a trigger; the last active super admin
-  cannot be demoted, suspended or deleted.
+- Profile privilege fields are protected by a trigger; the last active owner or super
+  administrator cannot be demoted, suspended or deleted.
 - Audit records redact token/password/secret-like fields.
 - Input size, timeouts, rate limits and provider-host allowlists are enforced.
 

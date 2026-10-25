@@ -1,3 +1,4 @@
+import { requireMember } from '../lib/auth'
 import dns from 'node:dns/promises'
 import net from 'node:net'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
@@ -128,6 +129,7 @@ async function resolveDdns(raw: string): Promise<DdnsResult> {
 }
 
 export const handler: Handler = wrap(async (event, context) => {
+  await requireMember(event)
   requireMethod(event, ['POST'])
   enforceRateLimit(`analyzer:${clientIp(event, context)}`, 8, 60_000)
   const parsed = analyzerRequestSchema.safeParse(readJsonBody(event, 16 * 1024))

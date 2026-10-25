@@ -1,3 +1,4 @@
+import { requireMember } from '../lib/auth'
 import { chatComplete, listModels, resolveAiConfig, verifyProviderAuth, type LiveModelInfo } from '../lib/ai'
 import { clientIp, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { enforceRateLimit } from '../lib/rate'
@@ -7,6 +8,7 @@ interface TestBody {
 }
 
 export const handler: Handler = wrap(async (event, context) => {
+  await requireMember(event)
   requireMethod(event, ['POST'])
   enforceRateLimit(`test:${clientIp(event, context)}`, 12)
 

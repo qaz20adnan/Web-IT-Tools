@@ -313,6 +313,8 @@ export interface ToastMessage {
 }
 
 export type AccountRole =
+  | 'owner'
+  | 'admin'
   | 'super_admin'
   | 'content_manager'
   | 'technical_editor'
@@ -388,6 +390,7 @@ export interface AccountProfile {
 export interface AccountPayload {
   configured: boolean
   databaseConfigured: boolean
+  adminConfigured: boolean
   ownerConfigured: boolean
   profile: AccountProfile | null
   permissions: Permission[]
@@ -403,10 +406,14 @@ export interface AuthConfig {
   configured: boolean
   authConfigured: boolean
   databaseConfigured: boolean
+  adminConfigured: boolean
   ownerConfigured: boolean
   trialDays: number
   siteUrl: string
-  provider: 'supabase'
+  provider: 'supabase' | 'local'
+  localMode: boolean
+  passwordMinLength: number
+  passwordMaxLength: number
 }
 
 export interface AuthTokens {
@@ -432,3 +439,30 @@ export type ApiErrorCode =
   | 'already_exists'
   | 'unauthorized'
   | 'unknown'
+
+export type EnglishLevel = 'beginner' | 'intermediate' | 'advanced'
+
+export interface CoachMessage {
+  id: string
+  role: 'user' | 'coach'
+  content: string
+  createdAt: string
+  correction?: {
+    original: string
+    corrected: string
+    explanation: string
+  }
+}
+
+export interface CoachConversation {
+  id: string
+  title: string
+  level: EnglishLevel
+  topic: string
+  messages: CoachMessage[]
+  newWords: string[]
+  correctedErrors: Array<{ original: string; corrected: string; explanation: string }>
+  createdAt: string
+  updatedAt: string
+  userId: string | null
+}

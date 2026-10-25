@@ -58,12 +58,14 @@ variables belong here; never prefix secrets with `VITE_`.
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Server-only; bypasses RLS |
 | `NEXORA_SITE_URL` | `https://nexora-ai.netlify.app` | Used in auth redirects |
 | `NEXORA_HASH_PEPPER` | 32+ random bytes | Trial claim HMAC; keep stable |
-| `NEXORA_OWNER_EMAIL` | `owner@example.com` | One-time verified owner bootstrap |
+| `OWNER_EMAIL` | `owner@example.com` | Optional verified owner address. Never grants a role automatically; run `npm run owner:promote` after verification. |
+| `ADMIN_EMAIL` | `admin@example.com` | Optional verified platform-administrator address. Never grants a role automatically; run `npm run admin:promote` (or `npm run super-admin:promote` for the legacy role). |
 | `NEXORA_TRIAL_DAYS` | `30` | Clamped to 1–365 |
 | `NEXORA_MAINTENANCE_MODE` | `false` | Optional maintenance flag |
 
-Apply `supabase/migrations/0001_nexora.sql` before enabling accounts, then configure the
-Supabase Auth site URL and email templates documented in
+Apply `supabase/migrations/0001_nexora.sql` and then
+`supabase/migrations/0002_nexora_owner_admin_roles.sql` before enabling accounts, then
+configure the Supabase Auth site URL and email templates documented in
 [`NEXORA_AUTH_AND_RBAC.md`](NEXORA_AUTH_AND_RBAC.md).
 
 ### Optional
@@ -95,7 +97,9 @@ npm run dev
 
 `npm run dev` starts Vite and serves the Netlify handlers in-process through
 `scripts/dev-api-plugin.ts`. This is the supported local flow and matches the
-`/api/*` paths used in production.
+`/api/*` paths used in production. `vite.config.ts` loads `.env` into `process.env`
+for those handlers only; secrets are never exposed through `import.meta.env` unless
+they are explicitly prefixed with `VITE_`.
 
 `npm run dev:netlify` uses the Netlify CLI (`netlify dev`) if it is installed; it is
 not required. If both are available, prefer `dev:netlify` when debugging

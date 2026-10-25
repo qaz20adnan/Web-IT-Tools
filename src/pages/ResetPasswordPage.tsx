@@ -6,6 +6,7 @@ import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { clearAuthHash, readSessionFromHash } from '@/services/authSession'
 import { ApiError } from '@/services/api'
+import { isValidPassword, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/authValidation'
 
 export function ResetPasswordPage() {
   const { t } = useApp()
@@ -56,7 +57,7 @@ export function ResetPasswordPage() {
       setError(t('auth.requiredFields'))
       return
     }
-    if (password.length < 10) {
+    if (!isValidPassword(password)) {
       setError(t('auth.passwordHint'))
       return
     }
@@ -94,7 +95,8 @@ export function ResetPasswordPage() {
             <PasswordInput
               id="reset-password"
               autoComplete="new-password"
-              minLength={10}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={submitting}

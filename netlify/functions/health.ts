@@ -32,7 +32,7 @@ export const handler: Handler = wrap(async (event) => {
         customFeeds: Boolean(process.env.NEWS_FEEDS?.trim()),
       },
       database: {
-        configured: Boolean(serverConfig.supabaseUrl && serverConfig.supabaseAnonKey),
+        configured: Boolean(serverConfig.supabaseUrl && serverConfig.supabaseAnonKey && serverConfig.supabaseServiceRoleKey),
       },
       contentAdmin: {
         configured: Boolean(serverConfig.contentAdminToken && serverConfig.supabaseUrl && serverConfig.supabaseServiceRoleKey),

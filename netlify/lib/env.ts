@@ -40,9 +40,15 @@ export function allowedHosts(): string[] {
   return configured
 }
 
+const adminEmail = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase()
+// Used only for explicit, local owner promotion. It never grants a role on its
+// own: no request path reads this value to elevate an account.
+const ownerEmail = (process.env.OWNER_EMAIL ?? process.env.NEXORA_OWNER_EMAIL ?? '').trim().toLowerCase()
+
 export const serverConfig = {
   appName: (process.env.APP_NAME ?? 'NEXORA AI').trim(),
-  ownerEmail: (process.env.NEXORA_OWNER_EMAIL ?? '').trim().toLowerCase(),
+  adminEmail,
+  ownerEmail,
   trialDays: envInt('NEXORA_TRIAL_DAYS', 30),
   authSiteUrl: (process.env.NEXORA_SITE_URL ?? process.env.URL ?? 'http://localhost:5173').trim().replace(/\/+$/, ''),
   hashPepper: (process.env.NEXORA_HASH_PEPPER ?? '').trim(),

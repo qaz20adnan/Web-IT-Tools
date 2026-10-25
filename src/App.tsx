@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Toaster } from '@/components/ui/Toaster'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { EnglishCoachPage } from '@/pages/EnglishCoachPage'
 
 const load = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, key: K) =>
   lazy(async () => {
@@ -30,7 +31,9 @@ const DomainPage = load(() => import('@/pages/DomainPage'), 'DomainPage')
 const HistoryPage = load(() => import('@/pages/HistoryPage'), 'HistoryPage')
 const KnowledgePage = load(() => import('@/pages/KnowledgePage'), 'KnowledgePage')
 const KnowledgeBasePage = load(() => import('@/pages/KnowledgeBasePage'), 'KnowledgeBasePage')
+const NetworkDiagnosticsPage = load(() => import('@/pages/NetworkDiagnosticsPage'), 'NetworkDiagnosticsPage')
 const NetworkToolsPage = load(() => import('@/pages/NetworkToolsPage'), 'NetworkToolsPage')
+const SecurityLabPage = load(() => import('@/pages/SecurityLabPage'), 'SecurityLabPage')
 const NotFoundPage = load(() => import('@/pages/NotFoundPage'), 'NotFoundPage')
 const ProviderHubPage = load(() => import('@/pages/ProviderHubPage'), 'ProviderHubPage')
 const ResearchPage = load(() => import('@/pages/ResearchPage'), 'ResearchPage')
@@ -65,60 +68,59 @@ export function App() {
       <AppShell>
         <Suspense fallback={<PageFallback />}>
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/lab" element={<TroubleshootingLabPage />} />
-            <Route path="/copilot" element={<CopilotPage />} />
-            <Route path="/research" element={<ResearchPage />} />
-            <Route path="/solutions" element={<KnowledgePage />} />
-            <Route path="/solutions/:slug" element={<ArticlePage />} />
-            <Route path="/scripts" element={<ScriptLabPage />} />
-            <Route path="/docs" element={<DocsHubPage />} />
-            <Route path="/toolkit" element={<ToolkitPage />} />
-            <Route path="/network-tools" element={<NetworkToolsPage />} />
-            <Route path="/kb" element={<KnowledgeBasePage />} />
-            <Route path="/windows-server" element={<DomainPage hub="windows" />} />
-            <Route path="/microsoft-365" element={<DomainPage hub="m365" />} />
-            <Route path="/cybersecurity" element={<DomainPage hub="security" />} />
-            <Route path="/datacenter" element={<DomainPage hub="datacenter" />} />
-            <Route path="/backup" element={<DomainPage hub="backup" />} />
-            <Route path="/cloud" element={<DomainPage hub="cloud" />} />
-            <Route path="/news" element={<TechPulsePage />} />
-            <Route path="/radar" element={<AIModelRadarPage />} />
-            <Route path="/saved" element={<SavedPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/providers" element={<ProviderHubPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/about" element={<AboutPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify" element={<VerifyEmailPage />} />
             <Route path="/check-email" element={<CheckEmailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+
             <Route
-              path="/workspace"
               element={
                 <ProtectedRoute>
-                  <WorkspacePage />
+                  <Outlet />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/account"
-              element={
-                <ProtectedRoute>
-                  <AccountPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute permission="reports.read">
-                  <AdminPage />
-                </ProtectedRoute>
-              }
-            />
+            >
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/english-coach" element={<EnglishCoachPage />} />
+              <Route path="/lab" element={<TroubleshootingLabPage />} />
+              <Route path="/copilot" element={<CopilotPage />} />
+              <Route path="/research" element={<ResearchPage />} />
+              <Route path="/solutions" element={<KnowledgePage />} />
+              <Route path="/solutions/:slug" element={<ArticlePage />} />
+              <Route path="/scripts" element={<ScriptLabPage />} />
+              <Route path="/docs" element={<DocsHubPage />} />
+              <Route path="/toolkit" element={<ToolkitPage />} />
+              <Route path="/network-tools" element={<NetworkToolsPage />} />
+              <Route path="/diagnostics" element={<NetworkDiagnosticsPage />} />
+              <Route path="/security-lab" element={<SecurityLabPage />} />
+              <Route path="/kb" element={<KnowledgeBasePage />} />
+              <Route path="/windows-server" element={<DomainPage hub="windows" />} />
+              <Route path="/microsoft-365" element={<DomainPage hub="m365" />} />
+              <Route path="/cybersecurity" element={<DomainPage hub="security" />} />
+              <Route path="/datacenter" element={<DomainPage hub="datacenter" />} />
+              <Route path="/backup" element={<DomainPage hub="backup" />} />
+              <Route path="/cloud" element={<DomainPage hub="cloud" />} />
+              <Route path="/news" element={<TechPulsePage />} />
+              <Route path="/radar" element={<AIModelRadarPage />} />
+              <Route path="/saved" element={<SavedPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/providers" element={<ProviderHubPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/workspace" element={<WorkspacePage />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute permission="users.read">
+                    <AdminPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
@@ -130,3 +132,4 @@ export function App() {
 }
 
 export default App
+

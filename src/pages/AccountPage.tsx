@@ -19,6 +19,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { ApiError } from '@/services/api'
 import { downloadTextFile } from '@/lib/utils'
+import { isValidPassword, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/authValidation'
 import { formatDate } from '@/i18n'
 
 function label(value: string): string {
@@ -27,9 +28,12 @@ function label(value: string): string {
 
 export function AccountPage() {
   const { t, settings } = useApp()
-  const { account, updateProfile, changePassword, deleteAccount, exportData, refreshAccount, signOut } = useAuth()
+  const { account, config, updateProfile, changePassword, deleteAccount, exportData, refreshAccount, signOut } = useAuth()
   const { notify } = useToast()
   const navigate = useNavigate()
+  const localMode = config?.localMode === true
+  const passwordMinLength = config?.passwordMinLength ?? PASSWORD_MIN_LENGTH
+  const passwordMaxLength = config?.passwordMaxLength ?? PASSWORD_MAX_LENGTH
   const [fullName, setFullName] = useState(account?.profile?.fullName ?? '')
   const [profileBusy, setProfileBusy] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -87,8 +91,8 @@ export function AccountPage() {
       setPasswordError(t('auth.requiredFields'))
       return
     }
-    if (newPassword.length < 10) {
-      setPasswordError(t('auth.passwordHint'))
+    if (localMode ? newPassword.length > passwordMaxLength : !isValidPassword(newPassword)) {
+      setPasswordError(localMode ? t('auth.localPasswordTooLong') : t('auth.passwordHint'))
       return
     }
     if (newPassword !== confirmPassword) {
@@ -221,11 +225,17 @@ export function AccountPage() {
                   />
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label={t('auth.newPassword')} htmlFor="new-password" hint={t('auth.passwordHint')} required>
+                  <Field
+                    label={t('auth.newPassword')}
+                    htmlFor="new-password"
+                    hint={localMode ? t('auth.localPasswordHint') : t('auth.passwordHint')}
+                    required
+                  >
                     <PasswordInput
                       id="new-password"
                       autoComplete="new-password"
-                      minLength={10}
+                      minLength={localMode ? 1 : passwordMinLength}
+                      maxLength={passwordMaxLength}
                       value={newPassword}
                       onChange={(event) => setNewPassword(event.target.value)}
                       disabled={passwordBusy}

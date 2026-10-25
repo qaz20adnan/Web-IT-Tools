@@ -9,8 +9,8 @@
 | Standard | 0 (BYO key only) | 100 | Workspace, research, exports |
 | Suspended | 0 | 0 | None |
 
-Staff (`super_admin`, `content_manager`, `technical_editor`, `support_specialist`) receive
-premium limits and the admin feature flag.
+Staff (`owner`, `admin`, `super_admin`, `content_manager`, `technical_editor`,
+`support_specialist`) receive premium limits and the admin feature flag.
 
 All entitlement decisions are computed server-side in `netlify/lib/trial.ts` and attached
 to the account payload. The UI only renders the result.

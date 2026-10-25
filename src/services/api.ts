@@ -375,6 +375,134 @@ export function probeNetworkPrinter(host: string, lang: 'en' | 'ar'): Promise<Pr
   return request<PrinterProbeResponse>('/api/net/printer', { body: { host, lang } })
 }
 
+export interface PingReply {
+  sequence: number
+  latencyMs: number | null
+  ttl: number | null
+  status: 'success' | 'timeout' | 'unreachable' | 'error'
+}
+
+export interface PingResponse {
+  available: boolean
+  target: string
+  address: string
+  location: 'server'
+  attempts: number
+  replies: PingReply[]
+  summary: { sent: number; received: number; lossPercent: number; minMs: number | null; avgMs: number | null; maxMs: number | null }
+  reason: string | null
+  note: string
+  raw: string
+}
+
+export function runPing(host: string, count = 4, timeoutMs = 1500): Promise<PingResponse> {
+  return request<PingResponse>('/api/net/ping', { body: { host, count, timeoutMs } })
+}
+
+export interface TracerouteHop {
+  hop: number
+  address: string | null
+  hostname: string | null
+  probes: Array<number | null>
+  timedOut: boolean
+}
+
+export interface TracerouteResponse {
+  available: boolean
+  target: string
+  address: string
+  location: 'server'
+  maxHops: number
+  hops: TracerouteHop[]
+  totalHops: number
+  reached: boolean
+  reason: string | null
+  note: string
+  raw: string
+}
+
+export function runTraceroute(host: string, maxHops = 15, timeoutMs = 1500): Promise<TracerouteResponse> {
+  return request<TracerouteResponse>('/api/net/traceroute', { body: { host, maxHops, timeoutMs } })
+}
+
+export interface PortCheckResponse {
+  target: string
+  address: string
+  location: 'server'
+  checkedAt: string
+  ports: PortProbeInfo[]
+  note: string
+}
+
+export function checkPublicPorts(host: string, ports: number[]): Promise<PortCheckResponse> {
+  return request<PortCheckResponse>('/api/net/port', { body: { host, ports } })
+}
+
+export interface HttpCheckHop {
+  url: string
+  status: number
+  location: string | null
+  latencyMs: number
+}
+
+export interface HttpCheckResponse {
+  requestedUrl: string
+  finalUrl: string
+  status: number
+  statusText: string
+  ok: boolean
+  latencyMs: number
+  method: string
+  contentType: string | null
+  contentLength: number | null
+  redirects: HttpCheckHop[]
+  headers: Record<string, string>
+  tls: TlsInfo | null
+  tlsError: string | null
+  note: string
+}
+
+export function checkHttpEndpoint(
+  url: string,
+  options: { method?: 'HEAD' | 'GET'; followRedirects?: boolean; timeoutMs?: number } = {},
+): Promise<HttpCheckResponse> {
+  return request<HttpCheckResponse>('/api/net/http', {
+    body: { url, method: options.method ?? 'HEAD', followRedirects: options.followRedirects ?? true, timeoutMs: options.timeoutMs ?? 8000 },
+  })
+}
+
+export type UrlSignalSeverity = 'info' | 'low' | 'medium' | 'high'
+
+export interface UrlSignal {
+  id: string
+  severity: UrlSignalSeverity
+  title: string
+  detail: string
+}
+
+export interface UrlAnalysisResponse {
+  checkedAt: string
+  input: string
+  url: string
+  host: string
+  domain: string
+  protocol: string
+  signals: UrlSignal[]
+  verdict: 'no-obvious-indicators' | 'suspicious-indicators-found' | 'analysis-inconclusive' | 'external-reputation-unavailable'
+  dns: { addresses: string[] } | null
+  dnsError: string | null
+  http: HttpCheckResponse | null
+  httpError: string | null
+  tls: { issuer: string; validTo: string; daysRemaining: number } | null
+  tlsError: string | null
+  externalReputation: { status: 'unavailable'; provider: null; reason: string }
+  limitations: string[]
+}
+
+export function analyzeUrlSafety(url: string): Promise<UrlAnalysisResponse> {
+  return request<UrlAnalysisResponse>('/api/net/url', { body: { url } })
+}
+
 export interface AuthSessionResponse {
   ok: true
   tokens?: AuthTokens | null
@@ -394,7 +522,7 @@ export function getAuthConfig(): Promise<AuthConfig> {
   return request<AuthConfig>('/api/auth')
 }
 
-export function authRegister(input: { email: string; password: string; fullName?: string }): Promise<AuthSessionResponse> {
+export function authRegister(input: { username: string; email: string; password: string }): Promise<AuthSessionResponse> {
   return request<AuthSessionResponse>('/api/auth', { body: { action: 'register', ...input } })
 }
 

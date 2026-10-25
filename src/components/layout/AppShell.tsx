@@ -56,7 +56,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-[11px] text-subtle">
-          {t('app.name')} · {t('about.disclaimerBody')}
+          <div className="flex flex-col items-center gap-0.5">
+            <span>{t('footer.developedBy')}</span>
+            <span>{t('footer.developerName')}</span>
+          </div>
         </footer>
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

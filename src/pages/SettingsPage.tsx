@@ -3,18 +3,20 @@ import { Link } from 'react-router-dom'
 import { Database, Download, Languages, Monitor, RotateCcw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import { Alert, Button, Card, CardHeader, Field, Modal, PageHeader, Select, Switch } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
+import { useAuth } from '@/context/AuthContext'
 import { useLibrary } from '@/context/LibraryContext'
 import { useProviders } from '@/context/ProvidersContext'
 import { useToast } from '@/context/ToastContext'
 import { THEMES } from '@/data/themes'
 import { cn, downloadTextFile, formatBytes } from '@/lib/utils'
-import { clearSessionKeys, localDataSize, STORAGE_KEYS } from '@/lib/storage'
+import { clearSessionKeys, localDataSize, scopedStorageKey, STORAGE_KEYS } from '@/lib/storage'
 import type { Density, FontScale, Language } from '@/types'
 
-const EXPORT_KEYS = [STORAGE_KEYS.settings, STORAGE_KEYS.providers, STORAGE_KEYS.saved, STORAGE_KEYS.history, STORAGE_KEYS.scripts] as const
+const PRIVATE_KEYS = [STORAGE_KEYS.providers, STORAGE_KEYS.saved, STORAGE_KEYS.history, STORAGE_KEYS.scripts, STORAGE_KEYS.knowledgeBase] as const
 
 export function SettingsPage() {
   const { t, settings, updateSettings } = useApp()
+  const { account } = useAuth()
   const { saved, history, localScripts, clearAll } = useLibrary()
   const { providers, clearKeys } = useProviders()
   const { notify } = useToast()
@@ -22,11 +24,15 @@ export function SettingsPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
+  const userId = account?.profile?.id ?? null
+  const scopedKeys = useMemo(() => PRIVATE_KEYS.map((key) => scopedStorageKey(key, userId)), [userId])
+  const exportKeys = useMemo(() => [STORAGE_KEYS.settings, ...scopedKeys], [scopedKeys])
+
   const usage = useMemo(() => localDataSize(), [saved, history, localScripts, providers, settings])
 
   const exportData = () => {
     const payload: Record<string, unknown> = { exportedAt: new Date().toISOString(), app: 'nexora-ai', version: 1 }
-    for (const key of EXPORT_KEYS) {
+    for (const key of exportKeys) {
       const raw = localStorage.getItem(key)
       if (raw) {
         try {
@@ -45,10 +51,10 @@ export function SettingsPage() {
     try {
       const parsed = JSON.parse(await file.text()) as Record<string, unknown>
       let imported = 0
-      for (const key of EXPORT_KEYS) {
-        if (!(key in parsed)) continue
-        const value = parsed[key]
-        if (value === null || typeof value !== 'object') continue
+      for (const [index, key] of exportKeys.entries()) {
+        const legacyKey = index === 0 ? STORAGE_KEYS.settings : PRIVATE_KEYS[index - 1]
+        const value = key in parsed ? parsed[key] : parsed[legacyKey]
+        if (value === null || value === undefined || typeof value !== 'object') continue
         localStorage.setItem(key, JSON.stringify(value))
         imported += 1
       }
@@ -63,8 +69,8 @@ export function SettingsPage() {
   const clearEverything = () => {
     clearAll()
     clearKeys()
-    clearSessionKeys()
-    for (const key of EXPORT_KEYS) localStorage.removeItem(key)
+    clearSessionKeys(`nexora.key.${userId ?? 'guest'}.`)
+    for (const key of exportKeys) localStorage.removeItem(key)
     setConfirmClear(false)
     notify('success', t('settings.clearAllDone'))
     window.setTimeout(() => window.location.reload(), 500)

@@ -8,7 +8,23 @@ export const STORAGE_KEYS = {
   researchRecent: 'nexora.research.v1',
   knowledgeBase: 'nexora.kb.v1',
   netIpHistory: 'nexora.net.ip.v1',
+  conversations: 'nexora.conversations.v1',
+  diagnostics: 'nexora.diagnostics.v1',
+  diagnosticFavorites: 'nexora.diagnostics.favorites.v1',
+  securityLab: 'nexora.securitylab.v1',
 } as const
+
+let activeStorageUser: string | null = null
+
+/** Set synchronously by the authenticated app shell before private pages render. */
+export function setActiveStorageUser(userId: string | null): void {
+  activeStorageUser = userId
+}
+
+/** Namespaces private browser data per account so two users never share it. */
+export function scopedStorageKey(key: string, userId: string | null | undefined = activeStorageUser): string {
+  return `${key}.u.${userId?.trim() || 'guest'}`
+}
 
 export function readJson<T>(key: string, fallback: T): T {
   try {

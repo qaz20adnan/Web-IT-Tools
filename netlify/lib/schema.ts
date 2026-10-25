@@ -109,6 +109,34 @@ export const analyzerRequestSchema = z.object({
   lang: z.enum(['en', 'ar']).default('en'),
 })
 
+export const pingRequestSchema = z.object({
+  host: z.string().trim().min(1).max(300),
+  count: z.number().int().min(1).max(10).default(4),
+  timeoutMs: z.number().int().min(500).max(5000).default(1500),
+})
+
+export const tracerouteRequestSchema = z.object({
+  host: z.string().trim().min(1).max(300),
+  maxHops: z.number().int().min(1).max(20).default(15),
+  timeoutMs: z.number().int().min(500).max(5000).default(1500),
+})
+
+export const portRequestSchema = z.object({
+  host: z.string().trim().min(1).max(300),
+  ports: z.array(z.number().int().min(1).max(65535)).min(1).max(4),
+})
+
+export const httpRequestSchema = z.object({
+  url: z.string().trim().min(4).max(2048),
+  method: z.enum(['HEAD', 'GET']).default('HEAD'),
+  followRedirects: z.boolean().default(true),
+  timeoutMs: z.number().int().min(1000).max(15000).default(8000),
+})
+
+export const urlRequestSchema = z.object({
+  url: z.string().trim().min(4).max(2048),
+})
+
 export const printerRequestSchema = z.object({
   host: z.string().trim().min(1).max(300),
   port: z.number().int().min(1).max(65535).optional(),

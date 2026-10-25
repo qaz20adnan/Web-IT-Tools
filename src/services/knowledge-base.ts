@@ -1,5 +1,5 @@
 import type { KnowledgeBaseDraft, KnowledgeBaseEntry, ProblemCategory } from '@/types'
-import { readJson, STORAGE_KEYS, writeJson } from '@/lib/storage'
+import { readJson, scopedStorageKey, STORAGE_KEYS, writeJson } from '@/lib/storage'
 
 export const KB_CATEGORIES: ProblemCategory[] = [
   'windows-client',
@@ -83,13 +83,13 @@ export function createKnowledgeEntry(draft: KnowledgeBaseDraft, now = new Date()
 }
 
 export function loadKnowledgeBase(): KnowledgeBaseEntry[] {
-  const raw = readJson<unknown>(STORAGE_KEYS.knowledgeBase, [])
+  const raw = readJson<unknown>(scopedStorageKey(STORAGE_KEYS.knowledgeBase), [])
   if (!Array.isArray(raw)) return []
   return raw.filter(isEntry).slice(0, KB_MAX_ENTRIES)
 }
 
 export function saveKnowledgeBase(entries: KnowledgeBaseEntry[]): boolean {
-  return writeJson(STORAGE_KEYS.knowledgeBase, entries.slice(0, KB_MAX_ENTRIES))
+  return writeJson(scopedStorageKey(STORAGE_KEYS.knowledgeBase), entries.slice(0, KB_MAX_ENTRIES))
 }
 
 export function upsertKnowledgeEntry(

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronsLeft, X } from 'lucide-react'
+import { ChevronsLeft, Sparkles, X } from 'lucide-react'
 import { NAV_GROUPS } from './nav'
+import { BrandLogo } from '@/components/brand/BrandLogo'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
@@ -21,13 +22,12 @@ export function Sidebar({
 
   const content = (
     <div className="flex h-full flex-col">
-      <div className={cn('flex items-center gap-2.5 border-b border-line px-4 py-3.5', collapsed && 'justify-center px-2')}>
-        <img src="/icons/logo.svg" alt="" className="h-8 w-8 shrink-0 rounded-lg" width={32} height={32} />
+      <div className={cn('relative flex items-center gap-2.5 border-b border-line/80 px-4 py-4', collapsed && 'justify-center px-2')}>
+        <BrandLogo compact={collapsed} onClick={onCloseMobile} className={cn(collapsed && 'justify-center')} />
         {!collapsed ? (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight">NEXORA AI</p>
-            <p className="truncate text-[10px] uppercase tracking-wider text-subtle">{t('app.shortTagline')}</p>
-          </div>
+          <span className="ms-auto hidden rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary/80 sm:block">
+            v2
+          </span>
         ) : null}
         <button
           type="button"
@@ -39,35 +39,51 @@ export function Sidebar({
         </button>
       </div>
 
+      {!collapsed ? (
+        <div className="px-3 pt-3">
+          <NavLink
+            to="/diagnostics"
+            onClick={onCloseMobile}
+            className="group flex items-center gap-2.5 rounded-lg border border-primary/30 bg-gradient-to-r from-primary/12 to-accent/5 px-3 py-2 text-xs font-semibold text-text transition-colors hover:border-primary/60 hover:from-primary/20"
+          >
+            <span className="grid h-6 w-6 place-items-center rounded-md bg-primary/15 text-primary">
+              <Sparkles className="h-3.5 w-3.5" />
+            </span>
+            <span className="min-w-0 flex-1 truncate">{t('nav.diagnostics')}</span>
+            <span className="text-[10px] font-bold text-primary">→</span>
+          </NavLink>
+        </div>
+      ) : null}
+
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
         {NAV_GROUPS.map((group) => {
           const items = group.items.filter((item) => !item.permission || hasPermission(item.permission))
           if (items.length === 0) return null
           return (
-          <div key={group.id} className="mb-3">
-            {!collapsed ? (
-              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-subtle">{t(group.labelKey)}</p>
-            ) : (
-              <div className="mx-2 mb-1 border-t border-line" aria-hidden />
-            )}
-            <ul className="space-y-0.5">
-              {items.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    onClick={onCloseMobile}
-                    className={cn('nav-link', collapsed && 'justify-center px-2')}
-                    title={collapsed ? t(item.labelKey) : undefined}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" aria-hidden />
-                    {!collapsed ? <span className="truncate">{t(item.labelKey)}</span> : null}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-          )
+            <div key={group.id} className="mb-3">
+              {!collapsed ? (
+                <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-subtle">{t(group.labelKey)}</p>
+              ) : (
+                <div className="mx-2 mb-1 border-t border-line" aria-hidden />
+              )}
+              <ul className="space-y-0.5">
+                {items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      onClick={onCloseMobile}
+                      className={cn('nav-link', collapsed && 'justify-center px-2')}
+                      title={collapsed ? t(item.labelKey) : undefined}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" aria-hidden />
+                      {!collapsed ? <span className="truncate">{t(item.labelKey)}</span> : null}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            )
         })}
       </nav>
 
@@ -96,8 +112,8 @@ export function Sidebar({
     <>
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 border-e border-line bg-[var(--sidebar)] transition-[width] duration-200 lg:block',
-          collapsed ? 'w-[4.25rem]' : 'w-64',
+          'sticky top-0 hidden h-screen shrink-0 border-e border-line bg-[var(--sidebar)] transition-[width] duration-300 ease-in-out lg:block',
+          collapsed ? 'w-[4.5rem]' : 'w-[16.5rem]',
         )}
       >
         {content}

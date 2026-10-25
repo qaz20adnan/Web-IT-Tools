@@ -3,6 +3,7 @@ dist
 dist-ssr
 coverage
 .netlify
+.local-auth
 .env
 .env.*
 !.env.example

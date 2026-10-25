@@ -1,3 +1,4 @@
+import { requireMember } from '../lib/auth'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { serverConfig } from '../lib/env'
 import { probeIppPrinter, probePorts, resolveProbeAddresses } from '../lib/net-probe'
@@ -15,6 +16,7 @@ function localRuntime(): boolean {
 }
 
 export const handler: Handler = wrap(async (event, context) => {
+  await requireMember(event)
   requireMethod(event, ['POST'])
   enforceRateLimit(`printer:${clientIp(event, context)}`, 10, 60_000)
   const parsed = printerRequestSchema.safeParse(readJsonBody(event, 16 * 1024))

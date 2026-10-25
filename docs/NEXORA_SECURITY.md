@@ -21,13 +21,17 @@ leakage, abusive AI usage, malicious provider URLs, and destructive admin mistak
 
 - Every privileged endpoint authenticates the bearer token against Supabase Auth, reloads
   the profile, and re-checks permissions. UI hiding is not treated as authorization.
-- Roles: `super_admin`, `content_manager`, `technical_editor`, `support_specialist`,
-  `premium_member`, `standard_member`, `trial_member`, `suspended_member`.
+- Roles: `owner`, `admin`, `super_admin` (legacy), `content_manager`,
+  `technical_editor`, `support_specialist`, `premium_member`, `standard_member`,
+  `trial_member`, `suspended_member`.
 - Suspended accounts receive no permissions and no entitlements, even with a valid token
   or a user-supplied provider key.
 - Admin actions reject self-demotion, self-suspension and self-deletion.
-- The last active super administrator cannot be demoted, suspended or deleted (checked in
-  the API and by a database trigger).
+- Only an `owner` may grant or revoke `owner`; an `admin` cannot modify an equal/higher
+  role or grant administrative roles. The API and a database trigger both enforce this.
+- The last active owner cannot be demoted, suspended or deleted. The same protection
+  remains for the legacy last active super administrator (checked in the API and by a
+  database trigger).
 
 ### Tenant isolation
 
@@ -71,6 +75,11 @@ logged server-side.
 - [ ] Rotate service-role and provider keys if they were ever exposed.
 - [ ] Set `NEXORA_HASH_PEPPER` to 32+ random bytes and keep it stable.
 - [ ] Configure Supabase redirect allowlist and email templates.
-- [ ] Confirm `NEXORA_OWNER_EMAIL` is correct before first login.
+- [ ] Confirm Supabase email verification is enabled before the first sign-in.
+- [ ] Register and verify the owner address, then run `npm run owner:promote`. There is
+      no automatic promotion from `OWNER_EMAIL`/`ADMIN_EMAIL`.
+- [ ] Use `npm run admin:promote` only for a deliberate platform administrator, and
+      `npm run super-admin:promote` only when retaining the legacy role is required.
+- [ ] Verify that guest requests to `/api/ai/*`, `/api/net/*` and `/api/research` return `401`.
 - [ ] Review audit events after every administrative change.
 - [ ] Back up the database before running migrations.

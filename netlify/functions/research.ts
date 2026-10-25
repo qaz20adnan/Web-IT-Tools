@@ -1,3 +1,4 @@
+import { requireMember } from '../lib/auth'
 import { createHash } from 'node:crypto'
 import { fetchText } from '../lib/fetch'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
@@ -122,6 +123,7 @@ async function brave(query: string, officialOnly: boolean): Promise<ResearchItem
 }
 
 export const handler: Handler = wrap(async (event, context) => {
+  await requireMember(event)
   requireMethod(event, ['POST'])
   enforceRateLimit(`research:${clientIp(event, context)}`, 15)
   const parsed = researchRequestSchema.safeParse(readJsonBody(event, 32 * 1024))

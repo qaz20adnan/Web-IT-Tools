@@ -1,6 +1,6 @@
 # NEXORA Test and Verification Report
 
-Date: 2026-10-23
+Date: 2026-10-24
 Environment: Windows, Node.js 22, local workspace without a live Supabase project,
 payment provider or deployment credentials.
 
@@ -9,8 +9,8 @@ payment provider or deployment credentials.
 | Command | Result |
 | --- | --- |
 | `npm run typecheck` | PASS — no TypeScript errors |
-| `npm run lint` | PASS — 0 errors, 11 pre-existing warnings |
-| `npm test -- --run` | PASS — 13 files, 92 tests |
+| `npm run lint` | PASS — 0 errors, 28 warnings (mostly `react-refresh`, pre-existing) |
+| `npm test -- --run` | PASS — 23 files, 147 tests |
 | `npm run build` | PASS — production bundle generated |
 
 Build warnings: the Vite config imports lack file extensions (future `configLoader`
@@ -20,10 +20,12 @@ warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
 
 | Suite | Focus |
 | --- | --- |
-| `tests/rbac.test.ts` | Role matrix, suspension override, inherited-key safety, assignable roles |
+| `tests/rbac.test.ts` | Role matrix, owner/admin hierarchy, assignment limits, suspension override, inherited-key safety |
 | `tests/trial.test.ts` | Trial dates, expiry, ending-soon, entitlements, quotas, subscription activity |
 | `tests/auth-session.test.ts` | Session persistence, malformed storage, implicit-flow fragments, hash clearing |
-| `tests/i18n.test.ts` | English/Arabic key parity |\n| `tests/content.test.ts` | Article/script/theme inventory integrity, bilingual content, HTTPS sources |
+| `tests/i18n.test.ts` | English/Arabic key parity |
+| `tests/access-control.test.ts` | Account-status gate, guest API rejection, safe redirects, per-account storage |
+| `tests/content.test.ts` | Article/script/theme inventory integrity, bilingual content, HTTPS sources |
 | `tests/ai-adapter.test.ts` | Provider normalization, fallback/error mapping, URL validation |
 | `tests/news.test.ts` | Feed parsing, limits, partial failures, cache behavior |
 | `tests/calculators.test.ts`, `cvss.test.ts`, `utils.test.ts` | Tool calculations and utilities |
@@ -34,9 +36,11 @@ warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
 
 | Area | Status | Evidence / limitation |
 | --- | --- | --- |
-| Guest app, local tools, knowledge, saved items | PASS | Build, unit tests and existing flows; 23 articles, 28 tools |
+| Public entry pages, local tools after sign-in | PASS | Build, unit tests and existing flows; 23+ articles, 28+ tools |
+| Welcome / trial banner (dismissible) | PASS | Renders with trial data, localStorage dismissal, RTL/LTR |
 | Provider Hub / model radar | PASS | Adapter tests and prior live OpenRouter verification |
 | AI chat/analyze/script via user key | PASS (code/tests) | Live completion depends on the user's provider key |
+| English Coach (AD-MOH) | PASS (code/tests) | Conversation, correction, levels, topics, per-account localStorage persistence |
 | Platform AI entitlements and quotas | PARTIAL | Logic unit-tested; not exercised against live usage rows |
 | News pipeline | PASS | 19 verified sources; parsing and partial-failure tests |
 | Registration/login/refresh/logout | PARTIAL | Implemented, typechecked; no live Supabase project |
@@ -59,15 +63,16 @@ warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
 - Verified privileged endpoints call `requirePermission` after loading the database-backed
   account.
 - Verified workspace queries include the authenticated user id.
-- Verified suspended accounts receive no permissions or entitlements.
+- Verified suspended accounts receive no permissions or entitlements, and guest requests to protected APIs are rejected with `401`.
+- Verified private browser stores are namespaced per account.
 - Verified the client bundle contains no AI provider key.
 - Checked `netlify.toml` security headers (CSP, HSTS, frame denial, no-store on APIs).
 
 ## Not verified (honest gaps)
 
 1. No Supabase project was available, so signup, email delivery, verification, password
-   reset, token refresh against the real service, RLS behavior and admin actions were not
-   executed end-to-end.
+   reset, token refresh against the real service, RLS behavior, admin actions and direct
+   unauthorized `curl`/`Invoke-RestMethod` calls were not executed end-to-end.
 2. No payment gateway exists, so no checkout, webhook, invoice or refund test is possible.
 3. No Netlify deployment was performed; function routing and scheduled behavior are
    unverified in production.

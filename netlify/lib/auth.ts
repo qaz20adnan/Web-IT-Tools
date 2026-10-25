@@ -9,10 +9,10 @@ import {
   supabaseCount,
   supabaseInsert,
   supabaseSelectAs,
-  supabaseUpdate,
   type SupabaseAuthUser,
 } from './supabase'
 import { computeTrial, quotaExceeded, resolveEntitlements, type Entitlements, type SubscriptionRecord, type TrialState } from './trial'
+import { localAccountForAccessToken, localAuthEnabled, type LocalAccountRecord } from './local-auth'
 
 export interface Profile {
   id: string
@@ -25,6 +25,19 @@ export interface Profile {
 }
 
 export type AccountStatus = Profile['status']
+
+/** Only active accounts may hold a usable session. */
+export function canSignIn(status: AccountStatus): boolean {
+  return status === 'active'
+}
+
+function assertActive(account: AuthAccount): void {
+  if (canSignIn(account.status)) return
+  if (account.status === 'suspended') {
+    throw new HttpError(403, 'forbidden', 'This account is suspended. Contact an administrator.')
+  }
+  throw new HttpError(403, 'forbidden', 'This account is pending activation. Contact an administrator.')
+}
 
 export interface AuthAccount {
   user: SupabaseAuthUser
@@ -52,6 +65,7 @@ export interface PublicProfile {
 export interface AccountPayload {
   configured: boolean
   databaseConfigured: boolean
+  adminConfigured: boolean
   ownerConfigured: boolean
   profile: PublicProfile | null
   permissions: Permission[]
@@ -161,53 +175,11 @@ async function ensureProfile(user: SupabaseAuthUser): Promise<Profile> {
       'id',
       true,
     )
-    const created = await supabaseSelectAs<Profile>('profiles', `select=*&id=eq.${encodeURIComponent(user.id)}&limit=1`)
-    profile = created[0]
+    const rows = await supabaseSelectAs<Profile>('profiles', `select=*&id=eq.${encodeURIComponent(user.id)}&limit=1`)
+    profile = rows[0]
     if (!profile) throw new HttpError(500, 'unknown', 'The user profile could not be created.')
   }
   return profile
-}
-
-/**
- * Promotes the configured owner exactly once, after a verified sign-in.
- *
- * Safety properties:
- * - requires a configured NEXORA_OWNER_EMAIL that matches the authenticated email;
- * - requires a verified email address;
- * - records a one-time `owner_bootstrapped` marker with a unique key, so the
- *   bootstrap cannot be replayed by later visitors or after a demotion;
- * - never promotes an arbitrary existing account.
- */
-async function maybeBootstrapOwner(user: SupabaseAuthUser, profile: Profile): Promise<Profile> {
-  if (!serverConfig.ownerEmail) return profile
-  if (!authUserVerified(user)) return profile
-  if (normalizeEmail(user.email) !== serverConfig.ownerEmail) return profile
-  if (profile.role === 'super_admin') return profile
-
-  const claimed = await supabaseInsert<SettingRow>(
-    'platform_settings',
-    [{ key: 'owner_bootstrapped', value: { email: serverConfig.ownerEmail, at: new Date().toISOString() }, updated_at: new Date().toISOString(), updated_by: profile.id }],
-    'key',
-    true,
-  )
-  if (claimed.length === 0) return profile
-
-  const updated = await supabaseUpdate<Profile>('profiles', `id=eq.${encodeURIComponent(user.id)}`, {
-    role: 'super_admin',
-    status: 'active',
-    updated_at: new Date().toISOString(),
-  })
-  const next = updated[0] ?? { ...profile, role: 'super_admin' }
-  await writeAudit({
-    actorId: user.id,
-    actorEmail: normalizeEmail(user.email),
-    action: 'admin.bootstrap_owner',
-    targetType: 'profile',
-    targetId: user.id,
-    outcome: 'success',
-    detail: { method: 'NEXORA_OWNER_EMAIL' },
-  })
-  return next
 }
 
 async function ensureTrial(profile: Profile): Promise<TrialRow | null> {
@@ -283,8 +255,7 @@ async function usageToday(userId: string): Promise<number> {
 
 export async function accountForUser(user: SupabaseAuthUser): Promise<AuthAccount> {
   assertAuthBackend()
-  let profile = await ensureProfile(user)
-  profile = await maybeBootstrapOwner(user, profile)
+  const profile = await ensureProfile(user)
   const role: Role = isRole(profile.role) ? profile.role : 'standard_member'
   const status: AccountStatus = profile.status === 'suspended' ? 'suspended' : profile.status === 'pending' ? 'pending' : 'active'
   const trialRow = profile.status === 'suspended' ? null : await ensureTrial(profile)
@@ -308,9 +279,48 @@ export async function accountForUser(user: SupabaseAuthUser): Promise<AuthAccoun
   }
 }
 
+export function localAuthAccount(record: LocalAccountRecord): AuthAccount {
+  const role = 'standard_member' as const
+  const status = 'active' as const
+  const trial = computeTrial(record.createdAt, serverConfig.trialDays)
+  return {
+    user: {
+      id: record.id,
+      email: record.email,
+      email_confirmed_at: record.createdAt,
+      created_at: record.createdAt,
+      updated_at: record.updatedAt,
+      user_metadata: { username: record.username, full_name: record.fullName },
+    },
+    profile: {
+      id: record.id,
+      email: record.email,
+      full_name: record.fullName,
+      role,
+      status,
+      created_at: record.createdAt,
+      updated_at: record.updatedAt,
+    },
+    role,
+    status,
+    permissions: permissionsFor(role, status),
+    entitlements: resolveEntitlements({ status, subscription: null, trial, isStaff: false }),
+    trial,
+    subscription: null,
+    usageToday: 0,
+    emailVerified: true,
+  }
+}
+
 export async function authenticate(event: NetlifyEvent): Promise<AuthAccount> {
-  assertAuthBackend()
   const token = bearer(event)
+  if (localAuthEnabled()) {
+    if (!token) throw new HttpError(401, 'unauthorized', 'Sign in to continue.')
+    const record = await localAccountForAccessToken(token)
+    if (!record) throw new HttpError(401, 'unauthorized', 'The local session is invalid or has expired.')
+    return localAuthAccount(record)
+  }
+  assertAuthBackend()
   if (!token) throw new HttpError(401, 'unauthorized', 'Sign in to continue.')
   let user: SupabaseAuthUser
   try {
@@ -320,7 +330,9 @@ export async function authenticate(event: NetlifyEvent): Promise<AuthAccount> {
     throw new HttpError(401, 'unauthorized', 'The session is invalid or has expired.')
   }
   if (!user?.id) throw new HttpError(401, 'unauthorized', 'The session is invalid or has expired.')
-  return accountForUser(user)
+  const account = await accountForUser(user)
+  assertActive(account)
+  return account
 }
 
 export function requirePermission(account: AuthAccount, permission: Permission): void {
@@ -334,6 +346,18 @@ export function requirePermission(account: AuthAccount, permission: Permission):
 
 export function requireVerified(account: AuthAccount): void {
   if (!account.emailVerified) throw new HttpError(403, 'email_not_verified', 'Verify your email address to continue.')
+}
+
+/**
+ * Authenticated, verified account with at least member access. Used by internal
+ * tools (network diagnostics, research, AI) so a valid session is required on
+ * the server even when the caller bypasses the UI.
+ */
+export async function requireMember(event: NetlifyEvent, permission: Permission = 'workspace.read'): Promise<AuthAccount> {
+  const account = await authenticate(event)
+  requireVerified(account)
+  requirePermission(account, permission)
+  return account
 }
 
 export function publicProfile(account: AuthAccount): PublicProfile {
@@ -352,6 +376,7 @@ export async function accountPayload(account: AuthAccount): Promise<AccountPaylo
   return {
     configured: true,
     databaseConfigured: supabaseAdminConfigured(),
+    adminConfigured: Boolean(serverConfig.adminEmail),
     ownerConfigured: Boolean(serverConfig.ownerEmail),
     profile: publicProfile(account),
     permissions: account.permissions,
@@ -443,12 +468,11 @@ export async function recordUsage(input: {
 /**
  * Enforces AI entitlements and quotas for signed-in users.
  *
- * Guests are unaffected so the existing bring-your-own-key workflow keeps
- * working; authenticated users must still have the `ai.use` permission (a
- * suspended account is rejected even when it supplies its own key).
+ * Guests are rejected. Signed-in users must have the `ai.use` permission; a
+ * suspended account is rejected even when it supplies its own provider key.
  */
-export async function enforceAiAccess(event: NetlifyEvent): Promise<AuthAccount | null> {
-  if (!bearer(event)) return null
+export async function enforceAiAccess(event: NetlifyEvent): Promise<AuthAccount> {
+  if (!bearer(event)) throw new HttpError(401, 'unauthorized', 'Sign in to use the AI assistant.')
   const account = await authenticate(event)
   requireVerified(account)
   requirePermission(account, 'ai.use')

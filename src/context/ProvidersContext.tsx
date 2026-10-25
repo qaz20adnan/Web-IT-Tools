@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ProviderConfig, ProviderDraft } from '@/types'
-import { readJson, sessionGet, sessionRemove, sessionSet, STORAGE_KEYS, writeJson } from '@/lib/storage'
+import { readJson, scopedStorageKey, sessionGet, sessionRemove, sessionSet, STORAGE_KEYS, writeJson } from '@/lib/storage'
 import { uid } from '@/lib/utils'
 import { useApp } from './AppContext'
 import type { AiCredentials } from '@/services/api'
@@ -22,36 +22,38 @@ interface ProvidersContextValue {
 
 const ProvidersContext = createContext<ProvidersContextValue | null>(null)
 
-export function ProvidersProvider({ children }: { children: ReactNode }) {
+export function ProvidersProvider({ children, userId = 'guest' }: { children: ReactNode; userId?: string }) {
   const { settings } = useApp()
+  const providersKey = scopedStorageKey(STORAGE_KEYS.providers, userId)
+  const sessionPrefix = `${KEY_PREFIX}${userId}.`
   const [providers, setProviders] = useState<ProviderConfig[]>(() =>
-    readJson<ProviderConfig[]>(STORAGE_KEYS.providers, []),
+    readJson<ProviderConfig[]>(providersKey, []),
   )
   const [keys, setKeys] = useState<Record<string, string>>(() => {
-    const stored = readJson<ProviderConfig[]>(STORAGE_KEYS.providers, [])
+    const stored = readJson<ProviderConfig[]>(providersKey, [])
     if (!readJson<{ storeProviderKeysInSession?: boolean }>(STORAGE_KEYS.settings, {}).storeProviderKeysInSession) {
       return {}
     }
     const restored: Record<string, string> = {}
     for (const provider of stored) {
-      const value = sessionGet(`${KEY_PREFIX}${provider.id}`)
+      const value = sessionGet(`${sessionPrefix}${provider.id}`)
       if (value) restored[provider.id] = value
     }
     return restored
   })
 
   useEffect(() => {
-    writeJson(STORAGE_KEYS.providers, providers)
-  }, [providers])
+    writeJson(providersKey, providers)
+  }, [providers, providersKey])
 
   useEffect(() => {
     for (const provider of providers) {
       const value = keys[provider.id]
       if (!value) continue
-      if (settings.storeProviderKeysInSession) sessionSet(`${KEY_PREFIX}${provider.id}`, value)
-      else sessionRemove(`${KEY_PREFIX}${provider.id}`)
+      if (settings.storeProviderKeysInSession) sessionSet(`${sessionPrefix}${provider.id}`, value)
+      else sessionRemove(`${sessionPrefix}${provider.id}`)
     }
-  }, [providers, keys, settings.storeProviderKeysInSession])
+  }, [providers, keys, settings.storeProviderKeysInSession, sessionPrefix])
 
   const persistKey = useCallback(
     (id: string, value: string) => {
@@ -62,12 +64,12 @@ export function ProvidersProvider({ children }: { children: ReactNode }) {
         return next
       })
       if (settings.storeProviderKeysInSession && value) {
-        sessionSet(`${KEY_PREFIX}${id}`, value)
+        sessionSet(`${sessionPrefix}${id}`, value)
       } else {
-        sessionRemove(`${KEY_PREFIX}${id}`)
+        sessionRemove(`${sessionPrefix}${id}`)
       }
     },
-    [settings.storeProviderKeysInSession],
+    [settings.storeProviderKeysInSession, sessionPrefix],
   )
 
   const getKey = useCallback((id: string) => keys[id] ?? null, [keys])
@@ -124,11 +126,11 @@ export function ProvidersProvider({ children }: { children: ReactNode }) {
 
   const clearKeys = useCallback(() => {
     setProviders((current) => {
-      current.forEach((provider) => sessionRemove(`${KEY_PREFIX}${provider.id}`))
+      current.forEach((provider) => sessionRemove(`${sessionPrefix}${provider.id}`))
       return current
     })
     setKeys({})
-  }, [])
+  }, [sessionPrefix])
 
   const defaultProvider = useMemo(
     () => providers.find((provider) => provider.isDefault) ?? providers[0] ?? null,

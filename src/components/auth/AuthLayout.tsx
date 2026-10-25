@@ -62,8 +62,8 @@ export function AuthLayout({
         </div>
         <p className="mt-4 text-center text-[11px] text-subtle">Built by Eng. Adnan Al Qadi · م. عدنان القاضي</p>
         <p className="mt-3 text-center text-[11px] text-subtle">
-          <Link to="/" className="hover:text-text">
-            {t('auth.continueGuest')}
+          <Link to="/about" className="hover:text-text">
+            {t('nav.about')}
           </Link>
         </p>
       </section>

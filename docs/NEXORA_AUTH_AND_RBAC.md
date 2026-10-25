@@ -46,30 +46,55 @@ templates:
 Set `NEXORA_SITE_URL` to the deployed origin (for example `https://nexora-ai.netlify.app`)
 and add it to Supabase **Authentication → URL Configuration**.
 
-### Owner bootstrap
+### Owner and administrator promotion
 
-1. Set `NEXORA_OWNER_EMAIL` to a verified address you control.
-2. Register that address normally.
-3. On the first authenticated request the server checks:
-   - the email matches exactly (case-insensitive),
-   - the email is verified,
-   - `platform_settings.owner_bootstrapped` is not already `true`.
-4. Only then is the profile promoted to `super_admin` and the marker written.
+There is **no automatic promotion** based on an email address. `OWNER_EMAIL` and
+`ADMIN_EMAIL` are only inputs for an explicit local command; signing in never changes a
+role.
 
-No first-signup or arbitrary-account promotion exists. Removing the variable after
-bootstrap does not demote the owner.
+1. Optionally set `OWNER_EMAIL` (owner) and/or `ADMIN_EMAIL` (platform administrator) to
+   verified addresses you control.
+2. Register that address normally and verify it (email verification must be enabled).
+3. Sign in once so the profile row exists.
+4. Run one deliberate command with the service-role key:
 
-### Sessions
+```bash
+npm run owner:promote         # role=owner, uses OWNER_EMAIL
+npm run admin:promote         # role=admin, uses ADMIN_EMAIL
+npm run super-admin:promote   # legacy role=super_admin, uses ADMIN_EMAIL
+# or: node --env-file=.env scripts/promote-admin.mjs --role=owner --confirm
+```
 
-Tokens are stored under `nexora.auth.session.v1` and refreshed two minutes before expiry.
-The token provider in `src/services/api.ts` attaches the access token to API requests.
-Clearing storage signs the browser out; server-side logout revokes the refresh token.
+The command refuses unverified addresses, never creates accounts, writes an audit event,
+and is safe to re-run. There is no public bootstrap endpoint and no default administrator
+password. Removing the variables after promotion does not demote the account.
+
+Only an active `owner` may grant or revoke the `owner` role. A platform `admin` cannot
+modify an owner, super administrator or another admin, and cannot grant administrative
+roles. The database trigger repeats these hierarchy checks for direct REST access, and the
+last active owner cannot be demoted, suspended or deleted.
+
+### Account status and sessions
+
+- Tokens are stored under `nexora.auth.session.v1` and refreshed two minutes before expiry.
+- The token provider in `src/services/api.ts` attaches the access token to API requests.
+- Every protected request reloads the profile from the database. `suspended` and
+  `pending` accounts are rejected even when an old access token is still valid; login and
+  token refresh are rejected too.
+- Clearing storage signs the browser out; server-side logout revokes the session.
+- Changing a role or suspending an account takes effect on the next request without
+  waiting for the token to expire.
+- Private browser data (saved items, history, scripts, knowledge base, diagnostics,
+  English-coach conversations and provider keys) is namespaced per account; switching
+  accounts remounts those stores.
 
 ## Roles
 
 | Role | Scope |
 | --- | --- |
-| `super_admin` | Full platform administration |
+| `owner` | Highest authority; every permission and exclusive control of the `owner` role |
+| `admin` | Platform administration: users, content (no permanent delete), settings, subscriptions, reports, audit, support |
+| `super_admin` | Legacy full-administration role retained for existing deployments |
 | `content_manager` | Knowledge/news/content lifecycle, reports, feedback |
 | `technical_editor` | Create/update/archive content; no delete or restore |
 | `support_specialist` | Support cases, content read, reports |
@@ -80,57 +105,85 @@ Clearing storage signs the browser out; server-side logout revokes the refresh t
 
 ## Permission matrix
 
-| Permission | super | content mgr | tech editor | support | members | suspended |
-| --- | --- | --- | --- | --- | --- | --- |
-| `users.read` | yes | no | no | no | no | no |
-| `users.update` | yes | no | no | no | no | no |
-| `users.suspend` | yes | no | no | no | no | no |
-| `users.delete` | yes | no | no | no | no | no |
-| `roles.assign` | yes | no | no | no | no | no |
-| `content.read` | yes | yes | yes | yes | no | no |
-| `content.create` | yes | yes | yes | no | no | no |
-| `content.update` | yes | yes | yes | no | no | no |
-| `content.archive` | yes | yes | yes | no | no | no |
-| `content.restore` | yes | yes | no | no | no | no |
-| `content.delete` | yes | yes | no | no | no | no |
-| `news.manage` | yes | yes | no | no | no | no |
-| `providers.manage` | yes | no | no | no | no | no |
-| `settings.manage` | yes | no | no | no | no | no |
-| `subscriptions.manage` | yes | no | no | no | no | no |
-| `reports.read` | yes | yes | no | yes | no | no |
-| `audit_logs.read` | yes | no | no | no | no | no |
-| `workspace.read` | yes | yes | yes | yes | yes | no |
-| `workspace.write` | yes | yes | yes | yes | yes | no |
-| `ai.use` | yes | yes | yes | yes | yes | no |
-| `research.read` | yes | yes | yes | yes | yes | no |
-| `support.cases.read` | yes | no | no | yes | no | no |
-| `support.cases.update` | yes | no | no | yes | no | no |
+| Permission | owner | admin | super | content mgr | tech editor | support | members | suspended |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `users.read` | yes | yes | yes | no | no | no | no | no |
+| `users.update` | yes | yes | yes | no | no | no | no | no |
+| `users.suspend` | yes | yes | yes | no | no | no | no | no |
+| `users.delete` | yes | no | yes | no | no | no | no | no |
+| `roles.assign` | yes | yes* | yes | no | no | no | no | no |
+| `content.read` | yes | yes | yes | yes | yes | yes | no | no |
+| `content.create` | yes | yes | yes | yes | yes | no | no | no |
+| `content.update` | yes | yes | yes | yes | yes | no | no | no |
+| `content.archive` | yes | yes | yes | yes | yes | no | no | no |
+| `content.restore` | yes | yes | yes | yes | no | no | no | no |
+| `content.delete` | yes | no | yes | yes | no | no | no | no |
+| `news.manage` | yes | yes | yes | yes | no | no | no | no |
+| `providers.manage` | yes | no | yes | no | no | no | no | no |
+| `settings.manage` | yes | yes | yes | no | no | no | no | no |
+| `subscriptions.manage` | yes | yes | yes | no | no | no | no | no |
+| `reports.read` | yes | yes | yes | yes | no | yes | no | no |
+| `audit_logs.read` | yes | yes | yes | no | no | no | no | no |
+| `workspace.read` | yes | yes | yes | yes | yes | yes | yes | no |
+| `workspace.write` | yes | yes | yes | yes | yes | yes | yes | no |
+| `ai.use` | yes | yes | yes | yes | yes | yes | yes | no |
+| `research.read` | yes | yes | yes | yes | yes | yes | yes | no |
+| `support.cases.read` | yes | yes | yes | no | no | yes | no | no |
+| `support.cases.update` | yes | yes | yes | no | no | yes | no | no |
 
-The matrix lives in `netlify/lib/rbac.ts` and is the single source of truth. The UI uses it
-to hide controls, but every endpoint re-checks against the database-backed profile.
+\* An `admin` may assign only roles below `admin`; only an `owner` may grant or revoke
+`owner`, and an `admin` cannot grant `admin`/`super_admin`.
+
+The matrix lives in `netlify/lib/rbac.ts` and is the single source of truth. The hierarchy
+(`ROLE_RANK`, `canManageRole`, `canAssignRole`) is enforced by the admin endpoint and by
+the database trigger. The UI uses the same list to hide controls, but every endpoint
+re-checks against the database-backed profile.
 
 ## Enforcement rules
 
 - A suspended status overrides role permissions: the effective permission set is empty.
 - Staff receive premium entitlements for AI/workspace, plus `admin: true`.
 - `users.update` accepts a role only with `roles.assign` and a status only with
-  `users.suspend`; an admin cannot change their own role or status.
-- The last active `super_admin` cannot be demoted, suspended or deleted (API + trigger).
+  `users.suspend`; an admin cannot change their own role or status, cannot modify an
+  equal/higher role, and an `admin` can assign only lower roles.
+- The last active `owner` cannot be demoted, suspended or deleted. The same protection
+  remains for the legacy last active `super_admin` (API + trigger).
 - Workspace rows are always scoped to the authenticated user, including nested message
   queries.
 - Permission changes take effect on the next request because the profile is reloaded
   server-side; stale UI state cannot grant access.
 
+## Route and API policy
+
+| Area | Access |
+| --- | --- |
+| `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify`, `/check-email`, `/about` | Public |
+| Every other page (dashboard, tools, AI, knowledge, news, diagnostics, saved, settings, workspace, account) | Authenticated + verified |
+| `/admin` | Requires `users.read` (owner, admin or legacy super administrator) |
+| `/api/auth`, `/api/health`, `/api/content`, `/api/news`, public article reads | Public |
+| `/api/ai/chat`, `/api/ai/analyze`, `/api/ai/script`, `/api/ai/test`, `/api/ai/models`, `/api/net/*`, `/api/research`, `/api/workspace` | Authenticated member; AI also enforces entitlement/quota |
+| `/api/admin` | Each action checks its RBAC permission server-side |
+| `/api/content/admin` | Requires `CONTENT_ADMIN_TOKEN` (server-to-server) |
+
+The frontend guard is only a convenience. Every protected handler calls
+`authenticate()`/`requireMember()` and re-checks the database-backed role, so calling a
+protected API directly without a token returns `401`, and a suspended account returns
+`403` even with an older token.
+
 ## Account states
 
-- `pending` — created but email not verified. Can sign in but cannot use AI with the
-  platform key until verified.
+- `pending` — activation not complete. Login and protected requests are rejected.
 - `active` — normal access.
-- `suspended` — blocked from workspace, research and AI; admin endpoints reject.
+- `suspended` — login, token refresh and every protected request are rejected. Admins can
+  reactivate the account; private data is retained.
+- Deleting an account is a separate, explicit admin action that requires `users.delete`,
+  cannot target the actor, cannot remove the last active administrator, and cascades only
+  through the account's own Supabase rows.
 
 ## Testing status
 
-RBAC unit tests cover role/permission lookup, suspension override, inherited-key safety
-and assignable roles. Auth/session parsing tests cover stored sessions and fragment
-tokens. Live Supabase signup, email delivery, verification and password reset remain
-**BLOCKED** until a project is configured; see `docs/NEXORA_TEST_REPORT.md`.
+Unit tests cover role/permission lookup, suspension override, inherited-key safety,
+account-status gating, safe post-login redirects and per-user storage namespaces.
+Auth/session parsing tests cover stored sessions and fragment tokens. Live Supabase
+signup, email delivery, verification and password reset require a configured project; see
+`docs/NEXORA_TEST_REPORT.md`.

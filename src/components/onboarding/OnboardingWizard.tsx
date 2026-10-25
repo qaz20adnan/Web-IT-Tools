@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Check, Languages, Palette, Plug, Sparkles } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
+import { useAuth } from '@/context/AuthContext'
 import { THEMES } from '@/data/themes'
 import { cn } from '@/lib/utils'
 import { Button, Modal } from '@/components/ui'
 
 export function OnboardingWizard() {
   const { t, settings, updateSettings, completeOnboarding, setLanguage, setTheme } = useApp()
+  const { status } = useAuth()
   const [step, setStep] = useState(0)
   const total = 3
 
@@ -15,7 +17,7 @@ export function OnboardingWizard() {
 
   return (
     <Modal
-      open={!settings.onboardingComplete}
+      open={status === 'authenticated' && !settings.onboardingComplete}
       onClose={finish}
       title={t('onboarding.welcome')}
       size="lg"

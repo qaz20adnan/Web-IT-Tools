@@ -9,10 +9,23 @@ import {
   type AuthAccount,
 } from '../lib/auth'
 import { HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
-import { isRole, ASSIGNABLE_ROLES, type Role } from '../lib/rbac'
+import {
+  assignableRolesFor,
+  canAssignRole,
+  canManageRole,
+  isRole,
+  type Role,
+} from '../lib/rbac'
 import { authAdminRequest, supabaseCount, supabaseInsert, supabaseSelectAs, supabaseUpdate } from '../lib/supabase'
 
+interface AuthAdminUser {
+  id: string
+  last_sign_in_at?: string | null
+}
+
 const roleSchema = z.enum([
+  'owner',
+  'admin',
   'super_admin',
   'content_manager',
   'technical_editor',
@@ -80,8 +93,16 @@ function escapeFilter(value: string): string {
   return value.replace(/[%*,()\\]/g, ' ').trim()
 }
 
+async function activeOwners(): Promise<number> {
+  return supabaseCount('profiles', `role=eq.owner&status=eq.active`)
+}
+
 async function activeSuperAdmins(): Promise<number> {
   return supabaseCount('profiles', `role=eq.super_admin&status=eq.active`)
+}
+
+function targetRoleOf(profile: ProfileRow): Role {
+  return isRole(profile.role) ? profile.role : 'standard_member'
 }
 
 async function loadProfile(userId: string): Promise<ProfileRow> {
@@ -107,7 +128,7 @@ export const handler: Handler = wrap(async (event) => {
     requirePermission(account, 'reports.read')
     const [users, staff, suspended, openFeedback, plans, recentAudit, auditTotal, usage7d] = await Promise.all([
       supabaseCount('profiles'),
-      supabaseCount('profiles', `role=in.(${['super_admin', 'content_manager', 'technical_editor', 'support_specialist'].join(',')})`),
+      supabaseCount('profiles', `role=in.(${['owner', 'admin', 'super_admin', 'content_manager', 'technical_editor', 'support_specialist'].join(',')})`),
       supabaseCount('profiles', 'status=eq.suspended'),
       supabaseCount('content_feedback', 'status=eq.open'),
       supabaseSelectAs<Record<string, unknown>>('subscriptions', 'select=plan_id,status,current_period_end&limit=1000'),
@@ -153,11 +174,35 @@ export const handler: Handler = wrap(async (event) => {
     const limit = body.limit ?? 50
     const offset = body.offset ?? 0
     const query = `select=*${filters.length ? `&${filters.join('&')}` : ''}&order=created_at.desc&limit=${limit}&offset=${offset}`
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       supabaseSelectAs<ProfileRow>('profiles', query),
-      supabaseCount('profiles', filters.filter((entry) => !entry.startsWith('or=')).join('&')),
+      supabaseCount('profiles', filters.join('&')),
     ])
-    return json(200, { ok: true, items, total, limit, offset })
+    // Best-effort enrichment with the last sign-in timestamp from Supabase Auth.
+    const lastSignIn = new Map<string, string | null>()
+    try {
+      const authUsers = await authAdminRequest<{ users?: AuthAdminUser[] }>('/users?per_page=1000&page=1')
+      for (const entry of authUsers.users ?? []) lastSignIn.set(entry.id, entry.last_sign_in_at ?? null)
+    } catch {
+      /* The profile list remains usable when the auth admin API is unavailable. */
+    }
+    const items = rows.map((row) => {
+      const role = targetRoleOf(row)
+      return {
+        ...row,
+        role,
+        last_sign_in_at: lastSignIn.get(row.id) ?? null,
+        manageable: row.id !== account.profile.id && canManageRole(account.role, role),
+      }
+    })
+    return json(200, {
+      ok: true,
+      items,
+      total,
+      limit,
+      offset,
+      assignableRoles: assignableRolesFor(account.role),
+    })
   }
 
   if (body.action === 'users.update') {
@@ -166,19 +211,44 @@ export const handler: Handler = wrap(async (event) => {
     if (!body.role && !body.status) throw new HttpError(400, 'invalid_input', 'Nothing to update.')
     assertNotSelf(account, body.userId, body.status === 'suspended' ? 'suspend' : 'change the role of')
     const target = await loadProfile(body.userId)
+    const targetRole = targetRoleOf(target)
 
-    if (body.role && !ASSIGNABLE_ROLES.includes(body.role)) {
-      throw new HttpError(400, 'invalid_input', 'That role cannot be assigned.')
+    if (body.role && !canAssignRole(account.role, body.role)) {
+      throw new HttpError(403, 'forbidden', 'You cannot grant or revoke that role.')
     }
-    if (target.role === 'super_admin' && ((body.role && body.role !== 'super_admin') || body.status === 'suspended')) {
-      const admins = await activeSuperAdmins()
-      if (admins <= 1) throw new HttpError(422, 'invalid_input', 'The last active super administrator cannot be demoted or suspended.')
+    if (!canManageRole(account.role, targetRole)) {
+      throw new HttpError(403, 'forbidden', 'You cannot modify an account with an equal or higher role.')
+    }
+
+    const removesOwner =
+      targetRole === 'owner' &&
+      target.status === 'active' &&
+      ((body.role !== undefined && body.role !== 'owner') || body.status === 'suspended')
+    const removesSuperAdmin =
+      targetRole === 'super_admin' &&
+      target.status === 'active' &&
+      ((body.role !== undefined && body.role !== 'super_admin') || body.status === 'suspended')
+
+    if (removesOwner && (await activeOwners()) <= 1) {
+      throw new HttpError(422, 'invalid_input', 'The last active platform owner cannot be demoted or suspended.')
+    }
+    if (removesSuperAdmin && (await activeSuperAdmins()) <= 1) {
+      throw new HttpError(422, 'invalid_input', 'The last active super administrator cannot be demoted or suspended.')
     }
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (body.role) patch.role = body.role
     if (body.status) patch.status = body.status
     const updated = await supabaseUpdate<ProfileRow>('profiles', `id=eq.${encodeURIComponent(body.userId)}`, patch)
+
+    if ((removesOwner && (await activeOwners()) === 0) || (removesSuperAdmin && (await activeSuperAdmins()) === 0)) {
+      await supabaseUpdate<ProfileRow>('profiles', `id=eq.${encodeURIComponent(body.userId)}`, {
+        role: target.role,
+        status: target.status,
+        updated_at: new Date().toISOString(),
+      })
+      throw new HttpError(422, 'invalid_input', 'The last active privileged account cannot be demoted or suspended.')
+    }
     await writeAudit({
       actorId: account.profile.id,
       actorEmail: account.profile.email,
@@ -195,7 +265,15 @@ export const handler: Handler = wrap(async (event) => {
     requirePermission(account, 'users.delete')
     assertNotSelf(account, body.userId, 'delete')
     const target = await loadProfile(body.userId)
-    if (target.role === 'super_admin') {
+    const targetRole = targetRoleOf(target)
+    if (!canManageRole(account.role, targetRole)) {
+      throw new HttpError(403, 'forbidden', 'You cannot delete an account with an equal or higher role.')
+    }
+    if (targetRole === 'owner' && target.status === 'active') {
+      const owners = await activeOwners()
+      if (owners <= 1) throw new HttpError(422, 'invalid_input', 'The last active platform owner cannot be deleted.')
+    }
+    if (targetRole === 'super_admin' && target.status === 'active') {
       const admins = await activeSuperAdmins()
       if (admins <= 1) throw new HttpError(422, 'invalid_input', 'The last active super administrator cannot be deleted.')
     }

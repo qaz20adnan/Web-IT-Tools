@@ -1,0 +1,292 @@
+import {
+  Activity,
+  Binary,
+  Braces,
+  Cloud,
+  FileSearch,
+  FileText,
+  Fingerprint,
+  Globe2,
+  Gauge,
+  Layers,
+  Lock,
+  MessageSquareCode,
+  Network,
+  Radar,
+  Route,
+  ScrollText,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  TerminalSquare,
+  Wrench,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import type { LocalizedText } from '@/types'
+
+export type DiagnosticCategory = 'network' | 'security' | 'systems' | 'ai'
+export type DiagnosticExecution = 'server' | 'browser' | 'external'
+
+export interface DiagnosticToolMeta {
+  id: string
+  name: LocalizedText
+  description: LocalizedText
+  category: DiagnosticCategory
+  icon: LucideIcon
+  route: string
+  execution: DiagnosticExecution
+  risk: 'low' | 'medium' | 'high'
+  availability: 'available' | 'limited'
+}
+
+export const DIAGNOSTIC_CATEGORIES: Array<{ id: DiagnosticCategory; label: LocalizedText }> = [
+  { id: 'network', label: { en: 'Network', ar: 'الشبكة' } },
+  { id: 'security', label: { en: 'Security', ar: 'الأمان' } },
+  { id: 'systems', label: { en: 'Systems', ar: 'الأنظمة' } },
+  { id: 'ai', label: { en: 'AI', ar: 'الذكاء الاصطناعي' } },
+]
+
+export const DIAGNOSTIC_TOOLS: DiagnosticToolMeta[] = [
+  {
+    id: 'ping',
+    name: { en: 'Ping Test', ar: 'فحص Ping' },
+    description: { en: 'Measure round-trip latency, jitter and packet loss to a public host.', ar: 'قياس زمن الاستجابة والتذبذب وفقدان الحزم لمضيف عام.' },
+    category: 'network',
+    icon: Activity,
+    route: '/diagnostics?tool=ping',
+    execution: 'server',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'traceroute',
+    name: { en: 'Traceroute', ar: 'تتبع المسار' },
+    description: { en: 'Map every hop between the platform and a destination.', ar: 'رسم كل قفزة بين المنصة والوجهة.' },
+    category: 'network',
+    icon: Route,
+    route: '/diagnostics?tool=traceroute',
+    execution: 'server',
+    risk: 'low',
+    availability: 'limited',
+  },
+  {
+    id: 'dns',
+    name: { en: 'DNS Lookup', ar: 'استعلام DNS' },
+    description: { en: 'Resolve A, AAAA, MX, TXT, NS, CNAME and SOA records.', ar: 'استرجاع سجلات A وAAAA وMX وTXT وNS وCNAME وSOA.' },
+    category: 'network',
+    icon: Globe2,
+    route: '/diagnostics?tool=dns',
+    execution: 'server',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'ports',
+    name: { en: 'Port Connectivity', ar: 'اتصال المنافذ' },
+    description: { en: 'Check TCP reachability for a small, allow-listed set of ports.', ar: 'فحص اتصال TCP لمجموعة صغيرة ومحددة من المنافذ.' },
+    category: 'network',
+    icon: Network,
+    route: '/diagnostics?tool=ports',
+    execution: 'server',
+    risk: 'medium',
+    availability: 'available',
+  },
+  {
+    id: 'http',
+    name: { en: 'HTTP Health Check', ar: 'فحص صحة HTTP' },
+    description: { en: 'Validate status, redirects, latency and response headers safely.', ar: 'فحص الحالة والتحويلات وزمن الاستجابة والرؤوس بأمان.' },
+    category: 'network',
+    icon: Gauge,
+    route: '/diagnostics?tool=http',
+    execution: 'server',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'ssl',
+    name: { en: 'SSL Certificate Check', ar: 'فحص شهادة SSL' },
+    description: { en: 'Inspect certificate validity, issuer and days remaining.', ar: 'فحص صلاحية الشهادة والمصدر والأيام المتبقية.' },
+    category: 'security',
+    icon: Lock,
+    route: '/diagnostics?tool=ssl',
+    execution: 'server',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'url',
+    name: { en: 'URL Safety Analyzer', ar: 'تحليل أمان الروابط' },
+    description: { en: 'Surface suspicious indicators, redirects and TLS posture.', ar: 'إظهار المؤشرات المشبوهة والتحويلات وحالة TLS.' },
+    category: 'security',
+    icon: ShieldCheck,
+    route: '/security-lab?tool=url',
+    execution: 'server',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'file',
+    name: { en: 'File Hash & Integrity', ar: 'تجزئة وسلامة الملفات' },
+    description: { en: 'Local SHA-256, actual MIME detection and extension mismatch checks.', ar: 'حساب SHA-256 محليًا وكشف النوع الفعلي ومقارنة الامتداد.' },
+    category: 'security',
+    icon: Fingerprint,
+    route: '/security-lab?tool=file',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'log',
+    name: { en: 'Log Analyzer', ar: 'محلل السجلات' },
+    description: { en: 'Detect error patterns, repeated events and build a timeline.', ar: 'اكتشاف أنماط الأخطاء والأحداث المتكررة وبناء خط زمني.' },
+    category: 'systems',
+    icon: ScrollText,
+    route: '/security-lab?tool=log',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'subnet',
+    name: { en: 'IP & Subnet Calculator', ar: 'حاسبة IP وSubnet' },
+    description: { en: 'Network, broadcast, usable host range and CIDR math.', ar: 'الشبكة والبث ونطاق المضيفين وحسابات CIDR.' },
+    category: 'network',
+    icon: Layers,
+    route: '/network-tools?tab=subnet',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'windows',
+    name: { en: 'Windows Troubleshooting', ar: 'استكشاف أخطاء Windows' },
+    description: { en: 'Review safe SFC, DISM and Windows Update command sets.', ar: 'مراجعة أوامر SFC وDISM وتحديث Windows الآمنة.' },
+    category: 'systems',
+    icon: TerminalSquare,
+    route: '/toolkit?tool=commandbuilder',
+    execution: 'browser',
+    risk: 'medium',
+    availability: 'available',
+  },
+  {
+    id: 'server',
+    name: { en: 'Server Diagnostics', ar: 'تشخيص الخوادم' },
+    description: { en: 'Estimate RAID capacity, backup sizing and recovery objectives.', ar: 'تقدير سعة RAID وحجم النسخ الاحتياطي وأهداف التعافي.' },
+    category: 'systems',
+    icon: Server,
+    route: '/toolkit?tool=raid',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'copilot',
+    name: { en: 'AI Technical Copilot', ar: 'المساعد التقني الذكي' },
+    description: { en: 'Work through evidence-based hypotheses with an AI copilot.', ar: 'تحليل الفرضيات القائمة على الأدلة مع مساعد ذكي.' },
+    category: 'ai',
+    icon: MessageSquareCode,
+    route: '/copilot',
+    execution: 'external',
+    risk: 'low',
+    availability: 'available',
+  },
+]
+
+export const SECONDARY_TOOLS: DiagnosticToolMeta[] = [
+  {
+    id: 'ipv6',
+    name: { en: 'IPv6 Helper', ar: 'مساعد IPv6' },
+    description: { en: 'Expand, compress and classify IPv6 addresses.', ar: 'توسيع واختصار وتصنيف عناوين IPv6.' },
+    category: 'network',
+    icon: Globe2,
+    route: '/toolkit?tool=ipv6',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'bandwidth',
+    name: { en: 'Bandwidth Calculator', ar: 'حاسبة النطاق الترددي' },
+    description: { en: 'Estimate transfer time from size, speed and overhead.', ar: 'تقدير زمن النقل من الحجم والسرعة والنسق.' },
+    category: 'network',
+    icon: Gauge,
+    route: '/toolkit?tool=bandwidth',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'hash',
+    name: { en: 'Hash Utility', ar: 'أداة التجزئة' },
+    description: { en: 'SHA-1, SHA-256 and SHA-512 digests in the browser.', ar: 'بصمات SHA-1 وSHA-256 وSHA-512 في المتصفح.' },
+    category: 'security',
+    icon: Binary,
+    route: '/toolkit?tool=hash',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'headers',
+    name: { en: 'Security Headers', ar: 'رؤوس الأمان' },
+    description: { en: 'Recommended HTTP security headers and rationale.', ar: 'رؤوس HTTP الأمنية الموصى بها وأسبابها.' },
+    category: 'security',
+    icon: FileSearch,
+    route: '/toolkit?tool=headers',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'json',
+    name: { en: 'JSON Validator', ar: 'مدقق JSON' },
+    description: { en: 'Format, minify and find JSON syntax errors.', ar: 'تنسيق وتصغير وإيجاد أخطاء JSON.' },
+    category: 'systems',
+    icon: Braces,
+    route: '/toolkit?tool=json',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'docs',
+    name: { en: 'Tech Docs Hub', ar: 'مركز الوثائق التقنية' },
+    description: { en: 'Curated vendor documentation and references.', ar: 'وثائق ومراجع المورّدين المنتقاة.' },
+    category: 'systems',
+    icon: FileText,
+    route: '/docs',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'radar',
+    name: { en: 'AI Model Radar', ar: 'رادار نماذج الذكاء' },
+    description: { en: 'Compare model capabilities and context windows.', ar: 'مقارنة قدرات النماذج ونوافذ السياق.' },
+    category: 'ai',
+    icon: Radar,
+    route: '/radar',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+  {
+    id: 'cloud',
+    name: { en: 'Cloud & DevOps', ar: 'السحابة وDevOps' },
+    description: { en: 'Cloud operations references and troubleshooting guides.', ar: 'مراجع عمليات السحابة وأدلة الاستكشاف.' },
+    category: 'systems',
+    icon: Cloud,
+    route: '/cloud',
+    execution: 'browser',
+    risk: 'low',
+    availability: 'available',
+  },
+]
+
+export const ALL_DIAGNOSTIC_TOOLS = [...DIAGNOSTIC_TOOLS, ...SECONDARY_TOOLS]
+
+export function getDiagnosticTool(id: string): DiagnosticToolMeta | undefined {
+  return ALL_DIAGNOSTIC_TOOLS.find((tool) => tool.id === id)
+}
+
+export const SYSTEM_ICONS = { Wrench, Sparkles, Activity }

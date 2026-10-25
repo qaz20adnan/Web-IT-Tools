@@ -2,13 +2,13 @@
 
 ## Overview
 
-NEXORA AI is a single-page React application backed by flat Netlify Functions. It has
-two modes:
+NEXORA AI is a single-page React application backed by flat Netlify Functions.
 
-1. **Guest/local mode** — no account required. Local tools, knowledge, saved items,
-   provider testing and AI via a user-supplied key work without Supabase.
-2. **Account mode** — Supabase Auth, server-enforced RBAC, trials/subscriptions, a
-   private workspace and an admin center.
+1. **Public entry** — `/login`, `/register`, `/forgot-password`, `/reset-password`,
+   `/verify`, `/check-email` and `/about` are reachable without a session.
+2. **Account mode** — every internal page and tool API requires a signed-in,
+   email-verified account. Supabase Auth, server-enforced RBAC, trials/subscriptions, a
+   private workspace and an admin center build on that session.
 
 The browser never talks to Supabase directly. All database and auth operations pass
 through the app's own `/api` functions using the service-role key server-side.
@@ -46,8 +46,9 @@ Browser (React)
 ### Auth (`netlify/lib/auth.ts`, `netlify/functions/auth.ts`)
 
 - Supabase Auth signup/login/refresh/logout/recover/resend/verify.
-- Profile creation on first authenticated request.
-- One-time owner bootstrap from `NEXORA_OWNER_EMAIL`.
+- Profile creation on first authenticated request. No role is granted automatically from
+  `OWNER_EMAIL`/`ADMIN_EMAIL`; promotion is an explicit local command
+  (`scripts/promote-admin.mjs`).
 - Trial creation with a unique HMAC email claim.
 - Entitlements resolved on the server from role, status, subscription and trial.
 - Permission checks and audit writes.
@@ -70,8 +71,9 @@ last active super administrator.
 
 OpenRouter remains the default. The adapter validates keys, resolves base URLs, retries
 without a configured fallback model when a model is unavailable, and maps provider errors.
-Authenticated requests are permission-checked and usage-recorded. Guests and users with
-their own key keep the existing BYO-key workflow.
+Every AI request requires an authenticated, verified member. Requests are
+permission-checked and usage-recorded; users may still supply their own provider key
+instead of consuming the platform quota.
 
 ## Database
 
@@ -86,7 +88,9 @@ their own key keep the existing BYO-key workflow.
 - private `workspace` storage bucket
 
 It also adds indexes, `updated_at` triggers, RLS policies, profile privilege protection
-and a last-admin guard.
+and a last-admin guard. `supabase/migrations/0002_nexora_owner_admin_roles.sql`
+additively extends the role constraint with `owner`/`admin`, updates staff helpers, and
+adds API-independent hierarchy and last-owner protections.
 
 ## Deployment
 
