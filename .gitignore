@@ -3,10 +3,13 @@ dist
 dist-ssr
 coverage
 .netlify
+.vercel
+/api
 .local-auth
+*.tsbuildinfo
+supabase/.temp/
 .env
 .env.*
-!.env.example
 *.local
 .DS_Store
 Thumbs.db
@@ -15,3 +18,6 @@ Thumbs.db
 .idea
 *.log
 npm-debug.log*
+
+# Keep the documented template committable; the last matching rule wins.
+!.env.example
