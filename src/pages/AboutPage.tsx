@@ -170,11 +170,28 @@ export function AboutPage() {
                   </p>
                   <p className="flex items-center justify-between">
                     <span className="text-subtle">{t('health.research')}</span>
-                    <StatusDot tone={health.services.research.configured ? 'success' : 'muted'} label={health.services.research.configured ? health.services.research.providers.join(', ') : t('common.notConfigured')} />
+                    <StatusDot
+                      tone={health.services.research.configured ? 'success' : 'muted'}
+                      label={
+                        health.services.research.configured
+                          ? health.services.research.providers.join(', ') ||
+                            (health.services.research.grounded?.webSearchEnabled ? 'Google Search grounding' : 'configured')
+                          : t('common.notConfigured')
+                      }
+                    />
                   </p>
                   <p className="flex items-center justify-between">
                     <span className="text-subtle">{t('health.news')}</span>
-                    <StatusDot tone={health.services.news.configured ? 'success' : 'muted'} label={health.services.news.configured ? 'RSS' : t('common.notConfigured')} />
+                    <StatusDot
+                      tone={health.services.news.configured ? 'success' : 'muted'}
+                      label={
+                        health.services.news.configured
+                          ? health.services.news.sources
+                            ? `${health.services.news.sources} RSS`
+                            : 'RSS'
+                          : t('common.notConfigured')
+                      }
+                    />
                   </p>
                   <p className="flex items-center justify-between border-t border-line pt-2">
                     <span className="text-subtle">Checked</span>

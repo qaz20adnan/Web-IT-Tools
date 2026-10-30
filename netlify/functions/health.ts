@@ -1,15 +1,18 @@
 import { json, requireMethod, wrap, type Handler } from '../lib/http'
 import { aiDefaults, providerKind, serverConfig, visionDefaults } from '../lib/env'
 import { researchStatus } from '../lib/gemini'
+import { feedDefinitions, invalidFeedCount } from './news'
 
 export const handler: Handler = wrap(async (event) => {
   requireMethod(event, ['GET'])
   const ai = aiDefaults()
   const vision = visionDefaults()
+  const grounded = researchStatus()
   const researchProviders = [
     process.env.TAVILY_API_KEY ? 'Tavily' : null,
     process.env.BRAVE_SEARCH_API_KEY ? 'Brave Search' : null,
   ].filter((value): value is string => Boolean(value))
+  const feeds = feedDefinitions()
 
   return json(200, {
     ok: true,
@@ -25,12 +28,14 @@ export const handler: Handler = wrap(async (event) => {
         configured: Boolean(vision.model && (vision.apiKey || vision.provider === 'ollama')),
       },
       research: {
-        configured: researchProviders.length > 0,
+        configured: researchProviders.length > 0 || grounded.configured,
         providers: researchProviders,
-        grounded: researchStatus(),
+        grounded,
       },
       news: {
-        configured: true,
+        configured: feeds.length > 0,
+        sources: feeds.length,
+        invalidCustomFeeds: invalidFeedCount(),
         customFeeds: Boolean(process.env.NEWS_FEEDS?.trim()),
       },
       database: {

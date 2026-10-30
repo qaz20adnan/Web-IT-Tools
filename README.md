@@ -119,10 +119,14 @@ Copy `.env.example` to `.env`. Key groups:
 - `SUPABASE_*` — project URL, anon key, service-role key (server only).
 - `OWNER_EMAIL`, `ADMIN_EMAIL`, `NEXORA_TRIAL_DAYS`, `NEXORA_SITE_URL`,
   `NEXORA_HASH_PEPPER`, `NEXORA_MAINTENANCE_MODE`.
+  `NEXORA_HASH_PEPPER` is required before any account can start a trial: with it unset the server
+  refuses to hash an email and no new trial is granted.
 - `NEWS_FEEDS`, `TAVILY_API_KEY`, `BRAVE_SEARCH_API_KEY`, `CONTENT_ADMIN_TOKEN`.
 - `PRINTER_ALLOW_PRIVATE` / `PRINTER_ALLOW_PUBLIC` — opt-in network printer probing policy.
-  Private probes are allowed automatically when the app runs locally; public probes are off
-  by default.
+  Both default to off, so a deployment never becomes a printer-port scanner by accident; private
+  probes are additionally allowed automatically when the app runs locally.
+- `NET_PROBE_ALLOW_PRIVATE` — off by default. Lets the port/latency/path probes aim at LAN
+  addresses; for a local or trusted self-hosted instance only.
 
 Never commit real keys. The service-role key bypasses RLS and must stay server-side.
 

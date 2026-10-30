@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { serverConfig } from './env'
 import { HttpError, header, type NetlifyEvent } from './http'
 import { permissionsFor, isRole, isStaffRole, type Permission, type Role } from './rbac'
@@ -109,9 +109,25 @@ function normalizeEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase()
 }
 
-export function emailHash(email: string): string {
-  const pepper = serverConfig.hashPepper || serverConfig.supabaseUrl || 'nexora-local-pepper'
-  return createHmac('sha256', pepper).update(normalizeEmail(email)).digest('hex')
+const processSalt = randomBytes(32).toString('hex')
+
+/** Trial dedupe keys are only irreversible while the pepper stays private. */
+export function hasHashPepper(): boolean {
+  return serverConfig.hashPepper.length > 0
+}
+
+export function emailHash(email: string): string | null {
+  if (!hasHashPepper()) return null
+  return createHmac('sha256', serverConfig.hashPepper).update(normalizeEmail(email)).digest('hex')
+}
+
+/**
+ * Bucket label for the rate limiter. Never persisted and never used as an
+ * identity key, so it does not need the pepper — but it must not be reversible
+ * either, hence the per-process salt.
+ */
+export function emailBucketKey(email: string | null | undefined): string {
+  return createHash('sha256').update(`${processSalt}|${normalizeEmail(email)}`).digest('hex').slice(0, 24)
 }
 
 export function bearer(event: NetlifyEvent): string | null {
@@ -190,6 +206,10 @@ async function ensureTrial(profile: Profile): Promise<TrialRow | null> {
   const email = normalizeEmail(profile.email)
   if (!email) return null
   const hash = emailHash(email)
+  if (!hash) {
+    console.warn('[auth] trial not started: NEXORA_HASH_PEPPER is unset on this deployment')
+    return null
+  }
   const claims = await supabaseSelectAs<ClaimRow>('trial_claims', `select=*&email_hash=eq.${encodeURIComponent(hash)}&limit=1`)
   let startedAt: string
 

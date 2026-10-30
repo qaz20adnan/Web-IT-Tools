@@ -7,7 +7,7 @@ import {
   authenticate,
   bearer,
   canSignIn,
-  emailHash,
+  emailBucketKey,
   getPlatformSetting,
   publicProfile,
   localAuthAccount,
@@ -220,7 +220,7 @@ async function handleLocalAuth(
   }
 
   if (body.action === 'login') {
-    const key = emailHash(body.email).slice(0, 24)
+    const key = emailBucketKey(body.email)
     enforceRateLimit(`auth:local:login:${clientIp(event, context)}:${key}`, 10, 5 * 60_000)
     const result = await loginLocalAccount(body.email, body.password)
     return json(200, await localSessionResponse(result.account, result.tokens))
@@ -336,7 +336,7 @@ export const handler: Handler = wrap(async (event, context) => {
 
   if (body.action === 'login') {
     assertAuthBackend()
-    const key = emailHash(body.email).slice(0, 24)
+    const key = emailBucketKey(body.email)
     enforceRateLimit(`auth:login:${clientIp(event, context)}:${key}`, 10, 5 * 60_000)
     const response = await authRequest<SupabaseSession>(`/token?grant_type=password`, {
       method: 'POST',

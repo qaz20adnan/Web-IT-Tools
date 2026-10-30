@@ -70,7 +70,7 @@ export interface HealthStatus {
       providers: string[]
       grounded?: { configured: boolean; webSearchEnabled: boolean; model: string }
     }
-    news: { configured: boolean; customFeeds: boolean }
+    news: { configured: boolean; sources?: number; invalidCustomFeeds?: number; customFeeds: boolean }
     database: { configured: boolean }
     contentAdmin: { configured: boolean }
   }

@@ -60,9 +60,9 @@ export const serverConfig = {
   allowLocalAi: envBool('ALLOW_LOCAL_AI'),
   netProbeAllowPrivate: envBool('NET_PROBE_ALLOW_PRIVATE'),
   printerAllowPrivate: envBool('PRINTER_ALLOW_PRIVATE'),
-  // Probing a printer published on the public internet is the normal use of this
-  // tool, so the flag reads as an opt-out rather than an opt-in.
-  printerAllowPublic: (process.env.PRINTER_ALLOW_PUBLIC ?? 'true').toLowerCase() === 'true',
+  // Both printer flags are opt-in. A deployment with nothing set must not turn
+  // into an open scanner for printer ports on the public internet.
+  printerAllowPublic: envBool('PRINTER_ALLOW_PUBLIC'),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   appReferer: (process.env.AI_APP_REFERER ?? 'https://adnan-tech.netlify.app').trim(),
   appTitle: (process.env.AI_APP_TITLE ?? 'Adnan Tech').trim(),

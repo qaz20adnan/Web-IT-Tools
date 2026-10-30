@@ -71,7 +71,7 @@ variables belong here; never prefix secrets with `VITE_`.
 | `SUPABASE_ANON_KEY` | `eyJ...` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Server-only; bypasses RLS |
 | `NEXORA_SITE_URL` | `https://nexora-ai.netlify.app` | Used in auth redirects |
-| `NEXORA_HASH_PEPPER` | 32+ random bytes | Trial claim HMAC; keep stable |
+| `NEXORA_HASH_PEPPER` | 32+ random bytes | Trial claim HMAC; keep stable. Required — with it unset the server refuses to hash an email and grants no new trial |
 | `OWNER_EMAIL` | `owner@example.com` | Optional verified owner address. Never grants a role automatically; run `npm run owner:promote` after verification. |
 | `ADMIN_EMAIL` | `admin@example.com` | Optional verified platform-administrator address. Never grants a role automatically; run `npm run admin:promote` (or `npm run super-admin:promote` for the legacy role). |
 | `NEXORA_TRIAL_DAYS` | `30` | Clamped to 1–365 |
@@ -91,6 +91,8 @@ configure the Supabase Auth site URL and email templates documented in
 | `AI_VISION_PROVIDER` / `AI_VISION_BASE_URL` / `AI_VISION_MODEL` / `AI_VISION_API_KEY` | – | Separate vision provider |
 | `AI_ALLOWED_HOSTS` | – | Extra hostnames or `.suffix` entries for custom providers |
 | `ALLOW_LOCAL_AI` | `false` | Allow `http://localhost` (Ollama); keep `false` in production |
+| `NET_PROBE_ALLOW_PRIVATE` | `false` | Lets port/latency/path probes aim at LAN addresses. Local or trusted self-hosted only |
+| `PRINTER_ALLOW_PRIVATE` / `PRINTER_ALLOW_PUBLIC` | `false` | Both printer probe policies are opt-in; private is additionally implied when running locally |
 | `AI_TIMEOUT_MS` | `60000` | Upstream timeout |
 | `AI_MAX_OUTPUT_TOKENS` | `2500` | Completion cap |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `20` | Per-client rate limit |

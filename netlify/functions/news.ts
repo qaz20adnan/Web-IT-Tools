@@ -171,14 +171,33 @@ function describeFeedFailure(reason: unknown): string {
 
 let cache: NewsCache | null = null
 
-async function loadFeeds(force: boolean): Promise<NewsCache> {
-  if (!force && cache && cache.expires > Date.now()) return cache
-  const custom = (process.env.NEWS_FEEDS ?? '')
+/**
+ * The feeds this deployment will actually read. Valid custom entries replace
+ * the built-in list; invalid ones are counted, never silently swallowed, so
+ * `/api/health` can show that `NEWS_FEEDS` is partly wrong.
+ */
+function customFeedUrls(): { valid: string[]; invalid: number } {
+  const raw = (process.env.NEWS_FEEDS ?? '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
-    .map((url, index) => ({ name: `Custom feed ${index + 1}`, url, category: 'industry' }))
-  const feeds = custom.length > 0 ? custom : DEFAULT_FEEDS
+  const valid = raw.filter((url) => /^https?:\/\//i.test(url))
+  return { valid, invalid: raw.length - valid.length }
+}
+
+export function invalidFeedCount(): number {
+  return customFeedUrls().invalid
+}
+
+export function feedDefinitions(): FeedDefinition[] {
+  const { valid } = customFeedUrls()
+  if (valid.length === 0) return DEFAULT_FEEDS
+  return valid.map((url, index) => ({ name: `Custom feed ${index + 1}`, url, category: 'industry' }))
+}
+
+async function loadFeeds(force: boolean): Promise<NewsCache> {
+  if (!force && cache && cache.expires > Date.now()) return cache
+  const feeds = feedDefinitions()
   const fetchedAt = new Date().toISOString()
 
   const settled = await Promise.allSettled(
