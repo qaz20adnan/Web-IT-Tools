@@ -19,11 +19,20 @@ export type Density = 'compact' | 'comfortable' | 'spacious'
 export type ExperienceLevel = 'beginner' | 'professional' | 'expert'
 export type Priority = 'low' | 'medium' | 'high' | 'critical'
 
+export type AccentId = 'theme' | 'azure' | 'violet' | 'emerald' | 'amber' | 'rose'
+export type RadiusScale = 'theme' | 'sharp' | 'soft' | 'round'
+export type BackgroundStyle = 'glow' | 'plain' | 'grid' | 'dots'
+export type AnimationIntensity = 'full' | 'subtle' | 'none'
+
 export interface Settings {
   language: Language
   theme: ThemeId
   fontScale: FontScale
   density: Density
+  accent: AccentId
+  radius: RadiusScale
+  background: BackgroundStyle
+  animation: AnimationIntensity
   onboardingComplete: boolean
   reduceMotion: boolean
   storeProviderKeysInSession: boolean
@@ -56,12 +65,24 @@ export interface HealthStatus {
   services: {
     ai: { configured: boolean; provider: string | null; model: string | null }
     vision: { configured: boolean }
-    research: { configured: boolean; providers: string[] }
+    research: {
+      configured: boolean
+      providers: string[]
+      grounded?: { configured: boolean; webSearchEnabled: boolean; model: string }
+    }
     news: { configured: boolean; customFeeds: boolean }
     database: { configured: boolean }
     contentAdmin: { configured: boolean }
   }
 }
+
+export interface ResearchSource {
+  url: string
+  title: string
+  host: string
+}
+
+export type WebSearchMode = 'off' | 'auto' | 'on'
 
 export interface ChatMessage {
   id: string
@@ -69,7 +90,18 @@ export interface ChatMessage {
   content: string
   createdAt: string
   mode?: CopilotMode
-  meta?: { provider?: string; model?: string; tokens?: number }
+  webSearch?: WebSearchMode
+  meta?: {
+    provider?: string
+    model?: string
+    tokens?: number
+    engine?: string
+    searchUsed?: boolean
+    searchQueries?: string[]
+    searchRequests?: number
+    sources?: ResearchSource[]
+    elapsedMs?: number
+  }
 }
 
 export type CopilotMode =
@@ -193,6 +225,7 @@ export interface LocalizedText {
 
 export type ScriptLanguage = 'powershell' | 'cmd' | 'bash' | 'python' | 'sql' | 'network'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+export type ScriptTestStatus = 'not-executed' | 'syntax-checked' | 'lab-tested' | 'production-validated'
 
 export interface ScriptTemplate {
   id: string
@@ -207,6 +240,15 @@ export interface ScriptTemplate {
   verification: 'template' | 'ai-generated' | 'reviewed' | 'tested'
   createdAt: string
   version: string
+  operatingSystems?: string[]
+  permissions?: string[]
+  dependencies?: string[]
+  expectedOutput?: LocalizedText
+  usage?: LocalizedText
+  validation?: LocalizedText
+  sources?: AnalysisSource[]
+  testStatus?: ScriptTestStatus
+  testNotes?: LocalizedText
 }
 
 export interface SavedItem {
@@ -439,30 +481,3 @@ export type ApiErrorCode =
   | 'already_exists'
   | 'unauthorized'
   | 'unknown'
-
-export type EnglishLevel = 'beginner' | 'intermediate' | 'advanced'
-
-export interface CoachMessage {
-  id: string
-  role: 'user' | 'coach'
-  content: string
-  createdAt: string
-  correction?: {
-    original: string
-    corrected: string
-    explanation: string
-  }
-}
-
-export interface CoachConversation {
-  id: string
-  title: string
-  level: EnglishLevel
-  topic: string
-  messages: CoachMessage[]
-  newWords: string[]
-  correctedErrors: Array<{ original: string; corrected: string; explanation: string }>
-  createdAt: string
-  updatedAt: string
-  userId: string | null
-}

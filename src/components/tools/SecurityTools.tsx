@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppContext'
 import { useLibrary } from '@/context/LibraryContext'
 import { useToast } from '@/context/ToastContext'
 import { CHECKLISTS } from '@/data/checklists'
-import { calculateCvss, DEFAULT_CVSS, parseCvssVector, type CvssVector } from '@/lib/cvss'
+import { calculateCvss, DEFAULT_CVSS, parseCvssVector, type CvssMetric, type CvssSeverity, type CvssVector } from '@/lib/cvss'
 import { readJson, writeJson } from '@/lib/storage'
 import { downloadTextFile, uid } from '@/lib/utils'
 import { pickText } from '@/i18n'
@@ -31,12 +31,33 @@ const CVSS_OPTIONS: Array<{
   { key: 'A', label: ['Availability', 'الإتاحة'], values: [['H', 'High', 'مرتفع'], ['L', 'Low', 'منخفض'], ['N', 'None', 'لا شيء']] },
 ]
 
+const SEVERITY_LABELS: Record<CvssSeverity, [string, string]> = {
+  None: ['None', 'لا شيء'],
+  Low: ['Low', 'منخفضة'],
+  Medium: ['Medium', 'متوسطة'],
+  High: ['High', 'عالية'],
+  Critical: ['Critical', 'حرجة'],
+}
+
+const SEVERITY_TONE: Record<CvssSeverity, 'success' | 'default' | 'warning' | 'danger'> = {
+  None: 'success',
+  Low: 'success',
+  Medium: 'default',
+  High: 'warning',
+  Critical: 'danger',
+}
+
 export function CvssTool() {
   const L = useLabels()
   const [vector, setVector] = useState<CvssVector>(DEFAULT_CVSS)
   const [importValue, setImportValue] = useState('')
+  const [defaulted, setDefaulted] = useState<CvssMetric[] | null>(null)
   const result = useMemo(() => calculateCvss(vector), [vector])
-  const tone = result.baseScore >= 9 ? 'danger' : result.baseScore >= 7 ? 'warning' : result.baseScore >= 4 ? 'default' : 'success'
+  const severityLabel = L(SEVERITY_LABELS[result.severity][0], SEVERITY_LABELS[result.severity][1])
+  const metricLabel = (key: CvssMetric) => {
+    const option = CVSS_OPTIONS.find((entry) => entry.key === key)
+    return option ? `${key} — ${L(option.label[0], option.label[1])}` : key
+  }
 
   return (
     <Card>
@@ -58,12 +79,18 @@ export function CvssTool() {
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2 p-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-line-strong font-mono text-xl font-bold" aria-label={L('Base score', 'الدرجة الأساسية')}>
-            {result.baseScore.toFixed(1)}
-          </div>
-          <div>
-            <Badge tone={tone}>{result.severity}</Badge>
-            <p className="mt-1 font-mono text-xs" dir="ltr">{result.vector}</p>
+          <div role="status" aria-live="polite" className="flex items-center gap-3">
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-line-strong font-mono text-xl font-bold"
+              role="img"
+              aria-label={`${L('Base score', 'الدرجة الأساسية')}: ${result.baseScore.toFixed(1)} — ${severityLabel}`}
+            >
+              <span dir="ltr">{result.baseScore.toFixed(1)}</span>
+            </div>
+            <div>
+              <Badge tone={SEVERITY_TONE[result.severity]}>{severityLabel}</Badge>
+              <p className="mt-1 font-mono text-xs" dir="ltr">{result.vector}</p>
+            </div>
           </div>
           <div className="ms-auto flex gap-2">
             <CopyButton value={result.vector} />
@@ -77,13 +104,27 @@ export function CvssTool() {
             variant="secondary"
             onClick={() => {
               const parsed = parseCvssVector(importValue)
-              if (parsed) setVector(parsed)
+              if (!parsed) {
+                setDefaulted(null)
+                return
+              }
+              setVector(parsed.vector)
+              setDefaulted(parsed.defaulted)
             }}
             disabled={!importValue.trim()}
           >
             {L('Load vector', 'تحميل المتجه')}
           </Button>
         </div>
+        {defaulted && defaulted.length > 0 ? (
+          <Alert tone="warning" title={L('Incomplete vector', 'متجه غير مكتمل')}>
+            {L(
+              'These metrics were missing or invalid and were set to a default value, so the score is not the score of the vector you pasted:',
+              'المقاييس التالية كانت مفقودة أو غير صالحة وضُبطت على قيمة افتراضية، لذلك الدرجة ليست درجة المتجه الذي لصقته:',
+            )}{' '}
+            <span dir="ltr">{defaulted.map(metricLabel).join(', ')}</span>
+          </Alert>
+        ) : null}
         <p className="text-[10px] text-subtle">
           {L('Uses the official CVSS v3.1 base metric equations and round-up rule. Temporal and environmental metrics are not included.', 'يستخدم معادلات CVSS v3.1 الأساسية وقاعدة التقريب لأعلى. لا تشمل المقاييس الزمنية والبيئية.')}
         </p>
@@ -457,7 +498,7 @@ export function AuditTool() {
           ])
         : ['No findings recorded.']),
       '',
-      '> Generated locally by NEXORA AI. Verify evidence and severity before distribution.',
+      '> Generated locally by Adnan Tech. Verify evidence and severity before distribution.',
     ]
     downloadTextFile('security-audit-report.md', lines.join('\n'), 'text/markdown;charset=utf-8')
     notify('success', L('Audit report exported.', 'تم تصدير تقرير التدقيق.'))
