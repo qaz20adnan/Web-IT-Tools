@@ -77,8 +77,9 @@ export function errorResponse(error: unknown): NetlifyResponse {
       },
     })
   }
-  const message = error instanceof Error ? error.message : 'Unexpected server error.'
-  return json(500, { error: { code: 'unknown', message: 'Unexpected server error.', detail: message.slice(0, 300) } })
+  // An unexpected throw can carry an internal message (paths, keys, upstream bodies).
+  // It is logged by wrap(); it never travels to the browser.
+  return json(500, { error: { code: 'unknown', message: 'Unexpected server error. The failure was logged; please try again shortly.' } })
 }
 
 export function header(event: NetlifyEvent, name: string): string | undefined {

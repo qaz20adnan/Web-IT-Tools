@@ -46,7 +46,7 @@ const adminEmail = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase()
 const ownerEmail = (process.env.OWNER_EMAIL ?? process.env.NEXORA_OWNER_EMAIL ?? '').trim().toLowerCase()
 
 export const serverConfig = {
-  appName: (process.env.APP_NAME ?? 'NEXORA AI').trim(),
+  appName: (process.env.APP_NAME ?? 'Adnan Tech').trim(),
   adminEmail,
   ownerEmail,
   trialDays: envInt('NEXORA_TRIAL_DAYS', 30),
@@ -58,11 +58,14 @@ export const serverConfig = {
   rateWindowMs: envInt('RATE_LIMIT_WINDOW_MS', 60000),
   rateMax: envInt('RATE_LIMIT_MAX', 20),
   allowLocalAi: envBool('ALLOW_LOCAL_AI'),
+  netProbeAllowPrivate: envBool('NET_PROBE_ALLOW_PRIVATE'),
   printerAllowPrivate: envBool('PRINTER_ALLOW_PRIVATE'),
-  printerAllowPublic: envBool('PRINTER_ALLOW_PUBLIC'),
+  // Probing a printer published on the public internet is the normal use of this
+  // tool, so the flag reads as an opt-out rather than an opt-in.
+  printerAllowPublic: (process.env.PRINTER_ALLOW_PUBLIC ?? 'true').toLowerCase() === 'true',
   logLevel: process.env.LOG_LEVEL ?? 'info',
-  appReferer: (process.env.AI_APP_REFERER ?? 'https://nexora-ai.netlify.app').trim(),
-  appTitle: (process.env.AI_APP_TITLE ?? 'NEXORA AI').trim(),
+  appReferer: (process.env.AI_APP_REFERER ?? 'https://adnan-tech.netlify.app').trim(),
+  appTitle: (process.env.AI_APP_TITLE ?? 'Adnan Tech').trim(),
   contentAdminToken: process.env.CONTENT_ADMIN_TOKEN ?? '',
   supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/+$/, ''),
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
@@ -77,6 +80,50 @@ export function aiDefaults(): { provider: ProviderKind | null; baseUrl: string |
     model: (process.env.AI_MODEL ?? '').trim(),
     apiKey: (process.env.AI_API_KEY ?? '').trim(),
   }
+}
+
+/**
+ * Live web research uses the Gemini Interactions API. Every value falls back to
+ * the existing `AI_*` provider settings so an already-configured Gemini account
+ * works without duplicating a secret. The key is only ever read here, server side.
+ */
+export const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest'
+
+export function geminiSettings(): {
+  apiKey: string
+  model: string
+  baseUrl: string
+  webSearchEnabled: boolean
+  timeoutMs: number
+  maxOutputTokens: number
+  cacheTtlMs: number
+} {
+  const defaults = aiDefaults()
+  const providerKey = defaults.provider === 'gemini' ? defaults.apiKey : ''
+  const providerModel = defaults.provider === 'gemini' ? defaults.model : ''
+  const providerBase = defaults.provider === 'gemini' ? defaults.baseUrl : null
+  const baseUrl = (process.env.GEMINI_BASE_URL ?? '').trim() || providerBase || defaultBaseUrl('gemini') || ''
+  return {
+    apiKey: (process.env.GEMINI_API_KEY ?? '').trim() || providerKey,
+    model: (process.env.GEMINI_MODEL ?? '').trim() || providerModel || GEMINI_DEFAULT_MODEL,
+    baseUrl: normalizeGeminiBase(baseUrl),
+    webSearchEnabled: envBool('GEMINI_WEB_SEARCH_ENABLED'),
+    timeoutMs: envInt('GEMINI_TIMEOUT_MS', 45000),
+    maxOutputTokens: envInt('GEMINI_MAX_OUTPUT_TOKENS', 3000),
+    cacheTtlMs: envInt('GEMINI_CACHE_TTL_SECONDS', 0) * 1000,
+  }
+}
+
+/** The Interactions endpoint sits directly on the versioned API root. */
+export function normalizeGeminiBase(raw: string): string {
+  const value = raw.trim().replace(/\/+$/, '')
+  if (!value) return ''
+  const withoutSuffix = value
+    .replace(/\/interactions$/i, '')
+    .replace(/\/models\/[^/]+(?::(?:stream)?generateContent)?$/i, '')
+    .replace(/\/v1(?:beta|alpha)$/i, '')
+  const versioned = /\/v1(?:beta|alpha)$/i.test(withoutSuffix) ? withoutSuffix : `${withoutSuffix}/v1beta`
+  return versioned.replace(/\/+$/, '')
 }
 
 export function visionDefaults(): { provider: ProviderKind | null; baseUrl: string | null; model: string; apiKey: string } {

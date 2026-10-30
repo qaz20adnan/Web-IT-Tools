@@ -8,15 +8,29 @@ import {
   writeAudit,
   type AuthAccount,
 } from '../lib/auth'
-import { HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
+import { HttpError, json, readJsonBody, requireMethod, wrap, type Handler, type NetlifyResponse } from '../lib/http'
 import {
   assignableRolesFor,
   canAssignRole,
   canManageRole,
   isRole,
+  isStaffRole,
   type Role,
 } from '../lib/rbac'
 import { authAdminRequest, supabaseCount, supabaseInsert, supabaseSelectAs, supabaseUpdate } from '../lib/supabase'
+import {
+  createLocalAccountByAdmin,
+  deleteLocalAccountByAdmin,
+  getLocalAccount,
+  listLocalAccounts,
+  listLocalAudits,
+  countLocalAudits,
+  recordLocalAudit,
+  resetLocalPasswordByAdmin,
+  revokeLocalSessions,
+  updateLocalAccount,
+} from '../lib/local-auth'
+import { localAuthEnabled } from '../lib/local-auth'
 
 interface AuthAdminUser {
   id: string
@@ -48,11 +62,25 @@ const actionSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('users.update'),
-    userId: z.string().uuid(),
+    userId: z.string().trim().min(1).max(120),
     role: roleSchema.optional(),
     status: z.enum(['active', 'suspended']).optional(),
   }),
-  z.object({ action: z.literal('users.delete'), userId: z.string().uuid() }),
+  z.object({ action: z.literal('users.delete'), userId: z.string().trim().min(1).max(120) }),
+  z.object({
+    action: z.literal('users.create'),
+    username: z.string().trim().min(3).max(40),
+    email: z.string().trim().email().max(120),
+    password: z.string().min(1).max(1024),
+    fullName: z.string().trim().max(120).optional(),
+    role: roleSchema,
+  }),
+  z.object({
+    action: z.literal('users.reset_password'),
+    userId: z.string().trim().min(1).max(120),
+    password: z.string().min(1).max(1024),
+  }),
+  z.object({ action: z.literal('users.revoke_sessions'), userId: z.string().trim().min(1).max(120) }),
   z.object({
     action: z.literal('audit.list'),
     limit: z.number().int().min(1).max(200).optional(),
@@ -115,6 +143,177 @@ function assertNotSelf(account: AuthAccount, userId: string, action: string): vo
   if (account.profile.id === userId) throw new HttpError(422, 'invalid_input', `You cannot ${action} your own account.`)
 }
 
+async function handleLocalAdminAccount(
+  account: AuthAccount,
+  body: AdminBody,
+): Promise<NetlifyResponse> {
+  const recordAudit = async (action: string, targetType: string | null, targetId: string | null, outcome: 'success' | 'failure', detail: Record<string, unknown> | null) => {
+    await recordLocalAudit({
+      actorId: account.profile.id,
+      actorEmail: account.profile.email,
+      action,
+      targetType,
+      targetId,
+      outcome,
+      detail,
+    })
+  }
+
+  if (body.action === 'overview') {
+    requirePermission(account, 'reports.read')
+    const items = await listLocalAccounts()
+    const auditItems = await listLocalAudits(1000)
+    const suspended = items.filter((entry) => entry.status === 'suspended').length
+    const staff = items.filter((entry) => isStaffRole(entry.role)).length
+    return json(200, {
+      ok: true,
+      users: items.length,
+      staff,
+      suspended,
+      openFeedback: 0,
+      auditTotal: auditItems.length,
+      planCounts: { premium: 0, standard: 0, trial: 0 },
+      usageSeries: [],
+      recentAudit: auditItems.slice(0, 10),
+    })
+  }
+
+  if (body.action === 'users.list') {
+    requirePermission(account, 'users.read')
+    const role = body.role
+    const status = body.status
+    const term = body.q ? body.q.replace(/[%*,()\\]/g, ' ').trim() : ''
+    const entries = await listLocalAccounts()
+    const filtered = entries.filter((entry) => {
+      if (role && entry.role !== role) return false
+      if (status && entry.status !== status) return false
+      if (!term) return true
+      const needle = term.toLowerCase()
+      return (
+        entry.email.toLowerCase().includes(needle) ||
+        (entry.fullName ?? '').toLowerCase().includes(needle) ||
+        entry.username.toLowerCase().includes(needle)
+      )
+    })
+    const limit = body.limit ?? 50
+    const offset = body.offset ?? 0
+    const items = filtered.slice(offset, offset + limit).map((entry) => ({
+      ...entry,
+      last_sign_in_at: null,
+      manageable: entry.id !== account.profile.id && canManageRole(account.role, entry.role),
+    }))
+    return json(200, {
+      ok: true,
+      items,
+      total: filtered.length,
+      limit,
+      offset,
+      assignableRoles: assignableRolesFor(account.role),
+    })
+  }
+
+  if (body.action === 'users.create') {
+    requirePermission(account, 'users.update')
+    if (body.role !== 'standard_member') requirePermission(account, 'roles.assign')
+    const accountRecord = await createLocalAccountByAdmin({
+      username: body.username,
+      email: body.email,
+      password: body.password,
+      fullName: body.fullName ?? null,
+      role: body.role,
+    })
+    await recordAudit('admin.user_create', 'local_account', accountRecord.id, 'success', {
+      fromRole: 'none',
+      toRole: accountRecord.role,
+      email: accountRecord.email,
+    })
+    return json(200, { ok: true, item: accountRecord })
+  }
+
+  if (body.action === 'users.update') {
+    if (body.role) requirePermission(account, 'roles.assign')
+    if (body.status) requirePermission(account, 'users.suspend')
+    if (!body.role && !body.status) throw new HttpError(400, 'invalid_input', 'Nothing to update.')
+    if (account.profile.id === body.userId) {
+      throw new HttpError(422, 'invalid_input', `You cannot ${body.status === 'suspended' ? 'suspend' : 'change the role of'} your own account.`)
+    }
+    const target = await getLocalAccount(body.userId)
+    if (!target) throw new HttpError(404, 'not_found', 'User not found.')
+    const manageableTarget = canManageRole(account.role, target.role)
+    if (!manageableTarget) {
+      throw new HttpError(403, 'forbidden', 'You cannot modify an account with an equal or higher role.')
+    }
+    if (body.role && !canAssignRole(account.role, body.role)) {
+      throw new HttpError(403, 'forbidden', 'You cannot grant or revoke that role.')
+    }
+    const protectedRoles: Role[] = [target.role === 'owner' ? 'owner' : 'super_admin']
+    const updated = await updateLocalAccount(
+      body.userId,
+      { role: body.role, status: body.status },
+      { protectActiveRoles: protectedRoles },
+    )
+    await recordAudit('admin.user_update', 'local_account', body.userId, 'success', {
+      fromRole: target.role,
+      toRole: updated.role,
+      fromStatus: target.status,
+      toStatus: updated.status,
+    })
+    return json(200, { ok: true, item: updated })
+  }
+
+  if (body.action === 'users.reset_password') {
+    requirePermission(account, 'users.update')
+    const updated = await getLocalAccount(body.userId)
+    if (!updated) throw new HttpError(404, 'not_found', 'User not found.')
+    if (canManageRole(account.role, updated.role) || account.role === 'owner') {
+      await resetLocalPasswordByAdmin(body.userId, body.password)
+      await recordAudit('admin.user_password_reset', 'local_account', body.userId, 'success', { email: updated.email })
+      return json(200, { ok: true })
+    }
+    throw new HttpError(403, 'forbidden', 'You cannot reset the password of an equal or higher role.')
+  }
+
+  if (body.action === 'users.revoke_sessions') {
+    requirePermission(account, 'users.update')
+    const updated = await getLocalAccount(body.userId)
+    if (!updated) throw new HttpError(404, 'not_found', 'User not found.')
+    if (canManageRole(account.role, updated.role) || account.role === 'owner') {
+      const removed = await revokeLocalSessions(body.userId)
+      await recordAudit('admin.user_sessions_revoke', 'local_account', body.userId, 'success', { removed })
+      return json(200, { ok: true, removed })
+    }
+    throw new HttpError(403, 'forbidden', 'You cannot manage an account with an equal or higher role.')
+  }
+
+  if (body.action === 'users.delete') {
+    requirePermission(account, 'users.delete')
+    if (account.profile.id === body.userId) {
+      throw new HttpError(422, 'invalid_input', 'You cannot delete your own account.')
+    }
+    const target = await getLocalAccount(body.userId)
+    if (!target) throw new HttpError(404, 'not_found', 'User not found.')
+    const manageableTarget = canManageRole(account.role, target.role)
+    if (!manageableTarget) {
+      throw new HttpError(403, 'forbidden', 'You cannot delete an account with an equal or higher role.')
+    }
+    const protectedRoles: Role[] = [target.role === 'owner' ? 'owner' : 'super_admin']
+    await deleteLocalAccountByAdmin(body.userId, { protectActiveRoles: protectedRoles })
+    await recordAudit('admin.user_delete', 'local_account', body.userId, 'success', { email: target.email, role: target.role })
+    return json(200, { ok: true, deleted: true })
+  }
+
+  if (body.action === 'audit.list') {
+    requirePermission(account, 'audit_logs.read')
+    const limit = body.limit ?? 50
+    const offset = body.offset ?? 0
+    const items = await listLocalAudits(limit, offset)
+    const total = await countLocalAudits()
+    return json(200, { ok: true, items, total, limit, offset })
+  }
+
+  throw new HttpError(400, 'invalid_input', 'Administrative actions are unavailable in local development mode.')
+}
+
 export const handler: Handler = wrap(async (event) => {
   requireMethod(event, ['POST'])
   const account = await authenticate(event)
@@ -123,6 +322,10 @@ export const handler: Handler = wrap(async (event) => {
     throw new HttpError(400, 'invalid_input', parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`).join('; '))
   }
   const body = parsed.data
+
+  if (localAuthEnabled()) {
+    return handleLocalAdminAccount(account, body)
+  }
 
   if (body.action === 'overview') {
     requirePermission(account, 'reports.read')

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { TrialBanner } from '@/components/auth/TrialBanner'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
@@ -10,6 +11,7 @@ const COLLAPSE_KEY = 'nexora.sidebar.v1'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t, settings } = useApp()
+  const location = useLocation()
   const [collapsed, setCollapsed] = useState(() => readJson<boolean>(COLLAPSE_KEY, false))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -53,12 +55,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Topbar onOpenMenu={() => setMobileOpen(true)} onOpenPalette={() => setPaletteOpen(true)} />
         <TrialBanner />
         <main id="main-content" className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-5 sm:px-5 lg:px-6" tabIndex={-1}>
-          {children}
+          <div key={location.pathname} className="animate-fade">
+            {children}
+          </div>
         </main>
         <footer className="border-t border-line px-4 py-4 text-center text-[11px] text-subtle">
           <div className="flex flex-col items-center gap-0.5">
-            <span>{t('footer.developedBy')}</span>
-            <span>{t('footer.developerName')}</span>
+            <span dir="auto">{t('footer.developedBy')}</span>
+            <span dir="auto">{t('footer.developerName')}</span>
           </div>
         </footer>
       </div>

@@ -263,9 +263,11 @@ export function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="nx-eyebrow">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                NEXORA AI
+                {t('app.name')}
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-subtle">Technical Intelligence &amp; Diagnostics</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-subtle" dir="auto">
+                {t('app.shortTagline')}
+              </span>
             </div>
 
             <h1 id="dashboard-hero-title" className="nx-display mt-4">
@@ -278,7 +280,9 @@ export function DashboardPage() {
                 'حلّل الأعطال، افحص الشبكات، استكشف السجلات، واعثر على الحلول الموثوقة من مكان واحد.',
               )}
             </p>
-            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80">Diagnose smarter. Solve faster.</p>
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80" dir="auto">
+              {t('app.tagline')}
+            </p>
 
             <div className="mt-5 rounded-xl border border-line-strong/70 bg-[#06131f]/80 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
               <label htmlFor="problem-box" className="sr-only">
@@ -404,10 +408,10 @@ export function DashboardPage() {
             <div className="mt-4 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-subtle">{L('Quick checks', 'فحوص سريعة')}</span>
               {[
-                { id: 'ping', label: 'Ping' },
-                { id: 'traceroute', label: 'Traceroute' },
+                { id: 'latency', label: L('Latency', 'الزمن') },
+                { id: 'path', label: L('Path', 'المسار') },
                 { id: 'dns', label: 'DNS' },
-                { id: 'ports', label: 'Ports' },
+                { id: 'ports', label: L('Ports', 'المنافذ') },
                 { id: 'ssl', label: 'SSL' },
               ].map((shortcut) => (
                 <Link key={shortcut.id} to={`/diagnostics?tool=${shortcut.id}`} className="nx-chip nx-chip-button">
@@ -583,7 +587,7 @@ export function DashboardPage() {
             {records.length === 0 ? (
               <div className="nx-empty min-h-[190px]">
                 <Activity className="h-5 w-5" />
-                <p className="max-w-xs text-[11px] leading-relaxed">{L('No diagnostic data yet. Run Ping, Traceroute, DNS or another check and the chart updates automatically.', 'لا توجد بيانات تشخيص بعد. نفّذ Ping أو Traceroute أو DNS وسيتحدث الرسم تلقائيًا.')}</p>
+                <p className="max-w-xs text-[11px] leading-relaxed">{L('No diagnostic data yet. Run a latency, path, DNS or another check and the chart updates automatically.', 'لا توجد بيانات تشخيص بعد. نفّذ فحص زمن أو مسار أو DNS أو غير ذلك وسيتحدث الرسم تلقائيًا.')}</p>
                 <Link to="/diagnostics" className="mt-1 text-[11px] font-semibold text-primary hover:underline">{L('Run the first check', 'نفّذ أول فحص')}</Link>
               </div>
             ) : (
@@ -772,7 +776,7 @@ export function DashboardPage() {
                     <span className={`text-[9px] font-semibold uppercase tracking-wider ${tool.execution === 'server' ? 'text-primary' : tool.execution === 'browser' ? 'text-success' : 'text-warning'}`}>
                       {tool.execution === 'server' ? L('Server', 'خادم') : tool.execution === 'browser' ? L('Browser', 'متصفح') : L('External AI', 'ذكاء خارجي')}
                     </span>
-                    <ChevronRight className="h-3 w-3 text-subtle rtl:rotate-180" />
+                    <ChevronRight className="nx-tile-cue h-3 w-3 text-subtle rtl:rotate-180" />
                   </div>
                 </div>
               )

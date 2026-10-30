@@ -133,7 +133,7 @@ export function TechPulsePage() {
       ) : null}
 
       {loading && items.length === 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={index} className="h-40" />
           ))}
@@ -141,11 +141,11 @@ export function TechPulsePage() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={<Newspaper className="h-8 w-8" />} title={items.length === 0 ? t('news.empty') : t('common.noResults')} description={t('news.disclaimer')} />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((item) => {
             const url = safeExternalUrl(item.url)
             return (
-              <Card key={item.id} className="flex flex-col p-4">
+              <Card key={item.id} className="lift flex flex-col p-4">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="primary">{label(item.category)}</Badge>
                   {item.critical ? (

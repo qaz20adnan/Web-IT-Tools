@@ -13,6 +13,16 @@ export interface ProbePolicy {
   allowPrivate: boolean
   allowPublic: boolean
   allowCgnat?: boolean
+  /**
+   * Loopback is blocked by default even in private mode. A local, explicitly
+   * authorized diagnostic mode may opt in for testing a service on 127.0.0.1.
+   */
+  allowLoopback?: boolean
+}
+
+function isLoopbackAddress(address: string): boolean {
+  const value = address.toLowerCase()
+  return value === '::1' || value === '127.0.0.1' || value.startsWith('127.')
 }
 
 export interface IppPrinterInfo {
@@ -115,6 +125,7 @@ export async function resolveProbeAddresses(rawHost: string, policy: ProbePolicy
   if (addresses.length === 0) throw new HttpError(400, 'invalid_input', 'The hostname did not resolve to an address.')
 
   const scopes = addresses.map((address) => {
+    if (policy.allowLoopback && isLoopbackAddress(address) && policy.allowPrivate) return 'private'
     const scope = classifyProbeAddress(address)
     return scope === 'private' && policy.allowCgnat && isCgnat(address) ? 'public' : scope
   })
@@ -180,14 +191,14 @@ export function probeTcp(address: string, port: number, hostHeader: string, time
       })
     }
 
-    hardTimer = setTimeout(() => finish(connected ? 'open' : 'timeout'), timeoutMs)
+    hardTimer = setTimeout(() => finish(connected ? 'open' : 'timeout', connected ? null : 'ETIMEDOUT'), timeoutMs)
 
     socket.once('connect', () => {
       connected = true
       if (HTTP_PROBE_PORTS.has(port)) {
         const host = net.isIP(hostHeader) === 6 ? `[${hostHeader}]` : hostHeader
         socket.write(
-          `HEAD / HTTP/1.0\r\nHost: ${host}\r\nUser-Agent: NEXORA-Network-Analyzer/1.0\r\nAccept: */*\r\nConnection: close\r\n\r\n`,
+          `HEAD / HTTP/1.0\r\nHost: ${host}\r\nUser-Agent: AdnanTech-Network-Analyzer/1.0\r\nAccept: */*\r\nConnection: close\r\n\r\n`,
         )
       }
       graceTimer = setTimeout(() => finish('open'), READ_GRACE_MS)
@@ -202,8 +213,48 @@ export function probeTcp(address: string, port: number, hostHeader: string, time
       if (!settled) finish(connected ? 'open' : 'closed')
     })
     socket.once('error', (error: NodeJS.ErrnoException) => {
-      finish(connected ? 'open' : stateForError(error.code), error.code ?? error.message)
+      finish(connected ? 'open' : stateForError(error.code), safeErrorCode(error))
     })
+  })
+}
+
+/**
+ * Node sometimes raises a socket error with no `code`, and its free-form message
+ * can carry an internal address. The interface only ever needs a stable token.
+ */
+function safeErrorCode(error: NodeJS.ErrnoException): string {
+  const code = (error.code ?? '').toUpperCase()
+  return /^[A-Z][A-Z0-9_]{2,19}$/.test(code) ? code : 'socket-error'
+}
+
+export interface RttSampleResult {
+  ok: boolean
+  latencyMs: number | null
+  errorCode: string | null
+}
+
+/**
+ * TCP connection latency only: connect, record the time, hang up. This is the
+ * honest stand-in for ICMP ping, which serverless hosting cannot send.
+ */
+export function connectRtt(address: string, port: number, timeoutMs = 1500): Promise<RttSampleResult> {
+  return new Promise((resolve) => {
+    const startedAt = Date.now()
+    let settled = false
+    let timer: NodeJS.Timeout | null = null
+
+    const finish = (ok: boolean, errorCode: string | null) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      socket.destroy()
+      resolve({ ok, latencyMs: ok ? Date.now() - startedAt : null, errorCode: ok ? null : errorCode })
+    }
+
+    const socket = net.createConnection({ host: address, port })
+    timer = setTimeout(() => finish(false, 'ETIMEDOUT'), Math.max(200, timeoutMs))
+    socket.once('connect', () => finish(true, null))
+    socket.once('error', (error: NodeJS.ErrnoException) => finish(false, error.code ?? 'connect-error'))
   })
 }
 
@@ -364,7 +415,7 @@ function requestIpp(address: string, host: string, port: number, path: string): 
           'Content-Type': 'application/ipp',
           Accept: 'application/ipp',
           'Content-Length': payload.length,
-          'User-Agent': 'NEXORA-Printer-Diagnostics/1.0',
+          'User-Agent': 'AdnanTech-Printer-Diagnostics/1.0',
           Connection: 'close',
         },
       },
@@ -399,6 +450,14 @@ function printerStateLabel(value: string | undefined): string | null {
   if (value === '4') return 'processing'
   if (value === '5') return 'stopped'
   return value ?? null
+}
+
+function ippFailureLabel(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | null)?.code
+  if (code === 'ECONNREFUSED') return 'ipp-refused'
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECLOSED') return 'ipp-connection-lost'
+  if (error instanceof Error && /timed out/i.test(error.message)) return 'ipp-timeout'
+  return 'ipp-transport-error'
 }
 
 export async function probeIppPrinter(address: string, host: string, port = 631): Promise<IppPrinterInfo> {
@@ -447,7 +506,7 @@ export async function probeIppPrinter(address: string, host: string, port = 631)
         ok: false,
         path,
         statusCode: null,
-        statusName: error instanceof Error ? error.message.slice(0, 120) : 'ipp-error',
+        statusName: ippFailureLabel(error),
         name: null,
         model: null,
         state: null,

@@ -182,7 +182,13 @@ export function ResearchPage() {
                 description={errorCode === 'not_configured' ? t('research.configureBody') : t('research.analysisHint')}
               />
             )}
-            {data?.note ? <p className="mt-3 text-[11px] text-subtle">{data.note}</p> : null}
+            {data && data.providers.length === 0 ? (
+              <Alert className="mt-3" tone="warning" title={t('research.title')}>
+                {t('research.configureBody')}
+              </Alert>
+            ) : data?.note ? (
+              <p className="mt-3 text-[11px] text-subtle">{data.note}</p>
+            ) : null}
           </div>
         </Card>
 

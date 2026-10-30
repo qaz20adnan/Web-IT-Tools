@@ -1,5 +1,19 @@
 # Deployment
 
+## Hosting target
+
+Netlify is the production target: the handlers are already Netlify Functions, the free plan
+permits commercial use, and its synchronous functions now default to a 60 s timeout, which is
+what the AI and research routes need. The trade-off is the credit budget — the free plan has
+300 credits a month and the site pauses when they run out (bandwidth costs 20 credits per GB,
+function compute 10 credits per GB-hour), so heavy AI traffic means watching the meter.
+
+Vercel is used for preview and testing only. `vercel.json` and the `vercel/` dispatcher exist so
+the same commit runs there, but the Hobby plan is restricted to non-commercial personal use and
+caps a deployment at 12 Serverless Functions — see
+[`docs/VERCEL_DEPLOYMENT.md`](VERCEL_DEPLOYMENT.md) for how that limit is worked around and for
+the measured limits of the other free hosts.
+
 ## Netlify
 
 The repository is ready for a standard Netlify build; no adapter is required.
@@ -66,14 +80,14 @@ variables belong here; never prefix secrets with `VITE_`.
 Apply `supabase/migrations/0001_nexora.sql` and then
 `supabase/migrations/0002_nexora_owner_admin_roles.sql` before enabling accounts, then
 configure the Supabase Auth site URL and email templates documented in
-[`NEXORA_AUTH_AND_RBAC.md`](NEXORA_AUTH_AND_RBAC.md).
+[`ADNAN_TECH_AUTH_AND_RBAC.md`](ADNAN_TECH_AUTH_AND_RBAC.md).
 
 ### Optional
 
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `AI_APP_REFERER` | `https://nexora-ai.netlify.app` | OpenRouter attribution |
-| `AI_APP_TITLE` | `NEXORA AI` | OpenRouter attribution |
+| `AI_APP_TITLE` | `Adnan Tech` | OpenRouter attribution |
 | `AI_VISION_PROVIDER` / `AI_VISION_BASE_URL` / `AI_VISION_MODEL` / `AI_VISION_API_KEY` | – | Separate vision provider |
 | `AI_ALLOWED_HOSTS` | – | Extra hostnames or `.suffix` entries for custom providers |
 | `ALLOW_LOCAL_AI` | `false` | Allow `http://localhost` (Ollama); keep `false` in production |

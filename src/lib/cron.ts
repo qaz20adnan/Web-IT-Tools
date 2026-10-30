@@ -9,7 +9,8 @@ const LIMITS: Array<[number, number]> = [
   [0, 23],
   [1, 31],
   [1, 12],
-  [0, 6],
+  // POSIX and vixie cron accept both 0 and 7 for Sunday.
+  [0, 7],
 ]
 
 const NAMES: Record<number, string[]> = {
@@ -47,7 +48,7 @@ function parseField(field: string, index: number): Set<number> | null {
       if (Number.isNaN(end)) return null
     }
     if (start < min || end > max || start > end) return null
-    for (let value = start; value <= end; value += step) values.add(value)
+    for (let value = start; value <= end; value += step) values.add(index === 4 && value === 7 ? 0 : value)
   }
   return values
 }

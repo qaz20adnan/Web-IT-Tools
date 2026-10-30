@@ -16,8 +16,11 @@ export const CATEGORIES = [
 
 export const MODES = ['beginner', 'professional', 'expert', 'diagnostic', 'script-review', 'incident-response', 'documentation'] as const
 
+export const WEB_SEARCH_MODES = ['off', 'auto', 'on'] as const
+
 export const chatRequestSchema = z.object({
   mode: z.enum(MODES).default('professional'),
+  webSearch: z.enum(WEB_SEARCH_MODES).default('off'),
   messages: z
     .array(
       z.object({
@@ -94,7 +97,7 @@ export const researchRequestSchema = z.object({
 
 export const dnsRequestSchema = z.object({
   host: z.string().trim().min(1).max(300),
-  type: z.enum(['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA', 'SRV']).default('A'),
+  type: z.enum(['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA', 'SRV', 'PTR']).default('A'),
 })
 
 export const tlsRequestSchema = z.object({
@@ -102,28 +105,48 @@ export const tlsRequestSchema = z.object({
   port: z.number().int().min(1).max(65535).optional(),
 })
 
+/**
+ * The analyzer always examines a name the caller supplies. Scanning the
+ * deployment's own egress address was reported as "your public IP", which was
+ * never true, so an explicit target is now required.
+ */
 export const analyzerRequestSchema = z.object({
-  host: z.string().trim().max(300).optional(),
-  ddns: z.string().trim().max(300).optional(),
+  host: z.string().trim().min(1).max(300),
+  expectedIp: z.string().trim().max(45).optional(),
   ports: z.array(z.number().int().min(1).max(65535)).min(1).max(12).optional(),
   lang: z.enum(['en', 'ar']).default('en'),
 })
 
-export const pingRequestSchema = z.object({
+/**
+ * Latency sampling connects to a real service port, so the port is limited to
+ * ports an engineer would actually measure — not an open invitation to scan.
+ */
+export const LATENCY_PORTS = [22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3389, 8080, 8443] as const
+
+export const latencyRequestSchema = z.object({
   host: z.string().trim().min(1).max(300),
-  count: z.number().int().min(1).max(10).default(4),
-  timeoutMs: z.number().int().min(500).max(5000).default(1500),
+  port: z
+    .number()
+    .int()
+    .min(1)
+    .max(65535)
+    .default(443)
+    .refine((port) => (LATENCY_PORTS as readonly number[]).includes(port), 'Choose one of the supported service ports.'),
+  samples: z.number().int().min(1).max(10).default(5),
+  timeoutMs: z.number().int().min(500).max(4000).default(1500),
 })
 
-export const tracerouteRequestSchema = z.object({
+export const pathRequestSchema = z.object({
   host: z.string().trim().min(1).max(300),
-  maxHops: z.number().int().min(1).max(20).default(15),
-  timeoutMs: z.number().int().min(500).max(5000).default(1500),
 })
+
+export const PORT_PROBE_MAX_PORTS = 8
 
 export const portRequestSchema = z.object({
   host: z.string().trim().min(1).max(300),
-  ports: z.array(z.number().int().min(1).max(65535)).min(1).max(4),
+  ports: z.array(z.number().int().min(1).max(65535)).min(1).max(PORT_PROBE_MAX_PORTS),
+  protocol: z.literal('tcp').default('tcp'),
+  timeoutMs: z.number().int().min(500).max(10000).default(2400),
 })
 
 export const httpRequestSchema = z.object({

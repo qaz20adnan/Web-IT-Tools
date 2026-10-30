@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Language, Settings, ThemeId } from '@/types'
 import { readJson, STORAGE_KEYS, writeJson } from '@/lib/storage'
+import { DEFAULT_APPEARANCE, normalizeAppearance } from '@/lib/appearance'
 import { isRtl, translate, type TranslationKey, type TranslationParams } from '@/i18n'
 
 const DEFAULT_SETTINGS: Settings = {
@@ -8,6 +9,7 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'nexus-midnight',
   fontScale: 'md',
   density: 'comfortable',
+  ...DEFAULT_APPEARANCE,
   onboardingComplete: false,
   reduceMotion: false,
   storeProviderKeysInSession: false,
@@ -50,10 +52,16 @@ function resolveTheme(theme: ThemeId): Exclude<ThemeId, 'auto'> {
   return prefersLight ? 'arctic-light' : 'nexus-midnight'
 }
 
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(() => {
     const stored = readJson<Partial<Settings>>(STORAGE_KEYS.settings, {})
-    return { ...DEFAULT_SETTINGS, ...stored }
+    const appearance = normalizeAppearance(stored)
+    if (prefersReducedMotion() && stored.animation === undefined) appearance.animation = 'none'
+    return { ...DEFAULT_SETTINGS, ...stored, ...appearance }
   })
   const [resolvedTheme, setResolvedTheme] = useState<Exclude<ThemeId, 'auto'>>(() => resolveTheme(settings.theme))
 
@@ -64,6 +72,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     root.dataset.theme = theme
     root.dataset.font = settings.fontScale
     root.dataset.density = settings.density
+    root.dataset.accent = settings.accent
+    root.dataset.radius = settings.radius
+    root.dataset.background = settings.background
+    root.dataset.animation = settings.reduceMotion ? 'none' : settings.animation
     root.dataset.reduceMotion = String(settings.reduceMotion)
     root.lang = settings.language
     root.dir = isRtl(settings.language) ? 'rtl' : 'ltr'

@@ -194,7 +194,7 @@ export function Topbar({ onOpenMenu, onOpenPalette }: { onOpenMenu: () => void; 
               ) : null}
             </button>
             {notificationsOpen ? (
-              <div className="nx-panel absolute end-0 top-12 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden">
+              <div className="nx-panel slide-end absolute end-0 top-12 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden">
                 <div className="flex items-center justify-between border-b border-line px-3.5 py-2.5">
                   <div>
                     <p className="text-xs font-bold">{t('topbar.notifications')}</p>
@@ -249,7 +249,7 @@ export function Topbar({ onOpenMenu, onOpenPalette }: { onOpenMenu: () => void; 
                 <ChevronDown className="hidden h-3 w-3 sm:block" />
               </button>
               {userOpen ? (
-                <div className="nx-panel absolute end-0 top-12 z-50 w-56 overflow-hidden py-1">
+                <div className="nx-panel slide-end absolute end-0 top-12 z-50 w-56 overflow-hidden py-1">
                   <div className="border-b border-line px-3 py-2">
                     <p className="truncate text-xs font-semibold">{account.profile.fullName || t('auth.account')}</p>
                     <p className="truncate text-[10px] text-subtle">{account.profile.email}</p>
@@ -317,7 +317,6 @@ const NAV_LABELS: Array<{ to: string; label: string }> = [
   { to: '/account', label: 'Account' },
   { to: '/admin', label: 'Admin Center' },
   { to: '/about', label: 'About' },
-  { to: '/english-coach', label: 'English Coach' },
   { to: '/windows-server', label: 'Windows & Server' },
   { to: '/microsoft-365', label: 'Microsoft 365' },
   { to: '/cybersecurity', label: 'Cybersecurity' },

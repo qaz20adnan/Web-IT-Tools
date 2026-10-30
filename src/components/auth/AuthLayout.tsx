@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
+import { BrandMark } from '@/components/brand/BrandLogo'
 import { APP_NAME, APP_VERSION } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
@@ -23,6 +24,7 @@ export function AuthLayout({
         <div className="relative overflow-hidden rounded-2xl border border-line bg-surface p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,var(--primary)/18,transparent_45%)]" aria-hidden />
           <div className="relative">
+            <BrandMark size={44} className="mb-5 animate-float" />
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
               <Sparkles className="h-3.5 w-3.5" />
               {t('app.shortTagline')}
@@ -52,7 +54,10 @@ export function AuthLayout({
             <ArrowLeft className={cn('h-4 w-4', settings.language === 'ar' && 'rotate-180')} />
             {t('common.back')}
           </Link>
-          <span className="text-xs text-subtle">{APP_NAME}</span>
+          <span className="inline-flex items-center gap-2 text-xs text-subtle">
+            <BrandMark size={22} />
+            {APP_NAME}
+          </span>
         </div>
         <div className="card p-6 sm:p-7">
           <h1 className="text-xl font-bold tracking-tight">{title}</h1>
@@ -60,7 +65,15 @@ export function AuthLayout({
           <div className="mt-6">{children}</div>
           {footer ? <div className="mt-6 border-t border-line pt-4 text-center text-xs text-muted">{footer}</div> : null}
         </div>
-        <p className="mt-4 text-center text-[11px] text-subtle">Built by Eng. Adnan Al Qadi · م. عدنان القاضي</p>
+        <p className="mt-4 text-center text-[11px] text-subtle" dir="auto">
+          {t('footer.developedBy')}
+        </p>
+        <p className="mt-1 text-center text-[11px] text-subtle" dir="auto">
+          {t('footer.developerName')}
+        </p>
+        <p className="mt-1 text-center text-[11px] text-subtle" dir="ltr">
+          v{APP_VERSION}
+        </p>
         <p className="mt-3 text-center text-[11px] text-subtle">
           <Link to="/about" className="hover:text-text">
             {t('nav.about')}

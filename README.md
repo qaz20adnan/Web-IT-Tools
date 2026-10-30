@@ -1,14 +1,18 @@
-# NEXORA AI
+# Adnan Tech | منصة عدنان تك
 
-NEXORA AI is an IT engineering workspace with AI-assisted troubleshooting, a local
+*Intelligent Technology. Powerful Solutions.* — *ذكاء تقني، حلول تصنع الفرق.*
+
+Adnan Tech is a premium IT engineering platform with AI-assisted troubleshooting, a local
 tool suite, curated knowledge, live vendor news, model discovery, private case notes,
 and an account platform (Supabase Auth, RBAC, trials and administration). The account
 platform is required for all internal pages; public entry pages remain available.
 
-Built by **Eng. Adnan Al Qadi / م. عدنان القاضي**.
+**Adnan Tech — Developed by Adnan Al Qadi | تم التطوير بواسطة م. عدنان القاضي**
+
+Founder and developer: **Adnan Al Qadi** (م. عدنان القاضي).
 
 - **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS 4
-- **Backend:** Netlify Functions (flat files under `netlify/functions`)
+- **Backend:** Netlify Functions (flat files under `netlify/functions`), also deployable to Vercel through one bundled dispatcher in `vercel/`
 - **Auth/database:** Supabase Auth + Postgres REST (no passwords stored in app tables)
 - **AI:** OpenRouter by default, plus OpenAI-compatible providers and local Ollama
 - **Tests:** Vitest
@@ -23,7 +27,7 @@ Built by **Eng. Adnan Al Qadi / م. عدنان القاضي**.
   printing (9100) and LPD (515) and reads IPP queue attributes. Private LAN probes work when
   the app runs locally; cloud deployments block them by default.
 - **Local printer agent:** the UI generates a PowerShell script that inventories printers,
-  queues and the spooler, with explicit opt-in to cancel jobs or restart the spooler. NEXORA
+  queues and the spooler, with explicit opt-in to cancel jobs or restart the spooler. Adnan Tech
   never executes this script remotely.
 - **Troubleshooting Knowledge Base** (`/kb`): local-first record of verified problems and
   fixes, with search, categories, tags, Markdown/JSON export and one-click handoff from the
@@ -75,6 +79,12 @@ Server defaults live in `.env`; see [`docs/OPENROUTER_SETUP.md`](docs/OPENROUTER
 Keys entered in the UI are sent per request to the app's own proxy (`x-tn-key`) and are
 not persisted server-side.
 
+For the **Web Research** assistant mode (live Google Search grounding with cited
+sources) set `GEMINI_API_KEY`, `GEMINI_MODEL` and `GEMINI_WEB_SEARCH_ENABLED=true`;
+see [`docs/GEMINI_WEB_SEARCH_SETUP.md`](docs/GEMINI_WEB_SEARCH_SETUP.md). It stays
+optional — without it the Copilot keeps chatting and only reports that live research
+is unavailable.
+
 ## Enable accounts
 
 1. Create a Supabase project.
@@ -97,13 +107,15 @@ There is no automatic administrator bootstrap. Promotion is an explicit,
 audited, local command that refuses unverified addresses and never creates
 accounts. Manual role changes are audited, only an owner may grant or revoke the
 `owner` role, and the last active owner cannot be demoted, suspended or deleted.
-See [`docs/NEXORA_AUTH_AND_RBAC.md`](docs/NEXORA_AUTH_AND_RBAC.md).
+See [`docs/ADNAN_TECH_AUTH_AND_RBAC.md`](docs/ADNAN_TECH_AUTH_AND_RBAC.md).
 
 ## Environment
 
 Copy `.env.example` to `.env`. Key groups:
 
 - `AI_*` — provider, model, fallback, vision, limits and allowlist.
+- `GEMINI_*` — server-side key, model and master switch for live web research.
+  Optional; see [`docs/GEMINI_WEB_SEARCH_SETUP.md`](docs/GEMINI_WEB_SEARCH_SETUP.md).
 - `SUPABASE_*` — project URL, anon key, service-role key (server only).
 - `OWNER_EMAIL`, `ADMIN_EMAIL`, `NEXORA_TRIAL_DAYS`, `NEXORA_SITE_URL`,
   `NEXORA_HASH_PEPPER`, `NEXORA_MAINTENANCE_MODE`.
@@ -138,16 +150,44 @@ subscriptions are recorded with `provider='manual'` and an audit/billing event.
 - Audit records redact token/password/secret-like fields.
 - Input size, timeouts, rate limits and provider-host allowlists are enforced.
 
+## Brand identity
+
+The public brand is **Adnan Tech** (Arabic: **منصة عدنان تك**). Internal identifiers are
+deliberately unchanged — the npm package name, the `NEXORA_*` environment variables, the
+`nexora.*` localStorage keys and the Supabase migration filenames all still carry the
+previous package name so that deployed configurations, existing user data and database
+migrations keep working.
+
+| Asset | Path |
+| --- | --- |
+| AT monogram (dark / light) | `public/icons/adnan-tech-mark.svg`, `adnan-tech-mark-light.svg` |
+| Horizontal lockup with founder signature (dark / light) | `public/icons/adnan-tech-horizontal.svg`, `adnan-tech-horizontal-light.svg` |
+| Arabic lockup منصة عدنان تك (dark / light) | `public/icons/adnan-tech-arabic.svg`, `adnan-tech-arabic-light.svg` |
+| Favicon tile + rasters | `public/icons/adnan-tech-favicon.svg`, `favicon-32.png`, `favicon-48.png`, `apple-touch-icon.png` |
+| Social preview | `public/og-cover.png` (1200×630), master `public/icons/adnan-tech-og.svg` |
+
+The six brand themes are Adnan Tech Midnight, Arctic, Deep Ocean, Graphite, Emerald and
+OLED (`src/data/themes.ts`, tokens in `src/styles/index.css`). They are marked with ◆ in
+Settings → Appearance and are listed before the additional community themes.
+
 ## Documentation
 
-- [`docs/NEXORA_ARCHITECTURE.md`](docs/NEXORA_ARCHITECTURE.md)
-- [`docs/NEXORA_SECURITY.md`](docs/NEXORA_SECURITY.md)
-- [`docs/NEXORA_AUTH_AND_RBAC.md`](docs/NEXORA_AUTH_AND_RBAC.md)
-- [`docs/NEXORA_SUBSCRIPTIONS.md`](docs/NEXORA_SUBSCRIPTIONS.md)
-- [`docs/NEXORA_CONTENT_PLAN.md`](docs/NEXORA_CONTENT_PLAN.md)
-- [`docs/NEXORA_TEST_REPORT.md`](docs/NEXORA_TEST_REPORT.md)
+Operational docs live in `docs/`. The audit and repair reports were written under earlier
+brand names and now carry the current one; the database migration filenames they describe
+were intentionally left unchanged.
+
+- [`docs/ADNAN_TECH_ARCHITECTURE.md`](docs/ADNAN_TECH_ARCHITECTURE.md)
+- [`docs/ADNAN_TECH_SECURITY.md`](docs/ADNAN_TECH_SECURITY.md)
+- [`docs/ADNAN_TECH_AUTH_AND_RBAC.md`](docs/ADNAN_TECH_AUTH_AND_RBAC.md)
+- [`docs/ADNAN_TECH_SUBSCRIPTIONS.md`](docs/ADNAN_TECH_SUBSCRIPTIONS.md)
+- [`docs/ADNAN_TECH_CONTENT_PLAN.md`](docs/ADNAN_TECH_CONTENT_PLAN.md)
+- [`docs/ADNAN_TECH_TEST_REPORT.md`](docs/ADNAN_TECH_TEST_REPORT.md)
 - [`docs/OPENROUTER_SETUP.md`](docs/OPENROUTER_SETUP.md)
+- [`docs/GEMINI_WEB_SEARCH_SETUP.md`](docs/GEMINI_WEB_SEARCH_SETUP.md)
 - [`docs/NEWS_SOURCES.md`](docs/NEWS_SOURCES.md)
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
-- [`docs/TECHNEXUS_AUDIT.md`](docs/TECHNEXUS_AUDIT.md) and
-  [`docs/TECHNEXUS_REPAIR_REPORT.md`](docs/TECHNEXUS_REPAIR_REPORT.md) — historical repair record
+- [`docs/VERCEL_DEPLOYMENT.md`](docs/VERCEL_DEPLOYMENT.md) — the single Vercel dispatcher,
+  rewrites, environment variables, preview verification and the platform limits that differ
+  from Netlify
+- [`docs/ADNAN_TECH_AUDIT.md`](docs/ADNAN_TECH_AUDIT.md) and
+  [`docs/ADNAN_TECH_REPAIR_REPORT.md`](docs/ADNAN_TECH_REPAIR_REPORT.md) — historical repair record

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Adnan Tech — Arabic brand lockup (منصة عدنان تك), dark backgrounds. Right-to-left. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 96" width="300" height="96" xml:lang="ar"
+     role="img" aria-labelledby="at-ar-title at-ar-desc" focusable="false">
+  <title id="at-ar-title">منصة عدنان تك</title>
+  <desc id="at-ar-desc">العلامة التجارية للمنصة: منصة عدنان تك مع توقيع المطور م. عدنان القاضي وشعار A و T على شكل شبكة.</desc>
+  <defs>
+    <linearGradient id="atArTrace" x1="32" y1="17" x2="32" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35D6F2"/>
+      <stop offset="1" stop-color="#30D6B5"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(212,16)">
+    <rect x="-8" y="-8" width="80" height="80" rx="20" fill="#071421" stroke="#1B3A50"/>
+    <path d="M32 17 17 49" stroke="url(#atArTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M32 17 47 49" stroke="url(#atArTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M22.2 38H41.8" stroke="url(#atArTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M16 17H48" stroke="url(#atArTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M32 17V49" stroke="url(#atArTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <circle cx="16" cy="17" r="2" fill="#35D6F2"/>
+    <circle cx="48" cy="17" r="2" fill="#35D6F2"/>
+    <circle cx="22.2" cy="38" r="2" fill="#35D6F2"/>
+    <circle cx="41.8" cy="38" r="2" fill="#35D6F2"/>
+    <circle cx="17" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="47" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="32" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="32" cy="17" r="6.2" fill="#071421"/>
+  <circle cx="32" cy="17" r="5.4" fill="none" stroke="#35D6F2" stroke-width="1.6"/>
+    <circle cx="32" cy="17" r="2.6" fill="#8B7CF6"/>
+  </g>
+
+  <text x="192" y="52" direction="rtl" text-anchor="start"
+        font-family="'Noto Naskh Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+        font-size="30" font-weight="700" fill="#EAF4FA">منصة عدنان تك</text>
+  <path d="M28 63H192" stroke="#1B3A50" stroke-width="1"/>
+  <text x="192" y="82" direction="rtl" text-anchor="start"
+        font-family="'Noto Naskh Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+        font-size="13" font-weight="600" fill="#6F8798">تم التطوير بواسطة م. عدنان القاضي</text>
+</svg>

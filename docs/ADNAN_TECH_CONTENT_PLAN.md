@@ -1,13 +1,13 @@
-# NEXORA Content Plan
+# Adnan Tech Content Plan
 
 ## Current inventory
 
 | Collection | Count | Notes |
 | --- | --- | --- |
-| Knowledge articles | 23 | Windows, AD, networking, Linux, virtualization, storage, Kubernetes, backup, incident response |
+| Knowledge articles | 44 | Windows, AD, networking, Linux, virtualization, storage, Kubernetes, backup, incident response, cloud and AI API security |
 | Troubleshooting checklists | 4 | Operational validation flows |
-| Automation scripts | 10 | PowerShell/Bash, reviewed for safe defaults |
-| Interactive tools | 28 | Local, browser-only calculators/converters |
+| Automation scripts | 21 | PowerShell/Bash diagnostic templates; not executed by the platform |
+| Interactive tools | 33 | Local, browser-only calculators/converters/references |
 | Reference sites | 19 | Official vendor documentation |
 | News sources | 19 | Verified feeds with categories |
 | AI models/presets | 12 | Provider catalog presets |
@@ -30,18 +30,15 @@ write path is enabled yet.
 
 ## Expansion roadmap
 
-### Phase 1 — deepen core IT operations (next)
+### Phase 1 — deepen core IT operations
 
-- Windows Server update rollback and WSUS troubleshooting
-- Group Policy precedence and `gpresult` interpretation
-- DHCP scope exhaustion and failover recovery
-- VPN site-to-site and client tunnel diagnosis
-- Certificate expiry/chain failures (IIS, LDAPS, RDP)
-- Entra ID Connect sync errors and hybrid identity
-- Microsoft 365 mail flow and connector diagnosis
-- VMware ESXi host disconnect and datastore latency
-- Linux boot failure: initramfs, fstab and GRUB recovery
-- PostgreSQL/MySQL connection and replication triage
+Completed: Windows startup/driver/update recovery, Windows Server patch rollback, AD DNS,
+DHCP diagnostics, file server and RDS triage, Microsoft 365 mail flow, SharePoint/OneDrive
+sync, VPN/VLAN/Wi-Fi/packet-capture diagnostics, VMware ESXi, iSCSI/SAN, immutable backups,
+Docker and AWS IAM.
+
+Still open: Group Policy precedence and `gpresult` interpretation, Entra ID Connect sync
+errors, Linux initramfs/GRUB recovery, PostgreSQL/MySQL replication triage.
 
 ### Phase 2 — security and cloud
 
@@ -54,16 +51,17 @@ write path is enabled yet.
 
 ### Phase 3 — automation and scripts
 
-- Safe PowerShell remoting inventory
-- Log collection bundle with redaction
-- Backup restore verification automation
-- Certificate expiry report
-- Disk capacity forecast
-- AD stale-account report (read-only)
+Completed: curated event log bundle with SHA-256 manifest, backup verification evidence,
+certificate expiry report, DNS/DHCP/RDP/Windows Update diagnostics, Linux systemd
+diagnostics, security baseline audit, network path diagnostics, printer inventory and
+Docker diagnostics. All templates are read-only and marked `not-executed` until a
+maintainer records a lab run.
+
+Still open: automated redaction, AD stale-account report, disk capacity forecast.
 
 ### Phase 4 — product content
 
-- NEXORA onboarding guide
+- Adnan Tech onboarding guide
 - Provider key security guide
 - Workspace and case-management playbook
 - Admin role and subscription runbook
@@ -81,6 +79,9 @@ write path is enabled yet.
 
 ## Honest status
 
-The knowledge base has **not** yet reached the planned expansion target. This document is
-a roadmap, not a claim that the additional articles exist. New content must be technically
-reviewed before publication.
+The knowledge base now has **44 bilingual articles**, 21 script templates and 33 tools.
+New articles link to official sources and state their scope and escalation criteria.
+Scripts are read-only diagnostic templates with explicit permissions, expected output,
+validation steps and a rollback note; the platform never executes them. Their `testStatus`
+is `not-executed` unless a maintainer records a lab run. Remaining roadmap items above are
+still open and are not claimed as complete.

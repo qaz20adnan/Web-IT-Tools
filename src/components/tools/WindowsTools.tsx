@@ -16,9 +16,30 @@ interface ParsedEvent {
   line: string
 }
 
-const LEVEL_PATTERN = /(?:level|severity|type|eventlevel)\s*[:=]\s*"?([a-z]+)"?/i
+const LEVEL_PATTERN = /(?:level|severity|type|eventlevel)\s*[:=]\s*"?([a-z0-9]+)"?/i
 const ID_PATTERN = /(?:event\s*id|eventid|event_id)\s*[:=]\s*"?(\d{1,5})"?/i
 const SOURCE_PATTERN = /(?:source|provider|providersource)\s*[:=]\s*"?([^",;]+)"?/i
+
+// Windows EventLog serialises levels as numbers: 1 critical, 2 error, 3 warning, 4 information, 5 verbose.
+const LEVEL_BY_NUMBER: Record<string, string> = {
+  '0': 'logalways',
+  '1': 'critical',
+  '2': 'error',
+  '3': 'warning',
+  '4': 'information',
+  '5': 'verbose',
+}
+
+const ERROR_LEVELS = ['critical', 'error', 'fatal']
+
+function levelName(value: string | number): string {
+  const text = String(value).toLowerCase()
+  return /^\d+$/.test(text) ? LEVEL_BY_NUMBER[text] ?? text : text
+}
+
+function isErrorLevel(level: string): boolean {
+  return ERROR_LEVELS.includes(level)
+}
 
 function parseEvents(text: string): ParsedEvent[] {
   const results: ParsedEvent[] = []
@@ -37,7 +58,7 @@ function parseEvents(text: string): ParsedEvent[] {
         if (typeof rawId === 'number') id = rawId
         else if (typeof rawId === 'string' && /^\d+$/.test(rawId)) id = Number(rawId)
         const rawLevel = json.Level ?? json.level ?? json.Severity ?? json.severity
-        if (typeof rawLevel === 'string') level = rawLevel
+        if (typeof rawLevel === 'string' || typeof rawLevel === 'number') level = levelName(rawLevel)
         const rawSource = json.Provider ?? json.provider ?? json.Source ?? json.source
         if (typeof rawSource === 'string') source = rawSource
       } catch {
@@ -47,7 +68,7 @@ function parseEvents(text: string): ParsedEvent[] {
     const idMatch = !id ? line.match(ID_PATTERN) : null
     if (idMatch) id = Number(idMatch[1])
     const levelMatch = line.match(LEVEL_PATTERN)
-    if (levelMatch && level === 'unknown') level = levelMatch[1]
+    if (levelMatch && level === 'unknown') level = levelName(levelMatch[1])
     const sourceMatch = line.match(SOURCE_PATTERN)
     if (!source && sourceMatch) source = sourceMatch[1].trim()
     if (id || level !== 'unknown' || source) {
@@ -61,7 +82,8 @@ const SAMPLE = `Event ID: 7031  Level: Error  Source: Service Control Manager
 Event ID: 41    Level: Critical  Source: Kernel-Power
 Event ID: 6008  Level: Error  Source: EventLog
 EventID=1000 Level=Error Provider=Application Error
-{"EventID":4625,"Level":"Warning","Provider":"Microsoft-Windows-Security-Auditing"}`
+{"EventID":4625,"Level":"Warning","Provider":"Microsoft-Windows-Security-Auditing"}
+{"EventID":7031,"Level":2,"Provider":"Service Control Manager"}`
 
 export function EventLogTool() {
   const L = useLabels()
@@ -74,7 +96,7 @@ export function EventLogTool() {
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
   }, [events])
-  const errors = events.filter((event) => ['error', 'critical', '1', '2'].includes(event.level)).length
+  const errors = events.filter((event) => isErrorLevel(event.level)).length
 
   return (
     <Card>
@@ -124,7 +146,7 @@ export function EventLogTool() {
                   {events.slice(0, 200).map((event, index) => (
                     <tr key={`${event.id}-${index}`} className="border-t border-line">
                       <td className="p-2 font-mono">{event.id ?? '—'}</td>
-                      <td className="p-2"><Badge tone={['error', 'critical', '1', '2'].includes(event.level) ? 'danger' : event.level === 'warning' ? 'warning' : 'default'}>{event.level}</Badge></td>
+                      <td className="p-2"><Badge tone={isErrorLevel(event.level) ? 'danger' : event.level === 'warning' ? 'warning' : 'default'}>{event.level}</Badge></td>
                       <td className="max-w-40 truncate p-2">{event.source}</td>
                       <td className="max-w-80 truncate p-2 text-muted" dir="ltr" title={event.line}>{event.line}</td>
                     </tr>

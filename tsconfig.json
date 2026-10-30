@@ -23,5 +23,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "tests", "netlify", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
+  "include": ["src", "tests", "netlify", "vercel", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
 }

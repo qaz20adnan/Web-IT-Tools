@@ -82,8 +82,8 @@ export function PrinterDiagnostics() {
         setError(
           caught.code === 'blocked_host'
             ? L(
-                'This deployment cannot reach private printers. Run NEXORA locally, or enable PRINTER_ALLOW_PRIVATE on a trusted self-hosted server.',
-                'هذا النشر لا يستطيع الوصول إلى الطابعات الخاصة. شغّل NEXORA محلياً أو فعّل PRINTER_ALLOW_PRIVATE على خادم مستضاف موثوق.',
+                'This deployment cannot reach private printers. Run Adnan Tech locally, or enable PRINTER_ALLOW_PRIVATE on a trusted self-hosted server.',
+                'هذا النشر لا يستطيع الوصول إلى الطابعات الخاصة. شغّل منصة عدنان تك محلياً أو فعّل PRINTER_ALLOW_PRIVATE على خادم مستضاف موثوق.',
               )
             : caught.message,
         )
@@ -105,7 +105,7 @@ export function PrinterDiagnostics() {
   }
 
   const downloadScript = () => {
-    downloadTextFile('nexora-printer-diagnostics.ps1', script, 'text/plain;charset=utf-8')
+    downloadTextFile('adnan-tech-printer-diagnostics.ps1', script, 'text/plain;charset=utf-8')
   }
 
   const saveToKnowledgeBase = () => {
@@ -152,15 +152,15 @@ export function PrinterDiagnostics() {
             label={L('Printer hostname or IP', 'اسم مضيف الطابعة أو IP')}
             htmlFor="printer-host"
             hint={L(
-              'Works for network printers only. Use the local agent below for USB printers.',
-              'يعمل مع طابعات الشبكة فقط. استخدم الوكيل المحلي أدناه لطابعات USB.',
+              'Network printers reachable from the public internet are probed directly. USB and LAN printers need the local agent below.',
+              'تُفحص مباشرةً الطابعات الشبكية المتاحة من الإنترنت العام. طابعات USB والمحلية تحتاج الوكيل المحلي أدناه.',
             )}
           >
             <Input
               id="printer-host"
               value={host}
               onChange={(event) => setHost(event.target.value)}
-              placeholder="192.168.1.50"
+              placeholder="printer.example.com"
               dir="ltr"
             />
           </Field>
@@ -289,7 +289,7 @@ export function PrinterDiagnostics() {
           )}
         />
         <div className="space-y-3 p-4">
-          <Alert tone="warning" title={L('NEXORA does not run this script', 'NEXORA لا تشغّل هذا السكربت')}>
+          <Alert tone="warning" title={L('Adnan Tech does not run this script', 'منصة عدنان تك لا تشغّل هذا السكربت')}>
             {L(
               'Download it, inspect it, then run it in an elevated PowerShell window on the Windows device that owns the printer. The browser and cloud functions cannot access the Windows spooler.',
               'نزّله وافحصه ثم شغّله في نافذة PowerShell بصلاحيات مسؤول على جهاز Windows المالك للطابعة. المتصفح ودوال السحابة لا تستطيع الوصول إلى Spooler.',
@@ -336,7 +336,7 @@ export function PrinterDiagnostics() {
               'شغّل فقط السكربتات التي أنشأتها بنفسك. راجع كل أمر قبل التنفيذ، خاصة أوامر الإلغاء وإعادة التشغيل.',
             )}
           </div>
-          <CodeBlock code={script} language="powershell" title="nexora-printer-diagnostics.ps1" maxHeight="24rem" />
+          <CodeBlock code={script} language="powershell" title="adnan-tech-printer-diagnostics.ps1" maxHeight="24rem" />
         </div>
       </Card>
     </div>

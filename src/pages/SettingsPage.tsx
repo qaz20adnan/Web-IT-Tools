@@ -10,7 +10,8 @@ import { useToast } from '@/context/ToastContext'
 import { THEMES } from '@/data/themes'
 import { cn, downloadTextFile, formatBytes } from '@/lib/utils'
 import { clearSessionKeys, localDataSize, scopedStorageKey, STORAGE_KEYS } from '@/lib/storage'
-import type { Density, FontScale, Language } from '@/types'
+import { ACCENTS, ACCENT_SWATCHES, ANIMATION_LEVELS, BACKGROUNDS, RADIUS_SCALES } from '@/lib/appearance'
+import type { AnimationIntensity, BackgroundStyle, Density, FontScale, Language, RadiusScale } from '@/types'
 
 const PRIVATE_KEYS = [STORAGE_KEYS.providers, STORAGE_KEYS.saved, STORAGE_KEYS.history, STORAGE_KEYS.scripts, STORAGE_KEYS.knowledgeBase] as const
 
@@ -42,7 +43,7 @@ export function SettingsPage() {
         }
       }
     }
-    downloadTextFile('nexora-local-data.json', JSON.stringify(payload, null, 2), 'application/json')
+    downloadTextFile('adnan-tech-local-data.json', JSON.stringify(payload, null, 2), 'application/json')
     notify('success', t('settings.exportData'))
   }
 
@@ -102,7 +103,10 @@ export function SettingsPage() {
                       <span className="h-4 flex-1 rounded-sm" style={{ background: theme.swatch[1] }} />
                       <span className="h-4 w-3 rounded-sm" style={{ background: theme.swatch[2] }} />
                     </span>
-                    <span className="block px-2 py-1 text-[10px] font-medium">{t(theme.labelKey)}</span>
+                    <span className="block px-2 py-1 text-[10px] font-medium">
+                      {theme.brand ? <span className="me-1 text-primary" aria-hidden>◆</span> : null}
+                      {t(theme.labelKey)}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -166,6 +170,57 @@ export function SettingsPage() {
                 </Select>
               </Field>
             </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold text-muted">{t('settings.accent')}</p>
+              <div className="flex flex-wrap gap-2">
+                {ACCENTS.map((accent) => (
+                  <button
+                    key={accent}
+                    type="button"
+                    onClick={() => updateSettings({ accent })}
+                    aria-pressed={settings.accent === accent}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px]',
+                      settings.accent === accent ? 'border-primary bg-primary/10' : 'border-line hover:bg-surface-2',
+                    )}
+                  >
+                    <span
+                      className="h-3.5 w-3.5 rounded-full border border-black/15"
+                      style={{ background: ACCENT_SWATCHES[accent] }}
+                      aria-hidden="true"
+                    />
+                    {t(`settings.accent.${accent}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t('settings.radius')} htmlFor="radius-scale">
+                <Select id="radius-scale" value={settings.radius} onChange={(event) => updateSettings({ radius: event.target.value as RadiusScale })}>
+                  {RADIUS_SCALES.map((scale) => (
+                    <option key={scale} value={scale}>{t(`settings.radius.${scale}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('settings.background')} htmlFor="background-style">
+                <Select id="background-style" value={settings.background} onChange={(event) => updateSettings({ background: event.target.value as BackgroundStyle })}>
+                  {BACKGROUNDS.map((style) => (
+                    <option key={style} value={style}>{t(`settings.background.${style}`)}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <Field label={t('settings.animation')} htmlFor="animation-intensity">
+              <Select id="animation-intensity" value={settings.animation} onChange={(event) => updateSettings({ animation: event.target.value as AnimationIntensity })}>
+                {ANIMATION_LEVELS.map((level) => (
+                  <option key={level} value={level}>{t(`settings.animation.${level}`)}</option>
+                ))}
+              </Select>
+            </Field>
+            <p className="text-[10px] text-subtle">{t('settings.animationHint')}</p>
 
             <Switch
               checked={settings.reduceMotion}

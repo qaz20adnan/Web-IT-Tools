@@ -317,7 +317,7 @@ export function Alert({
 export function EmptyState({ icon, title, description, action, className }: { icon?: ReactNode; title: string; description?: string; action?: ReactNode; className?: string }) {
   return (
     <div className={cn('flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-6 py-10 text-center', className)}>
-      {icon ? <div className="mb-3 text-subtle">{icon}</div> : null}
+      {icon ? <div className="mb-3 animate-rise text-subtle">{icon}</div> : null}
       <p className="text-sm font-semibold">{title}</p>
       {description ? <p className="mt-1 max-w-md text-xs text-muted">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
@@ -350,7 +350,7 @@ export function Spinner({ label, className }: { label?: string; className?: stri
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-md bg-surface-3', className)} aria-hidden />
+  return <div className={cn('animate-shimmer rounded-md', className)} aria-hidden />
 }
 
 /* -------------------------------- Modal ------------------------------- */
@@ -417,7 +417,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={cn('card w-full animate-in', widths[size])}
+        className={cn('card w-full animate-pop', widths[size])}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
@@ -465,8 +465,8 @@ export function Tab({ id, children, icon }: { id: string; children: ReactNode; i
       aria-selected={selected}
       onClick={() => ctx.onChange(id)}
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-        selected ? 'border-primary text-text' : 'border-transparent text-muted hover:text-text',
+        'nx-tab inline-flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm font-medium transition-colors',
+        selected ? 'text-text' : 'text-muted hover:text-text',
       )}
     >
       {icon}
@@ -480,7 +480,7 @@ export function Tab({ id, children, icon }: { id: string; children: ReactNode; i
 export function PageHeader({ title, subtitle, actions, badge }: { title: string; subtitle?: string; actions?: ReactNode; badge?: ReactNode }) {
   return (
     <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-      <div className="min-w-0">
+      <div className="min-w-0 animate-mask">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
           {badge}

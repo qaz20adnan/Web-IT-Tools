@@ -1,8 +1,8 @@
-# NEXORA Architecture
+# Adnan Tech Architecture
 
 ## Overview
 
-NEXORA AI is a single-page React application backed by flat Netlify Functions.
+Adnan Tech is a single-page React application backed by flat Netlify Functions.
 
 1. **Public entry** — `/login`, `/register`, `/forgot-password`, `/reset-password`,
    `/verify`, `/check-email` and `/about` are reachable without a session.
@@ -38,8 +38,16 @@ Browser (React)
 - `src/pages/` — login, register, forgot/reset password, verify, check email, account,
   workspace and admin.
 - `src/i18n/en.ts` / `ar.ts` — key-identical dictionaries; Arabic drives RTL.
-- `src/data/themes.ts` and `src/styles/index.css` — 11 themes including the ten named
-  NEXORA themes plus the legacy Cyber Pulse variant.
+- `src/data/themes.ts` and `src/styles/index.css` — 11 themes plus advanced appearance
+  controls (accent palette, card radius, background pattern and animation intensity).
+  Values are validated in `src/lib/appearance.ts` and applied as `data-*` attributes.
+- `src/data/knowledgeExpansion*.ts` — additional bilingual articles merged into the
+  static knowledge inventory (44 total).
+- `src/data/scriptsExpansion.ts` — read-only diagnostic templates with permissions,
+  dependencies, usage, validation, sources and an honest `testStatus` (21 total).
+- `src/lib/operations.ts` and `src/components/tools/OperationsTools.tsx` — port reference,
+  latency/packet-loss analysis, disk capacity planning, firewall rule documentation and
+  backup readiness scoring (33 tools total).
 
 ## Backend
 

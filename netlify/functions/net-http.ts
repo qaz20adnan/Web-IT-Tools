@@ -1,6 +1,7 @@
 import { requireMember } from '../lib/auth'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { enforceRateLimit } from '../lib/rate'
+import { describeHttpFailure } from '../lib/net-errors'
 import { flattenZod, httpRequestSchema } from '../lib/schema'
 import { checkHttp } from '../lib/net-diagnostics'
 
@@ -15,6 +16,6 @@ export const handler: Handler = wrap(async (event, context) => {
     return json(200, result)
   } catch (error) {
     if (error instanceof HttpError) throw error
-    throw new HttpError(502, 'upstream_error', error instanceof Error ? error.message : 'The HTTP check failed.')
+    throw new HttpError(502, 'upstream_error', describeHttpFailure(error))
   }
 })

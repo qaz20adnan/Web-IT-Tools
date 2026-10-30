@@ -1,4 +1,5 @@
 import { HttpError } from './http'
+import { describeHttpFailure } from './net-errors'
 
 export interface FetchOptions {
   method?: string
@@ -13,14 +14,6 @@ export interface FetchResult {
   ok: boolean
   headers: Headers
   text: string
-}
-
-function fetchFailureDetail(error: unknown): string | undefined {
-  if (!(error instanceof Error)) return undefined
-  const cause = (error as Error & { cause?: unknown }).cause
-  if (cause instanceof Error && cause.message) return `${error.message}: ${cause.message}`.slice(0, 300)
-  if (typeof cause === 'string' && cause.trim()) return `${error.message}: ${cause}`.slice(0, 300)
-  return error.message
 }
 
 export async function fetchText(url: string, options: FetchOptions = {}): Promise<FetchResult> {
@@ -57,7 +50,7 @@ export async function fetchText(url: string, options: FetchOptions = {}): Promis
       502,
       'upstream_error',
       'The upstream service could not be reached. Check its URL and the server network connection.',
-      fetchFailureDetail(error),
+      describeHttpFailure(error),
     )
   } finally {
     clearTimeout(timeout)

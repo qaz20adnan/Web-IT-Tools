@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'no
 import { promises as fs } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { HttpError } from './http'
+import type { Role } from './rbac'
 
 /**
  * Temporary development-only authentication.
@@ -27,16 +28,66 @@ interface LocalPasswordHash {
   keyLength: number
 }
 
+export type LocalAccountStatus = 'active' | 'suspended' | 'pending'
+
 export interface LocalAccountRecord {
   id: string
   username: string
   fullName: string | null
   email: string
-  role: 'standard_member'
-  status: 'active'
+  role: Role
+  status: LocalAccountStatus
   password: LocalPasswordHash
   createdAt: string
   updatedAt: string
+}
+
+export interface LocalAccountSummary {
+  id: string
+  username: string
+  fullName: string | null
+  email: string
+  role: Role
+  status: LocalAccountStatus
+  createdAt: string
+  updatedAt: string
+  activeSessions: number
+}
+
+export interface LocalAuditRecord {
+  id: string
+  actorId: string | null
+  actorEmail: string | null
+  action: string
+  targetType: string | null
+  targetId: string | null
+  outcome: 'success' | 'failure'
+  detail: Record<string, unknown> | null
+  createdAt: string
+}
+
+export const LOCAL_ROLES: Role[] = [
+  'owner',
+  'admin',
+  'super_admin',
+  'content_manager',
+  'technical_editor',
+  'support_specialist',
+  'premium_member',
+  'standard_member',
+  'trial_member',
+  'suspended_member',
+]
+
+const LOCAL_STATUSES: LocalAccountStatus[] = ['active', 'suspended', 'pending']
+const MAX_AUDIT_RECORDS = 1000
+
+export function isLocalRole(value: unknown): value is Role {
+  return typeof value === 'string' && LOCAL_ROLES.includes(value as Role)
+}
+
+export function isLocalStatus(value: unknown): value is LocalAccountStatus {
+  return typeof value === 'string' && LOCAL_STATUSES.includes(value as LocalAccountStatus)
 }
 
 interface LocalSessionRecord {
@@ -53,6 +104,7 @@ interface LocalAuthStore {
   version: number
   accounts: LocalAccountRecord[]
   sessions: LocalSessionRecord[]
+  audits: LocalAuditRecord[]
 }
 
 export interface LocalAuthTokens {
@@ -142,7 +194,7 @@ async function verifyPassword(password: string, stored: LocalPasswordHash): Prom
 }
 
 function emptyStore(): LocalAuthStore {
-  return { version: STORE_VERSION, accounts: [], sessions: [] }
+  return { version: STORE_VERSION, accounts: [], sessions: [], audits: [] }
 }
 
 function isAccount(value: unknown): value is LocalAccountRecord {
@@ -152,8 +204,8 @@ function isAccount(value: unknown): value is LocalAccountRecord {
       typeof account.id === 'string' &&
       typeof account.username === 'string' &&
       typeof account.email === 'string' &&
-      account.role === 'standard_member' &&
-      account.status === 'active' &&
+      isLocalRole(account.role) &&
+      isLocalStatus(account.status) &&
       typeof account.createdAt === 'string' &&
       typeof account.updatedAt === 'string' &&
       account.password &&
@@ -161,6 +213,17 @@ function isAccount(value: unknown): value is LocalAccountRecord {
       typeof account.password.salt === 'string' &&
       typeof account.password.hash === 'string' &&
       account.password.keyLength === PASSWORD_KEY_LENGTH,
+  )
+}
+
+function isAudit(value: unknown): value is LocalAuditRecord {
+  const audit = value as Partial<LocalAuditRecord> | null
+  return Boolean(
+    audit &&
+      typeof audit.id === 'string' &&
+      typeof audit.action === 'string' &&
+      (audit.outcome === 'success' || audit.outcome === 'failure') &&
+      typeof audit.createdAt === 'string',
   )
 }
 
@@ -188,11 +251,12 @@ async function readStore(): Promise<LocalAuthStore> {
       !Array.isArray(parsed.accounts) ||
       !Array.isArray(parsed.sessions) ||
       !parsed.accounts.every(isAccount) ||
-      !parsed.sessions.every(isSession)
+      !parsed.sessions.every(isSession) ||
+      (parsed.audits !== undefined && (!Array.isArray(parsed.audits) || !parsed.audits.every(isAudit)))
     ) {
       throw new HttpError(500, 'unknown', 'The local authentication store is corrupted. Move it aside and retry.')
     }
-    return parsed as LocalAuthStore
+    return { ...(parsed as LocalAuthStore), audits: parsed.audits ?? [] }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return emptyStore()
     throw error
@@ -258,6 +322,89 @@ function accountById(store: LocalAuthStore, id: string): LocalAccountRecord | un
   return store.accounts.find((account) => account.id === id)
 }
 
+function activeSessionCount(store: LocalAuthStore, accountId: string, now = Date.now()): number {
+  return store.sessions.filter(
+    (session) => session.accountId === accountId && session.refreshExpiresAt > now,
+  ).length
+}
+
+function summarize(account: LocalAccountRecord, store: LocalAuthStore): LocalAccountSummary {
+  return {
+    id: account.id,
+    username: account.username,
+    fullName: account.fullName,
+    email: account.email,
+    role: account.role,
+    status: account.status,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+    activeSessions: activeSessionCount(store, account.id),
+  }
+}
+
+function assertSignInAllowed(account: LocalAccountRecord): void {
+  if (account.status === 'active') return
+  throw new HttpError(
+    403,
+    'forbidden',
+    account.status === 'suspended'
+      ? 'This account is suspended. Contact an administrator.'
+      : 'This account is pending activation. Contact an administrator.',
+  )
+}
+
+export async function listLocalAccounts(): Promise<LocalAccountSummary[]> {
+  const store = await readStore()
+  return store.accounts.map((account) => summarize(account, store))
+}
+
+export async function countActiveLocalAccounts(role: Role): Promise<number> {
+  const store = await readStore()
+  return store.accounts.filter((account) => account.role === role && account.status === 'active').length
+}
+
+export async function recordLocalAudit(input: {
+  actorId: string | null
+  actorEmail: string | null
+  action: string
+  targetType?: string | null
+  targetId?: string | null
+  outcome: 'success' | 'failure'
+  detail?: Record<string, unknown> | null
+}): Promise<void> {
+  await withStoreLock(async () => {
+    const store = await readStore()
+    store.audits.push({
+      id: randomUUID(),
+      actorId: input.actorId,
+      actorEmail: input.actorEmail,
+      action: input.action,
+      targetType: input.targetType ?? null,
+      targetId: input.targetId ?? null,
+      outcome: input.outcome,
+      detail: input.detail ?? null,
+      createdAt: new Date().toISOString(),
+    })
+    if (store.audits.length > MAX_AUDIT_RECORDS) {
+      store.audits = store.audits.slice(-MAX_AUDIT_RECORDS)
+    }
+    await writeStore(store)
+  })
+}
+
+export async function listLocalAudits(limit = 50, offset = 0): Promise<LocalAuditRecord[]> {
+  const store = await readStore()
+  return store.audits
+    .slice()
+    .reverse()
+    .slice(offset, offset + limit)
+}
+
+export async function countLocalAudits(): Promise<number> {
+  const store = await readStore()
+  return store.audits.length
+}
+
 export async function registerLocalAccount(input: {
   username: string
   email: string
@@ -299,10 +446,12 @@ export async function loginLocalAccount(email: string, password: string): Promis
   if (!account || !(await verifyPassword(password, account.password))) {
     throw new HttpError(401, 'invalid_credentials', 'The email or password is incorrect.')
   }
+  assertSignInAllowed(account)
   return withStoreLock(async () => {
     const fresh = await readStore()
     const current = accountById(fresh, account.id)
     if (!current) throw new HttpError(401, 'invalid_credentials', 'The email or password is incorrect.')
+    assertSignInAllowed(current)
     const tokens = addSession(fresh, current.id)
     await writeStore(fresh)
     return { account: current, tokens }
@@ -323,6 +472,11 @@ export async function refreshLocalSession(refreshToken: string): Promise<LocalAu
       store.sessions = store.sessions.filter((entry) => entry.id !== session.id)
       await writeStore(store)
       throw new HttpError(401, 'unauthorized', 'The local session is invalid or has expired.')
+    }
+    if (account.status !== 'active') {
+      store.sessions = store.sessions.filter((entry) => entry.id !== session.id)
+      await writeStore(store)
+      assertSignInAllowed(account)
     }
     const accessToken = randomToken()
     const nextRefreshToken = randomToken()
@@ -359,7 +513,9 @@ export async function localAccountForAccessToken(accessToken: string): Promise<L
     (entry) => entry.accessHash === hashToken(accessToken) && entry.accessExpiresAt > now,
   )
   if (!session) return null
-  return accountById(store, session.accountId) ?? null
+  const account = accountById(store, session.accountId)
+  if (!account || account.status !== 'active') return null
+  return account
 }
 
 export async function updateLocalProfile(accountId: string, fullName: string): Promise<LocalAccountRecord> {
@@ -405,5 +561,163 @@ export async function deleteLocalAccount(accountId: string, password: string): P
     fresh.accounts = fresh.accounts.filter((entry) => entry.id !== accountId)
     fresh.sessions = fresh.sessions.filter((entry) => entry.accountId !== accountId)
     await writeStore(fresh)
+  })
+}
+
+export interface LocalAccountGuard {
+  protectActiveRoles?: Role[]
+}
+
+function assertProtectedRoleRemains(
+  store: LocalAuthStore,
+  target: LocalAccountRecord,
+  nextRole: Role,
+  nextStatus: LocalAccountStatus,
+  protect: Role[],
+): void {
+  if (target.status !== 'active' || !protect.includes(target.role)) return
+  if (nextRole === target.role && nextStatus === 'active') return
+  const remaining = store.accounts.filter(
+    (account) =>
+      account.id !== target.id && account.role === target.role && account.status === 'active',
+  ).length
+  if (remaining > 0) return
+  throw new HttpError(
+    422,
+    'invalid_input',
+    target.role === 'owner'
+      ? 'The last active platform owner cannot be demoted or suspended.'
+      : 'The last active super administrator cannot be demoted or suspended.',
+  )
+}
+
+export async function getLocalAccount(accountId: string): Promise<LocalAccountSummary | null> {
+  const store = await readStore()
+  const account = accountById(store, accountId)
+  return account ? summarize(account, store) : null
+}
+
+export async function createLocalAccountByAdmin(input: {
+  username: string
+  email: string
+  password: string
+  fullName?: string | null
+  role: Role
+}): Promise<LocalAccountSummary> {
+  assertPassword(input.password)
+  if (!isLocalRole(input.role)) throw new HttpError(400, 'invalid_input', 'Unknown account role.')
+  const email = normalizeEmail(input.email)
+  const username = input.username.trim()
+  const fullName = (input.fullName ?? username).trim().slice(0, 120) || null
+  const password = await hashPassword(input.password)
+  return withStoreLock(async () => {
+    const store = await readStore()
+    if (accountByEmail(store, email)) {
+      throw new HttpError(409, 'already_exists', 'An account with this email already exists.')
+    }
+    const now = new Date().toISOString()
+    const account: LocalAccountRecord = {
+      id: `local_${randomUUID()}`,
+      username,
+      fullName,
+      email,
+      role: input.role,
+      status: 'active',
+      password,
+      createdAt: now,
+      updatedAt: now,
+    }
+    store.accounts.push(account)
+    await writeStore(store)
+    return summarize(account, store)
+  })
+}
+
+export async function updateLocalAccount(
+  accountId: string,
+  patch: { role?: Role; status?: LocalAccountStatus },
+  guard: LocalAccountGuard = {},
+): Promise<LocalAccountSummary> {
+  if (patch.role === undefined && patch.status === undefined) {
+    throw new HttpError(400, 'invalid_input', 'Nothing to update.')
+  }
+  if (patch.role !== undefined && !isLocalRole(patch.role)) {
+    throw new HttpError(400, 'invalid_input', 'Unknown account role.')
+  }
+  if (patch.status !== undefined && !isLocalStatus(patch.status)) {
+    throw new HttpError(400, 'invalid_input', 'Unknown account status.')
+  }
+  return withStoreLock(async () => {
+    const store = await readStore()
+    const account = accountById(store, accountId)
+    if (!account) throw new HttpError(404, 'not_found', 'The local account no longer exists.')
+    const nextRole = patch.role ?? account.role
+    const nextStatus = patch.status ?? account.status
+    assertProtectedRoleRemains(store, account, nextRole, nextStatus, guard.protectActiveRoles ?? [])
+    account.role = nextRole
+    account.status = nextStatus
+    account.updatedAt = new Date().toISOString()
+    if (nextStatus !== 'active') {
+      store.sessions = store.sessions.filter((session) => session.accountId !== accountId)
+    }
+    await writeStore(store)
+    return summarize(account, store)
+  })
+}
+
+export async function revokeLocalSessions(accountId: string): Promise<number> {
+  return withStoreLock(async () => {
+    const store = await readStore()
+    if (!accountById(store, accountId)) {
+      throw new HttpError(404, 'not_found', 'The local account no longer exists.')
+    }
+    const before = store.sessions.length
+    store.sessions = store.sessions.filter((session) => session.accountId !== accountId)
+    const removed = before - store.sessions.length
+    if (removed > 0) await writeStore(store)
+    return removed
+  })
+}
+
+export async function resetLocalPasswordByAdmin(accountId: string, newPassword: string): Promise<void> {
+  assertPassword(newPassword)
+  const password = await hashPassword(newPassword)
+  await withStoreLock(async () => {
+    const store = await readStore()
+    const account = accountById(store, accountId)
+    if (!account) throw new HttpError(404, 'not_found', 'The local account no longer exists.')
+    account.password = password
+    account.updatedAt = new Date().toISOString()
+    store.sessions = store.sessions.filter((session) => session.accountId !== accountId)
+    await writeStore(store)
+  })
+}
+
+export async function deleteLocalAccountByAdmin(
+  accountId: string,
+  guard: LocalAccountGuard = {},
+): Promise<void> {
+  await withStoreLock(async () => {
+    const store = await readStore()
+    const account = accountById(store, accountId)
+    if (!account) throw new HttpError(404, 'not_found', 'The local account no longer exists.')
+    assertProtectedRoleRemains(store, account, 'suspended_member', 'suspended', guard.protectActiveRoles ?? [])
+    if (guard.protectActiveRoles?.includes(account.role) && account.status === 'active') {
+      const remaining = store.accounts.filter(
+        (entry) => entry.id !== account.id && entry.role === account.role && entry.status === 'active',
+      ).length
+      if (remaining === 0) {
+        throw new HttpError(
+          422,
+          'invalid_input',
+          account.role === 'owner'
+            ? 'The last active platform owner cannot be deleted.'
+            : 'The last active super administrator cannot be deleted.',
+        )
+      }
+    }
+    store.accounts = store.accounts.filter((entry) => entry.id !== accountId)
+    store.sessions = store.sessions.filter((session) => session.accountId !== accountId)
+    await writeStore(store)
   })
 }

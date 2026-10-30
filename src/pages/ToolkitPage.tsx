@@ -38,7 +38,24 @@ import {
   VulnTool,
 } from '@/components/tools/SecurityTools'
 import { EventLogTool } from '@/components/tools/WindowsTools'
+import { PermissionsTool } from '@/components/tools/LinuxTools'
+import { VlsmTool } from '@/components/tools/VlsmPlanner'
+import { CidrOverlapTool } from '@/components/tools/CidrOverlapTool'
+import { MtuTool } from '@/components/tools/MtuTool'
+import { CapacityTool } from '@/components/tools/CapacityTool'
+import { CertDecodeTool } from '@/components/tools/CertDecodeTool'
+import { TextDiffTool } from '@/components/tools/TextDiffTool'
+import { CsvJsonTool } from '@/components/tools/CsvJsonTool'
 import { DnsTool, TlsTool } from '@/components/tools/NetworkLookup'
+import { SpeedTestTool } from '@/components/tools/SpeedTestTool'
+import { PortCheckTool } from '@/components/tools/PortCheckTool'
+import {
+  BackupReadinessTool,
+  DiskCapacityTool,
+  FirewallDocTool,
+  LatencyTool,
+  PortReferenceTool,
+} from '@/components/tools/OperationsTools'
 
 const COMPONENTS: Record<string, () => React.JSX.Element | null> = {
   subnet: SubnetTool,
@@ -46,6 +63,8 @@ const COMPONENTS: Record<string, () => React.JSX.Element | null> = {
   dns: DnsTool,
   bandwidth: BandwidthTool,
   tls: TlsTool,
+  speed: SpeedTestTool,
+  portcheck: PortCheckTool,
   raid: RaidTool,
   backup: BackupTool,
   rto: RtoTool,
@@ -69,6 +88,19 @@ const COMPONENTS: Record<string, () => React.JSX.Element | null> = {
   markdown: MarkdownTool,
   api: ApiTool,
   logformat: LogFormatTool,
+  ports: PortReferenceTool,
+  latency: LatencyTool,
+  diskcapacity: DiskCapacityTool,
+  firewalldoc: FirewallDocTool,
+  backupcheck: BackupReadinessTool,
+  vlsm: VlsmTool,
+  permissions: PermissionsTool,
+  cidroverlap: CidrOverlapTool,
+  mtu: MtuTool,
+  capacity: CapacityTool,
+  certdecode: CertDecodeTool,
+  textdiff: TextDiffTool,
+  csvjson: CsvJsonTool,
 }
 
 const CATEGORY_LABEL: Record<ToolCategory, 'toolkit.network' | 'toolkit.server' | 'toolkit.windows' | 'toolkit.security' | 'toolkit.developer' | 'toolkit.data'> = {
@@ -133,15 +165,15 @@ export function ToolkitPage() {
       {filtered.length === 0 ? (
         <EmptyState icon={<Wrench className="h-8 w-8" />} title={t('toolkit.noTools')} description={t('toolkit.subtitle')} />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((tool) => (
-            <button key={tool.id} type="button" onClick={() => openTool(tool.id)} className="card card-pad text-start transition-colors hover:border-primary/60 hover:bg-surface-2">
+            <button key={tool.id} type="button" onClick={() => openTool(tool.id)} className="card lift card-pad group text-start hover:border-primary/60">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-sm font-semibold">{pickText(tool.name, settings.language)}</h2>
                 <Badge>{t(CATEGORY_LABEL[tool.category])}</Badge>
               </div>
               <p className="mt-1.5 line-clamp-3 text-xs text-muted">{pickText(tool.description, settings.language)}</p>
-              <span className="mt-3 inline-block text-xs font-medium text-primary">{t('toolkit.open')} →</span>
+              <span className="mt-3 inline-block text-xs font-medium text-primary transition-transform group-hover:scale-110">{t('toolkit.open')} →</span>
             </button>
           ))}
         </div>

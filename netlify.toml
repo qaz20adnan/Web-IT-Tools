@@ -77,14 +77,14 @@
   force = true
 
 [[redirects]]
-  from = "/api/net/ping"
-  to = "/.netlify/functions/net-ping"
+  from = "/api/net/latency"
+  to = "/.netlify/functions/net-latency"
   status = 200
   force = true
 
 [[redirects]]
-  from = "/api/net/traceroute"
-  to = "/.netlify/functions/net-traceroute"
+  from = "/api/net/path"
+  to = "/.netlify/functions/net-path"
   status = 200
   force = true
 

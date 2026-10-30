@@ -280,8 +280,8 @@ export async function accountForUser(user: SupabaseAuthUser): Promise<AuthAccoun
 }
 
 export function localAuthAccount(record: LocalAccountRecord): AuthAccount {
-  const role = 'standard_member' as const
-  const status = 'active' as const
+  const role = record.role
+  const status = record.status
   const trial = computeTrial(record.createdAt, serverConfig.trialDays)
   return {
     user: {
@@ -304,7 +304,7 @@ export function localAuthAccount(record: LocalAccountRecord): AuthAccount {
     role,
     status,
     permissions: permissionsFor(role, status),
-    entitlements: resolveEntitlements({ status, subscription: null, trial, isStaff: false }),
+    entitlements: resolveEntitlements({ status, subscription: null, trial, isStaff: isStaffRole(role) }),
     trial,
     subscription: null,
     usageToday: 0,
@@ -318,6 +318,7 @@ export async function authenticate(event: NetlifyEvent): Promise<AuthAccount> {
     if (!token) throw new HttpError(401, 'unauthorized', 'Sign in to continue.')
     const record = await localAccountForAccessToken(token)
     if (!record) throw new HttpError(401, 'unauthorized', 'The local session is invalid or has expired.')
+    if (record.status !== 'active') throw new HttpError(403, 'forbidden', 'This account is suspended or not active.')
     return localAuthAccount(record)
   }
   assertAuthBackend()

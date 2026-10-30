@@ -57,6 +57,28 @@ export const TOOLS: ToolMeta[] = [
     keywords: ['tls', 'ssl', 'certificate', 'expiry', 'https'],
   },
   {
+    id: 'speed',
+    name: { en: 'Internet Speed Test', ar: 'فحص سرعة الإنترنت' },
+    description: {
+      en: 'Download, upload, ping and jitter measured in the browser against the Cloudflare speed endpoint.',
+      ar: 'التنزيل والرفع والبنغ والتذبذب تُقاس في المتصفح عبر نقطة قياس السرعة لدى كلاودفلير.',
+    },
+    category: 'network',
+    icon: 'Gauge',
+    keywords: ['speed', 'speedtest', 'bandwidth', 'ping', 'jitter', 'latency', 'سرعة'],
+  },
+  {
+    id: 'portcheck',
+    name: { en: 'Public Port & DDNS Checker', ar: 'فحص المنافذ العامة وDDNS' },
+    description: {
+      en: 'TCP port probes from the server plus A-record resolution to verify a DDNS hostname is reachable.',
+      ar: 'فحص منافذ TCP من الخادم مع حل سجل A للتأكد من إمكانية الوصول إلى اسم DDNS.',
+    },
+    category: 'network',
+    icon: 'RadioTower',
+    keywords: ['port', 'ports', 'ddns', 'reachability', 'firewall', 'open', 'منافذ'],
+  },
+  {
     id: 'raid',
     name: { en: 'RAID Capacity Estimator', ar: 'مقدّر سعة RAID' },
     description: {
@@ -308,6 +330,149 @@ export const TOOLS: ToolMeta[] = [
     category: 'data',
     icon: 'AlignLeft',
     keywords: ['log', 'jsonl', 'format', 'parse'],
+  },
+  {
+    id: 'ports',
+    name: { en: 'TCP / UDP Port Reference', ar: 'مرجع منافذ TCP / UDP' },
+    description: {
+      en: 'Searchable reference for common service ports, protocols and secure alternatives.',
+      ar: 'مرجع قابل للبحث لمنافذ الخدمات الشائعة والبروتوكولات والبدائل الآمنة.',
+    },
+    category: 'network',
+    icon: 'Network',
+    keywords: ['port', 'tcp', 'udp', 'service', 'netstat', 'firewall'],
+  },
+  {
+    id: 'latency',
+    name: { en: 'Latency & Packet Loss Analyzer', ar: 'محلل زمن الاستجابة وفقدان الحزم' },
+    description: {
+      en: 'Compute packet loss, min/avg/max RTT and jitter from ping samples.',
+      ar: 'احسب فقدان الحزم وأقل/متوسط/أعلى زمن استجابة والتذبذب من عينات ping.',
+    },
+    category: 'network',
+    icon: 'Activity',
+    keywords: ['latency', 'ping', 'packet loss', 'jitter', 'rtt'],
+  },
+  {
+    id: 'diskcapacity',
+    name: { en: 'Disk Capacity Planner', ar: 'مخطط سعة الأقراص' },
+    description: {
+      en: 'Plan usable capacity with RAID overhead, reserved space, filesystem cost and growth headroom.',
+      ar: 'خطط السعة المتاحة مع كلفة RAID والمساحة المحجوزة ونظام الملفات واحتياطي النمو.',
+    },
+    category: 'server',
+    icon: 'HardDrive',
+    keywords: ['disk', 'capacity', 'raid', 'storage', 'planning'],
+  },
+  {
+    id: 'firewalldoc',
+    name: { en: 'Firewall Rule Documenter', ar: 'موثّق قواعد جدار الحماية' },
+    description: {
+      en: 'Validate a firewall rule and export reviewable Markdown documentation.',
+      ar: 'تحقق من قاعدة جدار حماية وصدّر توثيق Markdown قابلًا للمراجعة.',
+    },
+    category: 'security',
+    icon: 'ShieldCheck',
+    keywords: ['firewall', 'rule', 'documentation', 'policy', 'segmentation'],
+  },
+  {
+    id: 'backupcheck',
+    name: { en: 'Backup Readiness Checklist', ar: 'قائمة جاهزية النسخ الاحتياطي' },
+    description: {
+      en: 'Score backup coverage against RPO, copies, isolation, immutability and restore testing.',
+      ar: 'قيّم تغطية النسخ الاحتياطي مقابل RPO والنسخ والعزل وعدم القابلية للتغيير واختبار الاسترداد.',
+    },
+    category: 'server',
+    icon: 'Archive',
+    keywords: ['backup', 'checklist', 'rpo', 'immutable', 'restore'],
+  },
+  {
+    id: 'vlsm',
+    name: { en: 'VLSM Subnet Planner', ar: 'مخطّط شبكات VLSM' },
+    description: {
+      en: 'Allocate aligned subnets for several networks from one base prefix, largest requirement first, with CSV export.',
+      ar: 'توزيع شبكات متوافقة الحدود على عدة متطلبات من بادئة واحدة، الأكبر أولًا، مع تصدير CSV.',
+    },
+    category: 'network',
+    icon: 'Network',
+    keywords: ['vlsm', 'subnet', 'cidr', 'addressing plan', 'allocation', 'خطة عنونة', 'تقسيم'],
+  },
+  {
+    id: 'permissions',
+    name: { en: 'Linux Permission & umask Calculator', ar: 'حاسبة صلاحيات Linux وumask' },
+    description: {
+      en: 'Convert between octal and symbolic modes, review special bits, and see what a umask grants to new files and directories.',
+      ar: 'التحويل بين الوضع العشاري والرمزي ومراجعة البتات الخاصة ومعرفة ما يمنحه umask للملفات والمجلدات الجديدة.',
+    },
+    category: 'server',
+    icon: 'Lock',
+    keywords: ['chmod', 'umask', 'permission', 'octal', 'symbolic', 'setuid', 'setgid', 'sticky', 'صلاحيات', 'تراخيص'],
+  },
+  {
+    id: 'cidroverlap',
+    name: { en: 'CIDR Overlap / Conflict Detector', ar: 'فاحص تداخل وتعارض CIDR' },
+    description: {
+      en: 'Check a list of IPv4 networks for overlapping subnets, host-bit mistakes and gateway or DNS address collisions.',
+      ar: 'فحص قائمة شبكات IPv4 بحثًا عن الشبكات الفرعية المتداخلة وأخطاء بتات المضيف وتصادم عناوين البوابة وDNS.',
+    },
+    category: 'network',
+    icon: 'Network',
+    keywords: ['cidr', 'overlap', 'conflict', 'addressing plan', 'gateway', 'broadcast', 'تداخل', 'خطة عنونة', 'تعارض'],
+  },
+  {
+    id: 'mtu',
+    name: { en: 'MTU & Tunnel Overhead Calculator', ar: 'حاسبة MTU وكلفة الأنفاق' },
+    description: {
+      en: 'Payload MTU and TCP MSS for VXLAN, GRE, IPsec ESP, PPPoE, 6in4 and WireGuard, with the header breakdown and PMTU symptoms.',
+      ar: 'حساب MTU الحمولة وقيمة MSS لأنفاق VXLAN وGRE وIPsec ESP وPPPoE و6in4 وWireGuard، مع تفصيل أحجام الترويسات وأعراض تجاوز MTU المسار.',
+    },
+    category: 'network',
+    icon: 'Gauge',
+    keywords: ['mtu', 'mss', 'fragmentation', 'vxlan', 'gre', 'ipsec', 'esp', 'pppoe', 'wireguard', 'jumbo', 'تجزئة', 'نفق'],
+  },
+  {
+    id: 'capacity',
+    name: { en: 'Storage Capacity Unit Converter', ar: 'محوّل وحدات سعة التخزين' },
+    description: {
+      en: 'Convert between IEC binary (KiB, GiB, TiB) and JEDEC decimal (KB, GB, TB) units and show the marketing-versus-usable gap.',
+      ar: 'التحويل بين وحدات IEC الثنائية (KiB وGiB وTiB) ووحدات JEDEC العشرية (KB وGB وTB) وإظهار الفارق بين الحجم التسويقي والمتاح.',
+    },
+    category: 'server',
+    icon: 'HardDrive',
+    keywords: ['capacity', 'kib', 'mib', 'gib', 'tib', 'kb', 'mb', 'gb', 'tb', 'jedec', 'iec', 'سعة', 'تخزين', 'بايت'],
+  },
+  {
+    id: 'certdecode',
+    name: { en: 'X.509 Certificate & CSR Decoder', ar: 'فك تشفير الشهادات وطلبات التوقيع' },
+    description: {
+      en: 'Decode PEM certificates and CSRs from their DER bytes locally: validity, issuer and subject, key algorithm, SAN and extensions, plus chain matching inside the bundle.',
+      ar: 'فك تشفير شهادات وطلبات توقيع certificates بصيغة PEM محليًا من ترميز DER: فترة الصلاحية والمُصدِر وصاحب الشهادة وخوارزمية المفتاح والامتدادات، مع مطابقة سلسلة الشهادات داخل الملف.',
+    },
+    category: 'security',
+    icon: 'FileKey',
+    keywords: ['x509', 'pem', 'csr', 'der', 'asn.1', 'san', 'certificate', 'chain', 'شهادة', 'سلسلة'],
+  },
+  {
+    id: 'textdiff',
+    name: { en: 'Text & Config Diff', ar: 'مقارنة النصوص وملفات الإعدادات' },
+    description: {
+      en: 'Line-by-line comparison of two configs or outputs with unified and side-by-side views, added/removed counts and ignore-case options.',
+      ar: 'مقارنة سطرية بين ملفي إعدادات أو مخرجين مع عرض موحّد وآخر متقابل، وأعداد الأسطر المضافة والحذف وخيارات تجاهل حالة الأحرف.',
+    },
+    category: 'developer',
+    icon: 'GitCompare',
+    keywords: ['diff', 'compare', 'config', 'unified', 'مقارنة', 'فارق', 'إعدادات'],
+  },
+  {
+    id: 'csvjson',
+    name: { en: 'CSV ⇄ JSON Converter', ar: 'محوّل CSV إلى JSON والعكس' },
+    description: {
+      en: 'RFC 4180 parsing with quoted fields and embedded newlines, delimiter choice, ragged-row reporting and optional type coercion for ticket and inventory exports.',
+      ar: 'تحليل متوافق مع RFC 4180 يدعم الحقول بين علامتي اقتباس وأسطر النص داخل الحقل واختيار الفاصل والإبلاغ عن الصفوف غير المتطابقة وتحويل الأنواع اختياريًا، لتصدير التذاكر والجرد.',
+    },
+    category: 'developer',
+    icon: 'Table',
+    keywords: ['csv', 'json', 'rfc 4180', 'delimiter', 'export', 'separator', 'فاصل', 'تصدير'],
   },
 ]
 

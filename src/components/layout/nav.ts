@@ -8,7 +8,6 @@ import {
   Database,
   FileText,
   FolderLock,
-  GraduationCap,
   History,
   Info,
   LayoutDashboard,
@@ -23,7 +22,11 @@ import {
   Sparkles,
   Activity,
   Boxes,
-  GraduationCap as GradCap,
+  ClipboardList,
+  Terminal,
+  Wrench,
+  Newspaper,
+  Radar,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { TranslationKey } from '@/i18n'
@@ -68,13 +71,6 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: 'assistant',
-    labelKey: 'nav.group.assistant',
-    items: [
-      { to: '/english-coach', labelKey: 'nav.englishCoach', icon: GraduationCap },
-    ],
-  },
-  {
     id: 'research',
     labelKey: 'nav.group.research',
     items: [
@@ -86,8 +82,10 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: 'nav.group.servers',
     items: [
       { to: '/windows-server', labelKey: 'nav.windows', icon: Server },
+      { to: '/linux-server', labelKey: 'nav.linux', icon: Terminal },
       { to: '/microsoft-365', labelKey: 'nav.m365', icon: Cloud },
       { to: '/datacenter', labelKey: 'nav.datacenter', icon: Database },
+      { to: '/virtualization', labelKey: 'nav.virtualization', icon: Boxes },
       { to: '/backup', labelKey: 'nav.backup', icon: ArchiveRestore },
       { to: '/cloud', labelKey: 'nav.cloud', icon: Container },
     ],
@@ -97,6 +95,16 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: 'nav.group.networks',
     items: [
       { to: '/network-tools', labelKey: 'nav.network', icon: Network },
+    ],
+  },
+  {
+    id: 'tools',
+    labelKey: 'nav.group.tools',
+    items: [
+      { to: '/toolkit', labelKey: 'nav.toolkit', icon: Wrench },
+      { to: '/scripts', labelKey: 'nav.scripts', icon: Terminal },
+      { to: '/news', labelKey: 'nav.news', icon: Newspaper },
+      { to: '/radar', labelKey: 'nav.radar', icon: Radar },
     ],
   },
   {
@@ -121,6 +129,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/workspace', labelKey: 'nav.workspace', icon: FolderLock },
       { to: '/saved', labelKey: 'nav.saved', icon: BookMarked },
+      { to: '/incidents', labelKey: 'nav.incidents', icon: ClipboardList },
       { to: '/history', labelKey: 'nav.history', icon: History },
     ],
   },
@@ -143,7 +152,6 @@ export const EXTRA_ICONS = {
   Server,
   Cpu,
   Boxes,
-  GraduationCap: GradCap,
 } as const
 
 export type { LucideIcon }

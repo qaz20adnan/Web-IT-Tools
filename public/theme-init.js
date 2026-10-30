@@ -1,6 +1,6 @@
 (function () {
   try {
-    var raw = localStorage.getItem('technexus.settings.v1')
+    var raw = localStorage.getItem('nexora.settings.v1')
     if (!raw) return
     var s = JSON.parse(raw)
     var root = document.documentElement

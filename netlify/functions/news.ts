@@ -157,6 +157,16 @@ interface NewsCache {
   sources: string[]
   errors: string[]
   expires: number
+  stale: boolean
+}
+
+/** Feed failures arrive as free-form transport text; only the status code is worth showing. */
+function describeFeedFailure(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : ''
+  const status = message.match(/HTTP (\d{3})/)?.[1]
+  if (status) return `returned HTTP ${status}`
+  if (/timeout|timed out|abort/i.test(message)) return 'timed out'
+  return 'could not be reached'
 }
 
 let cache: NewsCache | null = null
@@ -191,7 +201,7 @@ async function loadFeeds(force: boolean): Promise<NewsCache> {
       sources.push(feeds[index].name)
       items.push(...result.value)
     } else {
-      errors.push(`${feeds[index].name}: ${result.reason instanceof Error ? result.reason.message : 'fetch failed'}`)
+      errors.push(`${feeds[index].name} ${describeFeedFailure(result.reason)}`)
     }
   })
 
@@ -205,7 +215,10 @@ async function loadFeeds(force: boolean): Promise<NewsCache> {
     .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
     .slice(0, 120)
 
-  if (deduped.length === 0 && errors.length > 0) {
+  if (deduped.length === 0) {
+    // A failed refresh must not erase what the reader already saw; serve the last
+    // good list and label it honestly instead of returning an empty page.
+    if (cache) return { ...cache, expires: Date.now() + 60_000, stale: true }
     throw new HttpError(502, 'upstream_error', 'All news feeds failed to load.', errors.slice(0, 3).join(' | '))
   }
 
@@ -215,6 +228,7 @@ async function loadFeeds(force: boolean): Promise<NewsCache> {
     sources,
     errors,
     expires: Date.now() + 5 * 60 * 1000,
+    stale: false,
   }
   return cache
 }
@@ -226,7 +240,7 @@ export const handler: Handler = wrap(async (event) => {
   return json(200, {
     items: result.items,
     fetchedAt: result.fetchedAt,
-    stale: false,
+    stale: result.stale,
     sources: result.sources,
     ...(result.errors.length ? { errors: result.errors } : {}),
   })

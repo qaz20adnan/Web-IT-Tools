@@ -111,6 +111,12 @@ export function KnowledgeBasePage() {
     setError(null)
   }
 
+  const startNewEntry = () => {
+    if (editingId) resetForm()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    document.getElementById('kb-title')?.focus()
+  }
+
   const save = () => {
     if (!form.title.trim() || !form.problem.trim() || !form.solution.trim()) {
       setError(L('Title, problem and solution are required.', 'العنوان والمشكلة والحل مطلوبة.'))
@@ -170,15 +176,15 @@ export function KnowledgeBasePage() {
   }
 
   const exportMarkdown = () => {
-    downloadTextFile('nexora-knowledge-base.md', knowledgeBaseToMarkdown(entries), 'text/markdown;charset=utf-8')
+    downloadTextFile('adnan-tech-knowledge-base.md', knowledgeBaseToMarkdown(entries), 'text/markdown;charset=utf-8')
   }
 
   const exportJson = () => {
-    downloadTextFile('nexora-knowledge-base.json', knowledgeBaseToJson(entries), 'application/json;charset=utf-8')
+    downloadTextFile('adnan-tech-knowledge-base.json', knowledgeBaseToJson(entries), 'application/json;charset=utf-8')
   }
 
   return (
-    <div className="space-y-4">
+    <div className="animate-in space-y-4">
       <PageHeader
         title={L('Troubleshooting Knowledge Base', 'قاعدة معرفة استكشاف الأخطاء')}
         subtitle={L(
@@ -206,7 +212,17 @@ export function KnowledgeBasePage() {
             'Store the symptom, the evidence and the fix that actually worked. Keep secrets out of this local base.',
             'سجّل العَرَض والدليل والحل الذي نجح فعلاً. لا تخزّن أسراراً في هذه القاعدة المحلية.',
           )}
-          actions={editingId ? <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={resetForm}>{L('Cancel', 'إلغاء')}</Button> : undefined}
+          actions={
+            editingId ? (
+              <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={resetForm}>
+                {L('Cancel', 'إلغاء')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={startNewEntry}>
+                {L('Add new', 'إضافة جديد')}
+              </Button>
+            )
+          }
         />
         <div className="space-y-3 p-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -300,7 +316,7 @@ export function KnowledgeBasePage() {
                 : L('Try a different search or category.', 'جرّب بحثاً أو فئة مختلفة.')}
             />
           ) : (
-            <div className="space-y-2">
+            <div className="stagger space-y-2">
               {filtered.map((entry) => (
                 <article key={entry.id} className="rounded-lg border border-line bg-surface-2 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">

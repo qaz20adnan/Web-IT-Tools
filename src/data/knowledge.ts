@@ -1,5 +1,7 @@
 import type { KnowledgeArticle } from '@/types'
 import { EXTRA_KNOWLEDGE_ARTICLES } from './knowledgeExtra'
+import { EXPANSION_KNOWLEDGE_ARTICLES } from './knowledgeExpansion'
+import { EXPANSION_KNOWLEDGE_ARTICLES_2 } from './knowledgeExpansion2'
 
 const md = (...lines: string[]) => lines.join('\n')
 const SEED_DATE = '2026-10-22'
@@ -22,7 +24,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'beginner',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## When to use this',
@@ -132,7 +134,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Collect first, reset later',
@@ -224,7 +226,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Preserve the evidence',
@@ -324,7 +326,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Read-only first',
@@ -413,7 +415,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Classify the failure',
@@ -491,7 +493,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'beginner',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Confirm the symptom',
@@ -581,7 +583,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Protect the original file',
@@ -658,7 +660,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Define the failure precisely',
@@ -750,7 +752,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Symptom pattern',
@@ -838,7 +840,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Observe, do not restart blindly',
@@ -930,7 +932,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Measure first',
@@ -1010,7 +1012,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Treat this as a program, not a checklist',
@@ -1090,7 +1092,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Declare and assign',
@@ -1176,7 +1178,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Establish the host baseline',
@@ -1252,7 +1254,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'draft',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Treat rebuilds as high-risk operations',
@@ -1350,7 +1352,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## The order matters',
@@ -1448,7 +1450,7 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## The only proof is a restore',
@@ -1527,6 +1529,8 @@ const CORE_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
 export const KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
   ...CORE_KNOWLEDGE_ARTICLES,
   ...EXTRA_KNOWLEDGE_ARTICLES,
+  ...EXPANSION_KNOWLEDGE_ARTICLES,
+  ...EXPANSION_KNOWLEDGE_ARTICLES_2,
 ]
 
 export function getArticleBySlug(slug: string): KnowledgeArticle | undefined {

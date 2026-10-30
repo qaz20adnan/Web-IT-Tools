@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   Activity,
   ClipboardList,
+  HeartPulse,
   MessageSquareWarning,
   RefreshCw,
   Settings2,
@@ -27,12 +28,13 @@ import {
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
+import { useHealth } from '@/hooks/useHealth'
 import { adminRequest, ApiError } from '@/services/api'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/i18n'
 import type { AccountRole, Permission } from '@/types'
 
-type Tab = 'overview' | 'users' | 'audit' | 'feedback' | 'settings'
+type Tab = 'overview' | 'monitoring' | 'users' | 'audit' | 'feedback' | 'settings'
 
 interface AdminUser {
   id: string
@@ -99,6 +101,7 @@ export function AdminPage() {
   const { t, settings } = useApp()
   const { account, hasPermission } = useAuth()
   const { notify } = useToast()
+  const { data: health, loading: healthLoading, error: healthError, refresh: refreshHealth } = useHealth()
   const [tab, setTab] = useState<Tab>('overview')
   const [overview, setOverview] = useState<Overview | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -130,6 +133,7 @@ export function AdminPage() {
     () =>
       [
         { id: 'overview' as const, label: t('admin.overview'), icon: Activity, show: can('reports.read') },
+        { id: 'monitoring' as const, label: t('admin.monitoring'), icon: HeartPulse, show: can('reports.read') },
         { id: 'users' as const, label: t('admin.users'), icon: Users, show: can('users.read') },
         { id: 'audit' as const, label: t('admin.audit'), icon: ClipboardList, show: can('audit_logs.read') },
         { id: 'feedback' as const, label: t('admin.feedback'), icon: MessageSquareWarning, show: can('content.read') },
@@ -182,6 +186,10 @@ export function AdminPage() {
     setLoading(true)
     try {
       if (tab === 'overview') await loadOverview()
+      else if (tab === 'monitoring') {
+        refreshHealth()
+        await loadOverview()
+      }
       else if (tab === 'users') await loadUsers()
       else if (tab === 'audit') await loadAudit()
       else if (tab === 'feedback') await loadFeedback()
@@ -191,7 +199,7 @@ export function AdminPage() {
     } finally {
       setLoading(false)
     }
-  }, [tab, loadOverview, loadUsers, loadAudit, loadFeedback, loadSettings, t])
+  }, [tab, loadOverview, loadUsers, loadAudit, loadFeedback, loadSettings, refreshHealth, t])
 
   useEffect(() => {
     void refresh()
@@ -283,6 +291,16 @@ export function AdminPage() {
   }
 
   const maxUsage = Math.max(1, ...(overview?.usageSeries.map((entry) => entry.requests) ?? [0]))
+  const monitoringServices = health
+    ? [
+        { id: 'ai', label: t('admin.ai'), configured: health.services.ai.configured, detail: [health.services.ai.provider, health.services.ai.model].filter(Boolean).join(' · ') },
+        { id: 'vision', label: t('admin.vision'), configured: health.services.vision.configured, detail: '' },
+        { id: 'research', label: t('admin.research'), configured: health.services.research.configured, detail: health.services.research.providers.join(', ') },
+        { id: 'news', label: t('admin.news'), configured: health.services.news.configured, detail: health.services.news.customFeeds ? t('admin.customFeeds') : '' },
+        { id: 'database', label: t('admin.database'), configured: health.services.database.configured, detail: '' },
+        { id: 'contentAdmin', label: t('admin.contentAdmin'), configured: health.services.contentAdmin.configured, detail: '' },
+      ]
+    : []
 
   return (
     <div className="animate-in">
@@ -376,6 +394,97 @@ export function AdminPage() {
                   <span className="font-mono text-[11px]">{entry.action}</span>
                   <span className="text-subtle">{entry.actor_email ?? '—'} · {formatDateTime(entry.created_at, settings.language)}</span>
                 </div>
+              ))}
+            </CardBody>
+          </Card>
+        </div>
+      ) : null}
+
+      {tab === 'monitoring' ? (
+        <div className="space-y-4">
+          <Alert tone="info" title={t('admin.monitoringHint')}>{t('admin.monitoringNote')}</Alert>
+          {healthError ? <Alert tone="danger" title={t('admin.healthError')}>{t('admin.healthRetry')}</Alert> : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {monitoringServices.map((service) => (
+              <Card key={service.id}>
+                <CardBody>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-muted">{service.label}</p>
+                    <Badge tone={service.configured ? 'success' : 'warning'}>
+                      {service.configured ? t('admin.configured') : t('admin.notConfigured')}
+                    </Badge>
+                  </div>
+                  {service.detail ? <p className="mt-2 break-words text-[11px] text-subtle" dir="ltr">{service.detail}</p> : null}
+                </CardBody>
+              </Card>
+            ))}
+            {healthLoading && !health ? (
+              <Card><CardBody><p className="text-xs text-subtle">{t('common.loading')}</p></CardBody></Card>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader title={t('admin.platformStatus')} icon={<HeartPulse className="h-4 w-4" />} />
+              <CardBody className="space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.healthResult')}</span>
+                  <Badge tone={health?.ok ? 'success' : healthError ? 'danger' : 'warning'}>
+                    {healthLoading ? t('common.loading') : health?.ok ? t('admin.healthy') : t('admin.unhealthy')}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.version')}</span>
+                  <span className="font-mono text-xs">{health?.version ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.lastChecked')}</span>
+                  <span className="text-xs">{health?.time ? formatDateTime(health.time, settings.language) : '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-t border-line pt-2">
+                  <span className="text-muted">{t('admin.totalUsers')}</span>
+                  <span className="font-mono text-xs">{overview?.users ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.staff')}</span>
+                  <span className="font-mono text-xs">{overview?.staff ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.suspended')}</span>
+                  <span className="font-mono text-xs">{overview?.suspended ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">{t('admin.openFeedback')}</span>
+                  <span className="font-mono text-xs">{overview?.openFeedback ?? '—'}</span>
+                </div>
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader title={t('admin.recentAudit')} icon={<ClipboardList className="h-4 w-4" />} />
+              <CardBody className="space-y-2">
+                {(overview?.recentAudit ?? []).length === 0 ? <p className="text-xs text-subtle">{t('admin.noAudit')}</p> : null}
+                {(overview?.recentAudit ?? []).slice(0, 6).map((entry) => (
+                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2 text-xs last:border-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px]">{entry.action}</p>
+                      <p className="truncate text-[10px] text-subtle">{entry.actor_email ?? '—'} · {entry.outcome}</p>
+                    </div>
+                    <span className="text-[10px] text-subtle">{formatDateTime(entry.created_at, settings.language)}</span>
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader title={t('admin.planCounts')} />
+            <CardBody className="flex flex-wrap gap-2">
+              {Object.entries(overview?.planCounts ?? {}).map(([plan, count]) => (
+                <Badge key={plan} tone={plan === 'premium' ? 'success' : plan === 'trial' ? 'primary' : 'default'}>
+                  {plan}: {count}
+                </Badge>
               ))}
             </CardBody>
           </Card>

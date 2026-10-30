@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Adnan Tech favicon tile — light field, navy monogram (Arctic / branding on white). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Adnan Tech" focusable="false">
+  <title>Adnan Tech</title>
+  <defs>
+    <linearGradient id="atFavLight" x1="32" y1="17" x2="32" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E7490"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#F4F7FB"/>
+  <path d="M32 17 17 49" stroke="url(#atFavLight)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M32 17 47 49" stroke="url(#atFavLight)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M22.2 38H41.8" stroke="url(#atFavLight)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M16 17H48" stroke="url(#atFavLight)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M32 17V49" stroke="url(#atFavLight)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="16" cy="17" r="2" fill="#0E7490"/>
+  <circle cx="48" cy="17" r="2" fill="#0E7490"/>
+  <circle cx="22.2" cy="38" r="2" fill="#0E7490"/>
+  <circle cx="41.8" cy="38" r="2" fill="#0E7490"/>
+  <circle cx="17" cy="49" r="2.5" fill="#0F766E"/>
+  <circle cx="47" cy="49" r="2.5" fill="#0F766E"/>
+  <circle cx="32" cy="49" r="2.5" fill="#0F766E"/>
+  <circle cx="32" cy="17" r="6.2" fill="#F4F7FB"/>
+  <circle cx="32" cy="17" r="5.4" fill="none" stroke="#0E7490" stroke-width="1.6"/>
+  <circle cx="32" cy="17" r="2.6" fill="#6D28D9"/>
+</svg>

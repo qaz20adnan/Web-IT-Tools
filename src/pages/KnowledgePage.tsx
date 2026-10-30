@@ -93,11 +93,11 @@ export function KnowledgePage() {
       {articles.length === 0 ? (
         <EmptyState icon={<BookOpen className="h-8 w-8" />} title={t('knowledge.empty')} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {articles.map((article) => {
             const saved = isSaved(article.id)
             return (
-              <Card key={article.id} className="flex flex-col p-4">
+              <Card key={article.id} className="lift flex flex-col p-4">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="primary">{t(getDomain(article.domain).labelKey)}</Badge>
                   <Badge tone={article.verification === 'draft' ? 'warning' : 'success'}>{t(`verification.${article.verification}`)}</Badge>

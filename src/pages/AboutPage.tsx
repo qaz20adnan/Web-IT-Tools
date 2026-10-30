@@ -1,9 +1,18 @@
-import { CheckCircle2, Cpu, Database, ExternalLink, KeyRound, Layers, ShieldCheck, TerminalSquare } from 'lucide-react'
+import { CheckCircle2, Cpu, Database, ExternalLink, KeyRound, Layers, ShieldCheck, Sparkles, TerminalSquare } from 'lucide-react'
 import { Alert, Badge, Card, CardHeader, InlineCode, PageHeader, StatusDot } from '@/components/ui'
+import { BrandMark } from '@/components/brand/BrandLogo'
 import { useApp } from '@/context/AppContext'
 import { useHealth } from '@/hooks/useHealth'
 import { formatDate } from '@/i18n'
-import { APP_LINKS } from '@/lib/config'
+import {
+  APP_FOUNDER,
+  APP_FOUNDER_AR,
+  APP_LINKS,
+  APP_NAME,
+  APP_NAME_AR,
+  APP_TAGLINE,
+  APP_TAGLINE_AR,
+} from '@/lib/config'
 
 export function AboutPage() {
   const { t, settings } = useApp()
@@ -33,6 +42,45 @@ export function AboutPage() {
         subtitle={t('about.subtitle')}
         badge={<Badge tone="primary">{t('about.version')} 1.0.0</Badge>}
       />
+
+      <Card>
+        <CardHeader title={t('about.identity')} icon={<Sparkles className="h-4 w-4" />} />
+        <div className="p-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <BrandMark size={56} />
+            <div className="min-w-0">
+              <p className="text-lg font-extrabold tracking-tight">
+                {APP_NAME} <span className="text-primary">|</span> <span dir="rtl">{APP_NAME_AR}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted" dir="auto">
+                {APP_TAGLINE} — {APP_TAGLINE_AR}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-muted">{t('about.identityBody')}</p>
+          <p className="mt-3 text-sm">
+            <span className="font-semibold text-text">{t('about.founder')}: </span>
+            <span>{APP_FOUNDER}</span>
+            <span className="text-subtle"> · </span>
+            <span dir="rtl">{APP_FOUNDER_AR}</span>
+          </p>
+          <p className="mt-4 text-sm font-semibold text-text">{t('about.scope')}</p>
+          <p className="mt-1 text-sm text-muted">{t('about.scopeBody')}</p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {t('about.scopeItems')
+              .split(',')
+              .map((item) => (
+                <span
+                  key={item}
+                  dir="auto"
+                  className="rounded-full border border-line bg-surface-2/60 px-2.5 py-1 text-[11px] text-muted"
+                >
+                  {item}
+                </span>
+              ))}
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="space-y-4">

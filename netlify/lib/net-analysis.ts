@@ -11,7 +11,11 @@ export interface PortProbeResult {
   errorCode: string | null
 }
 
-export interface PublicIpInfo {
+/**
+ * Where the probe was launched from. A serverless deployment can only ever
+ * report its own egress address, so this is never presented as the visitor's IP.
+ */
+export interface ProbeSourceInfo {
   ipv4: string | null
   ipv6: string | null
   country: string | null
@@ -19,17 +23,19 @@ export interface PublicIpInfo {
   source: string
 }
 
-export interface DdnsResult {
+export interface NameResolution {
   host: string
   ipv4: string[]
   ipv6: string[]
+  /** Seconds; the shortest TTL seen, so the user knows how long to wait before re-checking. */
+  lowestTtl: number | null
   error: string | null
 }
 
-export type DdnsStatus = 'not_configured' | 'match' | 'partial' | 'mismatch' | 'unresolved'
+export type NameStatus = 'not_provided' | 'resolved' | 'match' | 'partial' | 'mismatch' | 'unresolved'
 
-export interface DdnsAnalysis {
-  status: DdnsStatus
+export interface NameAnalysis {
+  status: NameStatus
   title: string
   detail: string
   resolved: string[]
@@ -63,9 +69,12 @@ export interface AnalyzerReport {
 export interface AnalyzerReportInput {
   lang: AnalysisLang
   checkedAt: string
-  publicIp: PublicIpInfo
+  probeSource: ProbeSourceInfo
+  /** The public name the user asked about — usually their own DDNS hostname. */
+  name: NameResolution | null
+  /** The address the user expects that name to hold, if they supplied one. */
+  expectedIp: string | null
   target: { host: string; address: string }
-  ddns: DdnsResult | null
   ports: PortProbeResult[]
 }
 
@@ -135,69 +144,72 @@ export function detectService(port: number, banner: string | null): string | nul
   return portService(port)
 }
 
-export function ddnsAnalysis(publicIp: PublicIpInfo, ddns: DdnsResult | null, lang: AnalysisLang): DdnsAnalysis {
-  if (!ddns) {
+export function nameAnalysis(name: NameResolution | null, expectedIp: string | null, lang: AnalysisLang): NameAnalysis {
+  if (!name) {
     return {
-      status: 'not_configured',
-      title: t(lang, 'DDNS was not checked', 'لم يتم فحص DDNS'),
+      status: 'not_provided',
+      title: t(lang, 'No hostname checked', 'لم يُفحص أي اسم مضيف'),
       detail: t(
         lang,
-        'Add your DDNS hostname to compare its DNS records with the current public IP.',
-        'أضف اسم مضيف DDNS لمقارنة سجلات DNS مع عنوان IP العام الحالي.',
+        'Enter the DDNS or server hostname you want to verify and the report will compare it with the address you expect.',
+        'أدخل اسم مضيف DDNS أو الخادم الذي تريد التحقق منه لمقارنته بالعنوان الذي تتوقعه.',
       ),
       resolved: [],
     }
   }
-  const resolved = [...ddns.ipv4, ...ddns.ipv6]
-  if (ddns.error || resolved.length === 0) {
+  const resolved = [...name.ipv4, ...name.ipv6]
+  if (name.error || resolved.length === 0) {
     return {
       status: 'unresolved',
-      title: t(lang, 'DDNS hostname did not resolve', 'لم يتم تحليل اسم مضيف DDNS'),
-      detail: ddns.error ?? t(lang, 'No A or AAAA records were returned.', 'لم تُرجع سجلات A أو AAAA أي نتيجة.'),
+      title: t(lang, 'The hostname did not resolve', 'لم يتم تحليل اسم المضيف'),
+      detail: name.error ?? t(lang, 'No A or AAAA record was returned for this name.', 'لم تُرجع سجلات A أو AAAA أي نتيجة لهذا الاسم.'),
       resolved,
     }
   }
-  const expected = [publicIp.ipv4, publicIp.ipv6].filter((entry): entry is string => Boolean(entry))
-  if (expected.length === 0) {
+  if (!expectedIp) {
     return {
-      status: 'unresolved',
-      title: t(lang, 'Public IP is unknown', 'عنوان IP العام غير معروف'),
-      detail: t(lang, 'The DDNS record cannot be compared without a detected public IP.', 'لا يمكن مقارنة سجل DDNS دون كشف عنوان IP العام.'),
-      resolved,
-    }
-  }
-  const matches = expected.filter((entry) => resolved.includes(entry))
-  if (matches.length === 0) {
-    return {
-      status: 'mismatch',
-      title: t(lang, 'DDNS is stale or points elsewhere', 'DDNS قديم أو يشير إلى عنوان آخر'),
+      status: 'resolved',
+      title: t(lang, 'Name points to a public address', 'الاسم يشير إلى عنوان عام'),
       detail: t(
         lang,
-        `DDNS resolves to ${resolved.join(', ')}, but the current public address is ${expected.join(', ')}.`,
-        `يشير DDNS إلى ${resolved.join(', ')} بينما العنوان العام الحالي هو ${expected.join(', ')}.`,
+        `${name.host} resolves to ${resolved.join(', ')}${name.lowestTtl === null ? '' : `, cached for at most ${name.lowestTtl}s`}. Give the address you expect to check it for drift.`,
+        `يشير ${name.host} إلى ${resolved.join(', ')}${name.lowestTtl === null ? '' : `، بذاكرة تخزين مؤقت لا تتجاوز ${name.lowestTtl} ثانية`}. أدخل العنوان الذي تتوقعه للتحقق من الانحراف.`,
       ),
       resolved,
     }
   }
-  if (matches.length < expected.length) {
+  if (!resolved.includes(expectedIp)) {
     return {
-      status: 'partial',
-      title: t(lang, 'DDNS matches one address family only', 'DDNS يطابق عائلة عناوين واحدة فقط'),
+      status: 'mismatch',
+      title: t(lang, 'The record points elsewhere', 'السجل يشير إلى عنوان آخر'),
       detail: t(
         lang,
-        `Matched ${matches.join(', ')}. The other detected address (${expected.filter((entry) => !matches.includes(entry)).join(', ')}) is not published.`,
-        `تمت مطابقة ${matches.join(', ')}. العنوان الآخر المكتشف (${expected.filter((entry) => !matches.includes(entry)).join(', ')}) غير منشور.`,
+        `${name.host} resolves to ${resolved.join(', ')}, but you expected ${expectedIp}. Until the updater publishes the new address, clients keep reaching the old one.`,
+        `يشير ${name.host} إلى ${resolved.join(', ')} بينما تتوقع أنت ${expectedIp}. إلى أن ينشر المحدّث العنوان الجديد سيظل العملاء يصلون إلى القديم.`,
+      ),
+      resolved,
+    }
+  }
+  const otherFamilies = resolved.filter((entry) => entry !== expectedIp)
+  if (otherFamilies.length > 0) {
+    return {
+      status: 'partial',
+      title: t(lang, 'The expected address is published, alongside others', 'العنوان المتوقع منشور مع عناوين أخرى'),
+      detail: t(
+        lang,
+        `${expectedIp} is present, and so is ${otherFamilies.join(', ')}. Round-robin DNS means some clients will get the other address.`,
+        `يوجد ${expectedIp} ويوجد معه ${otherFamilies.join(', ')}. وجود أكثر من سجل يعني أن بعض العملاء سيحصلون على العنوان الآخر.`,
       ),
       resolved,
     }
   }
   return {
     status: 'match',
-    title: t(lang, 'DDNS matches the current public IP', 'DDNS يطابق عنوان IP العام الحالي'),
+    title: t(lang, 'The record matches the expected address', 'السجل يطابق العنوان المتوقع'),
     detail: t(
       lang,
-      'The DDNS record is current at the time of this check. DNS caching can delay visibility for other clients.',
-      'سجل DDNS محدّث وقت هذا الفحص. قد يؤخر تخزين DNS المؤقت ظهوره لدى العملاء الآخرين.',
+      'The name is current at the time of this check. Caching resolvers can keep serving the previous address for one more TTL.',
+      'الاسم محدّث وقت هذا الفحص. قد يستمر تخزين DNS المؤقت في تقديم العنوان السابق لمدة TTL إضافية.',
     ),
     resolved,
   }
@@ -212,113 +224,127 @@ function causeRank(likelihood: ReportCause['likelihood']): number {
 }
 
 export function buildCauses(input: AnalyzerReportInput): ReportCause[] {
-  const { lang, publicIp, ddns, ports } = input
-  const ddnsState = ddnsAnalysis(publicIp, ddns, lang)
+  const { lang, name, expectedIp, ports } = input
+  const state = nameAnalysis(name, expectedIp, lang)
+  const targetAddress = input.target.address
   const causes: ReportCause[] = []
 
-  if (isCgnat(publicIp.ipv4)) {
+  if (isCgnat(targetAddress)) {
     causes.push({
       id: 'cgnat',
       likelihood: 'high',
-      title: t(lang, 'Carrier-grade NAT (CGNAT) address', 'عنوان خلف NAT لمشغل الاتصالات (CGNAT)'),
+      title: t(lang, 'The address is inside carrier-grade NAT (CGNAT)', 'العنوان يقع داخل NAT لمشغل الاتصالات (CGNAT)'),
       explanation: t(
         lang,
-        'The detected IPv4 address is in the shared 100.64.0.0/10 range. The address may be shared and can change without your router rebooting, and inbound port forwarding will not work.',
-        'عنوان IPv4 المكتشف يقع في النطاق المشترك 100.64.0.0/10. قد يكون العنوان مشتركاً ويتغير دون إعادة تشغيل الراوتر، ولن يعمل تحويل المنافذ الواردة.',
+        `${targetAddress} belongs to the shared 100.64.0.0/10 range. That block is not routable on the public internet, so inbound port forwarding and classic DDNS exposure cannot work on it.`,
+        `${targetAddress} يقع ضمن النطاق المشترك 100.64.0.0/10. هذه الكتلة غير قابلة للتوجيه على الإنترنت العام، لذلك لا يعمل تحويل المنافذ الواردة ولا كشف DDNS التقليدي عليها.`,
       ),
-      evidence: [t(lang, `Detected IPv4: ${publicIp.ipv4}`, `IPv4 المكتشف: ${publicIp.ipv4}`)],
+      evidence: [t(lang, `The name resolves to ${targetAddress}`, `يشير اسم المضيف إلى ${targetAddress}`)],
     })
   }
 
-  if (ddnsState.status === 'mismatch') {
+  if (state.status === 'mismatch') {
     causes.push({
       id: 'ddns-stale',
       likelihood: 'high',
-      title: t(lang, 'DDNS updater did not publish the current address', 'محدّث DDNS لم ينشر العنوان الحالي'),
+      title: t(lang, 'The updater has not published the address you expect', 'لم ينشر المحدّث العنوان الذي تتوقعه'),
       explanation: t(
         lang,
-        'A stale DDNS record is the strongest evidence that the WAN address changed after the last update, or that the updater is reading a LAN address instead of the WAN address.',
-        'سجل DDNS القديم أقوى دليل على أن عنوان WAN تغيّر بعد آخر تحديث، أو أن المحدّث يقرأ عنوان LAN بدلاً من WAN.',
+        'The strongest reading of a mismatch is that the WAN address changed after the last update, or that the updater submits a LAN address instead of the real WAN address.',
+        'أقوى قراءة لعدم التطابق أن عنوان WAN تغيّر بعد آخر تحديث، أو أن المحدّث يرسل عنوان LAN بدلاً من عنوان WAN الحقيقي.',
       ),
-      evidence: [ddnsState.detail],
+      evidence: [state.detail],
+    })
+    causes.push({
+      id: 'dynamic-lease',
+      likelihood: 'medium',
+      title: t(lang, 'Dynamic DHCP or PPPoE lease renewal', 'تجديد إيجار DHCP أو PPPoE الديناميكي'),
+      explanation: t(
+        lang,
+        'Most consumer lines receive a dynamic address from an ISP pool. A PPPoE re-dial, lease expiry or a change of access concentrator returns a different address.',
+        'معظم الخطوط المنزلية تحصل على عنوان ديناميكي من مجموعة عناوين المشغل. إعادة اتصال PPPoE أو انتهاء الإيجار أو تغيّر مجمّع الوصول يعيد عنواناً مختلفاً.',
+      ),
+      evidence: [t(lang, 'A mismatch between the published and expected address is present.', 'يوجد عدم تطابق بين العنوان المنشور والعنوان المتوقع.')],
+    })
+    causes.push({
+      id: 'device-reboot',
+      likelihood: 'low',
+      title: t(lang, 'ONT or router restart', 'إعادة تشغيل ONT أو الراوتر'),
+      explanation: t(
+        lang,
+        'A power loss, fiber alarm, firmware update or WAN session drop tears the session down and commonly triggers a fresh lease from the ISP pool.',
+        'انقطاع الكهرباء أو إنذار بصري أو تحديث برنامج أو سقوط جلسة WAN يقطع الاتصال ويؤدي غالباً إلى إيجار جديد من مجموعة المشغل.',
+      ),
+      evidence: [t(lang, 'Compare the device uptime with the moment the record last changed.', 'قارن مدة تشغيل الجهاز باللحظة التي تغير فيها السجل آخر مرة.')],
     })
   }
 
-  causes.push({
-    id: 'dynamic-lease',
-    likelihood: 'medium',
-    title: t(lang, 'Dynamic DHCP or PPPoE lease renewal', 'تجديد إيجار DHCP أو PPPoE الديناميكي'),
-    explanation: t(
-      lang,
-      'Many FTTH connections receive a dynamic address from an ISP pool. A PPPoE re-dial, DHCP lease expiry or a change in the ISP access concentrator can return a different address.',
-      'كثير من اتصالات FTTH تحصل على عنوان ديناميكي من مجموعة عناوين المشغل. إعادة اتصال PPPoE أو انتهاء إيجار DHCP أو تغيّر مجمّع وصول المشغل قد يعيد عنواناً مختلفاً.',
-    ),
-    evidence: [t(lang, 'No static-IP confirmation is available from this probe.', 'لا يتوفر تأكيد لعنوان IP ثابت من هذا الفحص.')],
-  })
-
-  causes.push({
-    id: 'ont-reboot',
-    likelihood: 'medium',
-    title: t(lang, 'ONT reboot or optical link interruption', 'إعادة تشغيل ONT أو انقطاع الوصلة البصرية'),
-    explanation: t(
-      lang,
-      'An FTTH ONT reboot, power loss, fiber bend, dirty connector or upstream optical alarm can drop the WAN session. When the session returns, the ISP may assign a different address.',
-      'إعادة تشغيل ONT أو انقطاع الكهرباء أو انحناء الألياف أو اتساخ الموصل أو إنذار بصري من المشغل قد يُسقط جلسة WAN. وعند عودتها قد يخصص المشغل عنواناً مختلفاً.',
-    ),
-    evidence: [t(lang, 'Check ONT logs for LOS, LOF, dying-gasp or link-down events.', 'افحص سجلات ONT بحثاً عن أحداث LOS أو LOF أو dying-gasp أو link-down.')],
-  })
-
-  causes.push({
-    id: 'router-reboot',
-    likelihood: 'low',
-    title: t(lang, 'Router reboot, firmware update or bridge-mode change', 'إعادة تشغيل الراوتر أو تحديث البرنامج أو تغيير وضع الجسر'),
-    explanation: t(
-      lang,
-      'A router restart, firmware update, factory reset or change between routed and bridge mode tears down the WAN session and commonly triggers a new lease.',
-      'إعادة تشغيل الراوتر أو تحديث البرنامج أو إعادة ضبط المصنع أو التبديل بين الوضع الموجّه ووضع الجسر يقطع جلسة WAN ويؤدي عادةً إلى إيجار جديد.',
-    ),
-    evidence: [t(lang, 'Compare the router uptime with the last known public-IP change.', 'قارن مدة تشغيل الراوتر بآخر تغيير معروف لعنوان IP العام.')],
-  })
-
-  causes.push({
-    id: 'isp-maintenance',
-    likelihood: 'low',
-    title: t(lang, 'ISP pool reassignment or maintenance', 'إعادة توزيع عناوين المشغل أو صيانة'),
-    explanation: t(
-      lang,
-      'ISPs may move subscribers between address pools during maintenance, capacity changes or BNG migration. This can change the address even when customer equipment did not reboot.',
-      'قد ينقل المشغل المشتركين بين مجموعات العناوين أثناء الصيانة أو تغيير السعة أو ترحيل BNG. قد يتغير العنوان حتى دون إعادة تشغيل أجهزة العميل.',
-    ),
-    evidence: [t(lang, 'Ask the ISP whether the line uses a dynamic pool or CGNAT.', 'اسأل المشغل إن كان الخط يستخدم مجموعة ديناميكية أو CGNAT.')],
-  })
-
-  if (publicIp.ipv6) {
+  if (state.status === 'partial') {
     causes.push({
-      id: 'ipv6-prefix',
-      likelihood: ddnsState.status === 'mismatch' ? 'high' : 'medium',
-      title: t(lang, 'IPv6 prefix rotation', 'تغيّر بادئة IPv6'),
+      id: 'multi-record',
+      likelihood: 'medium',
+      title: t(lang, 'Several addresses are published for the same name', 'تُنشر عدة عناوين للاسم نفسه'),
       explanation: t(
         lang,
-        'IPv6 prefixes are commonly delegated dynamically. A prefix change can break AAAA records and inbound IPv6 rules even if the IPv4 address appears stable.',
-        'غالباً ما تُفوّض بادئات IPv6 ديناميكياً. تغيّر البادئة قد يكسر سجلات AAAA وقواعد IPv6 الواردة حتى لو بدا عنوان IPv4 ثابتاً.',
+        'Round-robin records make resolvers hand out different addresses to different clients, so one client keeps reaching a host that no longer answers.',
+        'السجلات الدائرية تجعل المحلّلات توزع عناوين مختلفة على العملاء، فيظل أحد العملاء يصل إلى مضيف لم يعد يستجيب.',
       ),
-      evidence: [t(lang, `Detected IPv6: ${publicIp.ipv6}`, `IPv6 المكتشف: ${publicIp.ipv6}`)],
+      evidence: [state.detail],
+    })
+  }
+
+  if (state.status === 'unresolved') {
+    causes.push({
+      id: 'name-missing',
+      likelihood: 'high',
+      title: t(lang, 'The hostname has no address record', 'لا يوجد سجل عنوان لاسم المضيف'),
+      explanation: t(
+        lang,
+        'Either the record was deleted, the domain expired, or the updater has never authenticated successfully. Nothing downstream of this name can be reached.',
+        'إما أن السجل حُذف أو أن النطاق انتهت صلاحيته أو أن المحدّث لم ينجح في المصادقة قط. ولا شيء خلف هذا الاسم قابل للوصول.',
+      ),
+      evidence: [state.detail],
+    })
+  }
+
+  if (ports.length > 0 && ports.every((entry) => entry.state !== 'open')) {
+    const filtered = ports.filter((entry) => entry.state === 'filtered' || entry.state === 'timeout')
+    causes.push({
+      id: 'no-inbound',
+      likelihood: filtered.length > 0 ? 'high' : 'medium',
+      title:
+        filtered.length > 0
+          ? t(lang, 'Traffic is being dropped before it reaches the service', 'تُسقط الحركة قبل وصولها إلى الخدمة')
+          : t(lang, 'Nothing answered on the tested ports', 'لم يستجب شيء على المنافذ المفحوصة'),
+      explanation:
+        filtered.length > 0
+          ? t(
+              lang,
+              'A timeout or filtered state means packets were silently dropped — a router without a matching port forward, a host firewall, or ISP filtering. A refused connection would instead have meant nothing was listening.',
+              'المهلة أو الحالة المفلترة تعني إسقاط الحزم بصمت — راوتر بلا تحويل مطابق، أو جدار حماية في المضيف، أو حجب من المشغل. أما الرفض فكان يعني أن لا شيء يستمع.',
+            )
+          : t(
+              lang,
+              'Every tested port refused the connection, which points at a service that is stopped or bound to another interface rather than a network block.',
+              'رفضت كل المنافذ المفحوصة الاتصال، وهو ما يشير إلى خدمة متوقفة أو مرتبطة بواجهة أخرى بدلاً من حظر شبكي.',
+            ),
+      evidence: ports.map((entry) => t(lang, `Port ${entry.port}: ${entry.state}`, `المنفذ ${entry.port}: ${entry.state}`)),
     })
   }
 
   if (ports.some((entry) => entry.state === 'open' && HIGH_RISK_PORTS.has(entry.port))) {
     causes.push({
       id: 'unexpected-exposure',
-      likelihood: 'low',
-      title: t(lang, 'Unexpected inbound exposure is present', 'يوجد تعرّض وارد غير متوقع'),
+      likelihood: 'high',
+      title: t(lang, 'A high-risk service is exposed to the internet', 'توجد خدمة عالية الخطورة مكشوفة على الإنترنت'),
       explanation: t(
         lang,
-        'One or more high-risk ports are reachable from the public internet. This is not an IP-change cause, but it is operationally urgent and may indicate UPnP, DMZ or an old port-forward rule.',
-        'منفذ واحد أو أكثر عالي الخطورة يمكن الوصول إليه من الإنترنت العام. هذا ليس سبباً لتغير IP، لكنه عاجل تشغيلياً وقد يدل على UPnP أو DMZ أو قاعدة تحويل قديمة.',
+        'This is not a name or address problem, but it is operationally urgent: it usually comes from UPnP, a DMZ rule, or a port forward left behind.',
+        'هذه ليست مشكلة اسم أو عنوان، لكنها عاجلة تشغيلياً: عادةً ما يكون مصدرها UPnP أو قاعدة DMZ أو تحويل منافذ مُنسيّ.',
       ),
       evidence: ports
         .filter((entry) => entry.state === 'open' && HIGH_RISK_PORTS.has(entry.port))
-        .map((entry) => t(lang, `Port ${entry.port} is open`, `المنفذ ${entry.port} مفتوح`)),
+        .map((entry) => t(lang, `Port ${entry.port} accepted a connection`, `قبل المنفذ ${entry.port} الاتصال`)),
     })
   }
 
@@ -326,44 +352,58 @@ export function buildCauses(input: AnalyzerReportInput): ReportCause[] {
 }
 
 export function buildRecommendations(input: AnalyzerReportInput): string[] {
-  const { lang, publicIp, ddns, ports } = input
-  const ddnsState = ddnsAnalysis(publicIp, ddns, lang)
-  const recommendations: string[] = []
+  const { lang, name, expectedIp, ports } = input
+  const state = nameAnalysis(name, expectedIp, lang)
+  const targetAddress = input.target.address
   const highRisk = ports.filter((entry) => entry.state === 'open' && HIGH_RISK_PORTS.has(entry.port))
+  const recommendations: string[] = []
 
-  if (ddnsState.status === 'mismatch' || ddnsState.status === 'partial') {
+  if (state.status === 'mismatch' || state.status === 'partial') {
     recommendations.push(
       t(
         lang,
-        'Update DDNS now, then verify the record from an external resolver. Configure the updater to read the WAN address, not the router LAN address.',
-        'حدّث DDNS الآن ثم تحقق من السجل عبر خادم DNS خارجي. اضبط المحدّث ليقرأ عنوان WAN لا عنوان LAN في الراوتر.',
-      ),
-    )
-    recommendations.push(
-      t(
-        lang,
-        'Publish both A and AAAA records when dual-stack is enabled, and keep the DDNS update interval short (60–300 seconds).',
-        'انشر سجلي A وAAAA عند تفعيل dual-stack، واجعل فترة تحديث DDNS قصيرة (60–300 ثانية).',
+        'Force a DDNS update now, then verify the record through a public resolver. Point the updater at the WAN interface address, never at the LAN address.',
+        'أجبر تحديث DDNS الآن ثم تحقق من السجل عبر خادم DNS عام. وجّه المحدّث إلى عنوان واجهة WAN لا إلى عنوان LAN.',
       ),
     )
   }
 
-  if (isCgnat(publicIp.ipv4)) {
+  if (state.status === 'unresolved') {
     recommendations.push(
       t(
         lang,
-        'Request a dedicated public IPv4 address from the ISP, or use a VPN/tunnel. Port forwarding and classic DDNS cannot expose services behind CGNAT.',
-        'اطلب عنوان IPv4 عاماً مخصصاً من المشغل أو استخدم VPN/نفقاً. تحويل المنافذ وDDNS التقليدي لا يستطيعان كشف الخدمات خلف CGNAT.',
+        'Recreate the A record and confirm the updater credentials and the zone itself; an expired domain and a failed update look identical from outside.',
+        'أعد إنشاء سجل A وتحقق من بيانات اعتماد المحدّث ومن النطاق نفسه؛ فالنطاق المنتهي والفشل في التحديث يظهران بالشكل نفسه من الخارج.',
       ),
     )
   }
 
-  if (ports.every((entry) => entry.state !== 'open')) {
+  if (name?.lowestTtl !== null && name?.lowestTtl !== undefined) {
     recommendations.push(
       t(
         lang,
-        'No tested port accepted a TCP connection. Check router NAT rules, host firewall rules, ISP blocking and CGNAT before changing the service.',
-        'لم يقبل أي منفذ مفحوص اتصال TCP. افحص قواعد NAT في الراوتر وقواعد جدار الحماية في المضيف وحجب المشغل وCGNAT قبل تغيير الخدمة.',
+        `The shortest TTL on this record is ${name.lowestTtl}s. After a change, wait at least that long before concluding the update failed, and re-query from a resolver that did not cache the old answer.`,
+        `أقل TTL على هذا السجل هو ${name.lowestTtl} ثانية. بعد أي تغيير انتظر هذه المدة على الأقل قبل الحكم بفشل التحديث، وأعد الاستعلام من محلّل لم يخزّن الجواب السابق.`,
+      ),
+    )
+  }
+
+  if (isCgnat(targetAddress)) {
+    recommendations.push(
+      t(
+        lang,
+        'Ask the ISP for a dedicated public IPv4 address, or publish the service through a tunnel or VPN. Port forwarding cannot work on a CGNAT address.',
+        'اطلب من المشغل عنوان IPv4 عاماً مخصصاً أو انشر الخدمة عبر نفق أو VPN. تحويل المنافذ لا يعمل على عنوان CGNAT.',
+      ),
+    )
+  }
+
+  if (ports.length > 0 && ports.every((entry) => entry.state !== 'open')) {
+    recommendations.push(
+      t(
+        lang,
+        'Check the port-forward rule, the host firewall and the service binding order: a service listening on 127.0.0.1 looks identical to a blocked port from outside.',
+        'رتّب الفحص على قاعدة تحويل المنفذ ثم جدار حماية المضيف ثم ربط الخدمة: الخدمة المستمعة على 127.0.0.1 تبدو من الخارج مثل المنفذ المحجوب.',
       ),
     )
   }
@@ -372,8 +412,8 @@ export function buildRecommendations(input: AnalyzerReportInput): string[] {
     recommendations.push(
       t(
         lang,
-        `Close or restrict public access to: ${highRisk.map((entry) => entry.port).join(', ')}. Prefer a VPN and disable UPnP unless it is explicitly required.`,
-        `أغلق أو قيّد الوصول العام إلى: ${highRisk.map((entry) => entry.port).join(', ')}. يُفضّل استخدام VPN وتعطيل UPnP ما لم يكن مطلوباً صراحةً.`,
+        `Close or restrict public access to: ${highRisk.map((entry) => entry.port).join(', ')}. Prefer a VPN for administration and disable UPnP unless it is explicitly required.`,
+        `أغلق أو قيّد الوصول العام إلى: ${highRisk.map((entry) => entry.port).join(', ')}. الأفضل استخدام VPN للإدارة وتعطيل UPnP ما لم يكن مطلوباً صراحةً.`,
       ),
     )
   }
@@ -381,15 +421,15 @@ export function buildRecommendations(input: AnalyzerReportInput): string[] {
   recommendations.push(
     t(
       lang,
-      'Record the ONT optical status, router uptime, WAN lease time and public IP at each change. A short history is the fastest way to distinguish an ISP event from a local reboot.',
-      'سجّل حالة ONT البصرية ومدة تشغيل الراوتر ومدة إيجار WAN وعنوان IP العام عند كل تغيير. السجل القصير أسرع وسيلة للتمييز بين حدث من المشغل وإعادة تشغيل محلية.',
+      'Keep a dated note of the published address, the WAN address seen on the router, and the ONT status. A short history separates an ISP event from a local reboot faster than any single snapshot.',
+      'احتفظ بملحوظة مؤرخة للعنوان المنشور وعنوان WAN كما يظهر في الراوتر وحالة ONT. السجل القصير يفرّق حدث المشغل عن إعادة التشغيل المحلية أسرع من أي لقطة واحدة.',
     ),
   )
   recommendations.push(
     t(
       lang,
-      'Use the local ownership commands in this report on the router or server to identify the exact process listening on a port. A remote probe cannot see local process ownership.',
-      'استخدم أوامر ملكية المنافذ المحلية في هذا التقرير على الراوتر أو الخادم لتحديد العملية المستمعة بدقة. الفحص عن بُعد لا يرى ملكية العمليات المحلية.',
+      'Run the local port-ownership commands in this report on the router or server. A remote probe can never see which process holds a port.',
+      'نفّذ أوامر ملكية المنافذ المحلية في هذا التقرير على الراوتر أو الخادم. الفحص عن بُعد لا يرى أبداً أي عملية تحتكر المنفذ.',
     ),
   )
 
@@ -398,32 +438,50 @@ export function buildRecommendations(input: AnalyzerReportInput): string[] {
 
 function buildMarkdown(
   input: AnalyzerReportInput,
-  ddnsState: DdnsAnalysis,
+  state: NameAnalysis,
   causes: ReportCause[],
   recommendations: string[],
   limitations: string[],
 ): string {
-  const { lang, publicIp, target, ports, checkedAt } = input
+  const { lang, checkedAt, probeSource, name, expectedIp, target, ports } = input
+  const originLine = [probeSource.ipv4, probeSource.ipv6].filter(Boolean).join(' + ') || '—'
   const lines: string[] = []
-  lines.push(t(lang, '# NEXORA DDNS & Port Analysis', '# تحليل NEXORA لـ DDNS والمنافذ'))
+  lines.push(t(lang, '# Adnan Tech DDNS & Port Analysis', '# تحليل منصة عدنان تك لـ DDNS والمنافذ'))
   lines.push('')
   lines.push(`${t(lang, 'Generated', 'تم الإنشاء')}: ${checkedAt}`)
   lines.push('')
   lines.push(`## ${t(lang, 'Snapshot', 'اللقطة الحالية')}`)
-  lines.push(`- ${t(lang, 'Public IPv4', 'IPv4 العام')}: ${publicIp.ipv4 ?? '—'}`)
-  lines.push(`- ${t(lang, 'Public IPv6', 'IPv6 العام')}: ${publicIp.ipv6 ?? '—'}`)
-  lines.push(`- ${t(lang, 'Country / edge', 'الدولة / الحافة')}: ${[publicIp.country, publicIp.colo].filter(Boolean).join(' / ') || '—'}`)
-  lines.push(`- ${t(lang, 'Probe target', 'هدف الفحص')}: ${target.host} (${target.address})`)
-  lines.push(`- ${t(lang, 'CGNAT', 'CGNAT')}: ${isCgnat(publicIp.ipv4) ? t(lang, 'yes', 'نعم') : t(lang, 'not detected', 'غير مكتشف')}`)
+  lines.push(`- ${t(lang, 'Hostname checked', 'اسم المضيف المفحوص')}: ${name?.host ?? '—'}`)
+  lines.push(`- ${t(lang, 'Expected address', 'العنوان المتوقع')}: ${expectedIp ?? '—'}`)
+  lines.push(`- ${t(lang, 'Name status', 'حالة الاسم')}: ${state.status}`)
+  lines.push(`- ${t(lang, 'Resolved addresses', 'العناوين المحلولة')}: ${state.resolved.join(', ') || '—'}`)
+  lines.push(`- ${t(lang, 'Shortest TTL', 'أقل TTL')}: ${name?.lowestTtl === null || name?.lowestTtl === undefined ? '—' : `${name.lowestTtl}s`}`)
+  lines.push(`- ${t(lang, 'Port probe target', 'هدف فحص المنافذ')}: ${target.host} (${target.address || '—'})`)
+  lines.push(
+    `- ${t(lang, 'CGNAT on the probe target', 'CGNAT على هدف الفحص')}: ${isCgnat(target.address) ? t(lang, 'yes', 'نعم') : t(lang, 'not detected', 'غير مكتشف')}`,
+  )
+  lines.push(`- ${t(lang, 'Probe origin (this platform, not the visitor)', 'مصدر الفحص (هذه المنصة، وليس الزائر)')}: ${originLine}`)
+  lines.push(
+    `- ${t(lang, 'Origin country / POP', 'دولة المصدر / نقطة الحضور')}: ${[probeSource.country, probeSource.colo].filter(Boolean).join(' / ') || '—'}`,
+  )
   lines.push('')
-  lines.push(`## DDNS`)
-  lines.push(`- ${t(lang, 'Status', 'الحالة')}: ${ddnsState.status}`)
-  lines.push(`- ${t(lang, 'Detail', 'التفصيل')}: ${ddnsState.detail}`)
-  if (ddnsState.resolved.length > 0) lines.push(`- ${t(lang, 'Resolved', 'المحلول')}: ${ddnsState.resolved.join(', ')}`)
+  lines.push(`## ${t(lang, 'Name resolution', 'تحليل الاسم')}`)
+  lines.push(`- ${state.title}`)
+  lines.push(`- ${state.detail}`)
+  if (name?.error) lines.push(`- ${t(lang, 'Resolver error', 'خطأ في المحلّل')}: ${escapeCell(name.error)}`)
   lines.push('')
   lines.push(`## ${t(lang, 'Ports', 'المنافذ')}`)
   lines.push(`| ${t(lang, 'Port', 'المنفذ')} | ${t(lang, 'State', 'الحالة')} | ${t(lang, 'Service', 'الخدمة')} | ${t(lang, 'Latency', 'الزمن')} | ${t(lang, 'Evidence', 'الدليل')} |`)
   lines.push('| --- | --- | --- | --- | --- |')
+  if (ports.length === 0) {
+    lines.push(
+      t(
+        lang,
+        'No TCP port was probed: the name resolved to no public address, so there was nothing to connect to.',
+        'لم يُفحص أي منفذ TCP: لم يُحل الاسم إلى عنوان عام، فلم يكن هناك ما يُتصل به.',
+      ),
+    )
+  }
   for (const entry of ports) {
     lines.push(
       `| ${entry.port} | ${entry.state} | ${escapeCell(entry.service ?? '—')} | ${entry.latencyMs === null ? '—' : `${entry.latencyMs} ms`} | ${escapeCell(entry.banner ?? entry.errorCode ?? '—')} |`,
@@ -464,60 +522,111 @@ function buildMarkdown(
 }
 
 export function buildAnalyzerReport(input: AnalyzerReportInput): AnalyzerReport {
-  const { lang, publicIp, ddns, ports } = input
-  const ddnsState = ddnsAnalysis(publicIp, ddns, lang)
+  const { lang, probeSource, name, expectedIp, target, ports } = input
+  const state = nameAnalysis(name, expectedIp, lang)
   const causes = buildCauses(input)
   const recommendations = buildRecommendations(input)
   const highRisk = ports.filter((entry) => entry.state === 'open' && HIGH_RISK_PORTS.has(entry.port))
   const openPorts = ports.filter((entry) => entry.state === 'open')
-  const riskLevel: AnalyzerReport['riskLevel'] = highRisk.length > 0 ? 'high' : ddnsState.status === 'mismatch' || isCgnat(publicIp.ipv4) ? 'medium' : 'low'
+  const targetIsCgnat = isCgnat(target.address)
+  const originLine = [probeSource.ipv4, probeSource.ipv6].filter(Boolean).join(' + ') || '—'
+  const riskLevel: AnalyzerReport['riskLevel'] =
+    highRisk.length > 0 ? 'high' : state.status === 'mismatch' || state.status === 'unresolved' || targetIsCgnat ? 'medium' : 'low'
 
-  const headline = isCgnat(publicIp.ipv4)
-    ? t(lang, 'Your line appears to be behind carrier-grade NAT', 'يبدو أن خطك خلف NAT لمشغل الاتصالات')
-    : ddnsState.status === 'mismatch'
-      ? t(lang, 'DDNS does not match the current public address', 'DDNS لا يطابق العنوان العام الحالي')
-      : openPorts.length > 0
-        ? t(lang, 'Public IP detected with reachable TCP ports', 'تم كشف IP العام مع منافذ TCP قابلة للوصول')
-        : t(lang, 'Public IP detected; no tested ports are reachable', 'تم كشف IP العام؛ لا توجد منافذ مفحوصة قابلة للوصول')
+  const headline =
+    state.status === 'unresolved'
+      ? t(lang, 'The hostname publishes no address', 'لا ينشر اسم المضيف أي عنوان')
+      : state.status === 'mismatch'
+        ? t(lang, 'The published address is not the one you expect', 'العنوان المنشور ليس الذي تتوقعه')
+        : targetIsCgnat
+          ? t(lang, 'The probe target sits inside carrier-grade NAT', 'هدف الفحص يقع داخل NAT لمشغل الاتصالات')
+          : state.status === 'partial'
+            ? t(lang, 'The name is published, but with more than one address', 'الاسم منشور بأكثر من عنوان واحد')
+            : state.status === 'not_provided'
+              ? openPorts.length > 0
+                ? t(lang, 'The target answers on exposed TCP ports', 'الهدف يستجيب على منافذ TCP مكشوفة')
+                : t(lang, 'No tested TCP port answered', 'لم يستجب أي منفذ TCP مفحوص')
+              : openPorts.length > 0
+                ? t(lang, 'The record is current and the target answers', 'السجل محدّث والهدف يستجيب')
+                : t(lang, 'The record is current; no tested port answered', 'السجل محدّث؛ لم يستجب أي منفذ مفحوص')
 
-  const summary = t(
-    lang,
-    `Public IPv4 ${publicIp.ipv4 ?? 'not detected'}${publicIp.ipv6 ? `, IPv6 ${publicIp.ipv6}` : ''}. ${openPorts.length} of ${ports.length} tested ports accepted a TCP connection. ${ddnsState.detail}`,
-    `IPv4 العام ${publicIp.ipv4 ?? 'غير مكتشف'}${publicIp.ipv6 ? `، وIPv6 ${publicIp.ipv6}` : ''}. ${openPorts.length} من ${ports.length} منفذاً مفحوصاً قبلت اتصال TCP. ${ddnsState.detail}`,
-  )
+  const summary = target.address
+    ? t(
+        lang,
+        `${target.host} was probed at ${target.address}. ${openPorts.length} of ${ports.length} tested ports accepted a TCP connection. ${state.detail}`,
+        `فُحص ${target.host} على العنوان ${target.address}. قبل ${openPorts.length} من ${ports.length} منفذاً مفحوصاً اتصال TCP. ${state.detail}`,
+      )
+    : t(
+        lang,
+        `${target.host} resolved to no public address, so no TCP port was probed. ${state.detail}`,
+        `لم يُحل ${target.host} إلى أي عنوان عام، لذلك لم يُفحص أي منفذ TCP. ${state.detail}`,
+      )
 
   const limitations = [
-    t(lang, 'The TCP probe runs from the NEXORA deployment, not from your modem or LAN.', 'فحص TCP يعمل من نشر NEXORA وليس من موديمك أو شبكتك المحلية.'),
-    t(lang, 'A closed or filtered port can mean no service, missing NAT, host firewall, ISP filtering or CGNAT. It does not prove the port is unused.', 'المنفذ المغلق أو المفلتر قد يعني عدم وجود خدمة أو غياب NAT أو جدار حماية أو حجب المشغل أو CGNAT. لا يثبت أن المنفذ غير مستخدم.'),
-    t(lang, 'Remote probing cannot identify the local process that owns a port. Use the local commands in this report.', 'الفحص عن بُعد لا يحدد العملية المحلية المالكة للمنفذ. استخدم الأوامر المحلية في هذا التقرير.'),
-    t(lang, 'A single snapshot cannot prove the exact cause of an IP change. The causes are ranked likelihoods based on the evidence collected.', 'لقطة واحدة لا تثبت السبب الدقيق لتغير IP. الأسباب مرتبة حسب الاحتمال بناءً على الأدلة المجمعة.'),
+    t(
+      lang,
+      `The TCP probe is launched by this platform from its own egress address (${originLine}${
+        probeSource.colo ? `, POP ${probeSource.colo}` : ''
+      }). It is the platform's address, not yours: no tool here measures the visitor's public IP or scans your LAN.`,
+      `يُطلق فحص TCP من هذه المنصة عبر عنوان خروجها الخاص (${originLine}${probeSource.colo ? `، نقطة الحضور ${probeSource.colo}` : ''}). إنه عنوان المنصة لا عنوانك: لا تقيس أي أداة هنا IP الزائر ولا تفحص شبكتك المحلية.`,
+    ),
+    t(
+      lang,
+      'A closed or filtered port can mean no service, a missing NAT rule, a host firewall, ISP filtering or CGNAT. It does not prove the port is unused.',
+      'المنفذ المغلق أو المفلتر قد يعني لا خدمة، أو قاعدة NAT ناقصة، أو جدار حماية في المضيف، أو حجباً من المشغل، أو CGNAT. وهو لا يثبت أن المنفذ غير مستخدم.',
+    ),
+    t(
+      lang,
+      'Remote probing cannot identify the local process that owns a port. Use the local commands in this report.',
+      'الفحص عن بُعد لا يحدد العملية المحلية المالكة للمنفذ. استخدم الأوامر المحلية في هذا التقرير.',
+    ),
+    t(
+      lang,
+      'A single snapshot cannot prove the exact cause of an address change. The causes are ranked likelihoods based on the evidence collected.',
+      'لقطة واحدة لا تثبت السبب الدقيق لتغير العنوان. الأسباب مراتب احتمالية مبنية على الأدلة المجمعة.',
+    ),
+    t(
+      lang,
+      'Names are resolved through public DNS-over-HTTPS resolvers, so a resolver cache can still serve a previous address for one TTL after a change.',
+      'تُحلّل الأسماء عبر محلّلات DNS-over-HTTPS عامة، لذا قد يستمر تخزين المحلّل المؤقت في تقديم العنوان السابق لمدة TTL بعد أي تغيير.',
+    ),
     t(lang, 'IPv6 reachability may be untested when the deployment has no IPv6 egress.', 'قد لا يُختبر وصول IPv6 عندما لا يملك النشر مسار خروج IPv6.'),
   ]
 
   const observations: ReportObservation[] = [
     {
-      label: t(lang, 'Public IPv4', 'IPv4 العام'),
-      value: publicIp.ipv4 ?? '—',
-      tone: publicIp.ipv4 ? (isCgnat(publicIp.ipv4) ? 'warning' : 'success') : 'warning',
+      label: t(lang, 'Probe target', 'هدف الفحص'),
+      value: target.address ? `${target.host} → ${target.address}` : `${target.host} → —`,
+      tone: state.status === 'unresolved' ? 'warning' : targetIsCgnat ? 'warning' : 'default',
     },
     {
-      label: t(lang, 'Public IPv6', 'IPv6 العام'),
-      value: publicIp.ipv6 ?? '—',
-      tone: publicIp.ipv6 ? 'success' : 'default',
-    },
-    {
-      label: t(lang, 'DDNS', 'DDNS'),
-      value: ddnsState.title,
-      tone: ddnsState.status === 'match' ? 'success' : ddnsState.status === 'mismatch' || ddnsState.status === 'unresolved' ? 'warning' : 'default',
+      label: t(lang, 'Name resolution', 'تحليل الاسم'),
+      value: state.title,
+      tone:
+        state.status === 'match' || state.status === 'resolved'
+          ? 'success'
+          : state.status === 'mismatch' || state.status === 'unresolved' || state.status === 'partial'
+            ? 'warning'
+            : 'default',
     },
     {
       label: t(lang, 'Open ports', 'المنافذ المفتوحة'),
-      value: openPorts.length > 0 ? openPorts.map((entry) => entry.port).join(', ') : t(lang, 'none of the tested ports', 'لا شيء من المنافذ المفحوصة'),
-      tone: highRisk.length > 0 ? 'danger' : openPorts.length > 0 ? 'success' : 'warning',
+      value:
+        ports.length === 0
+          ? t(lang, 'nothing was probed', 'لم يُفحص أي منفذ')
+          : openPorts.length > 0
+            ? openPorts.map((entry) => entry.port).join(', ')
+            : t(lang, 'none of the tested ports', 'لا شيء من المنافذ المفحوصة'),
+      tone: ports.length === 0 ? 'default' : highRisk.length > 0 ? 'danger' : openPorts.length > 0 ? 'success' : 'warning',
+    },
+    {
+      label: t(lang, 'Probe origin (platform)', 'مصدر الفحص (المنصة)'),
+      value: `${originLine}${[probeSource.country, probeSource.colo].filter(Boolean).length > 0 ? ` · ${[probeSource.country, probeSource.colo].filter(Boolean).join(' / ')}` : ''} · ${probeSource.source}`,
+      tone: 'default',
     },
   ]
 
-  const markdown = buildMarkdown(input, ddnsState, causes, recommendations, limitations)
+  const markdown = buildMarkdown(input, state, causes, recommendations, limitations)
 
   return {
     headline,

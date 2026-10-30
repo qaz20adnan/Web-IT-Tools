@@ -1,276 +1,16 @@
-import { execFile } from 'node:child_process'
 import nodeDns from 'node:dns'
 import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
 import { assertPublicHost, normalizeHost } from './host'
+import { HttpError } from './http'
 import { classifyProbeAddress, normalizeProbeHost, probeTcp, resolveProbeAddresses } from './net-probe'
 import type { PortProbeResult } from './net-analysis'
+import { describeHttpFailure, describeTlsFailure } from './net-errors'
 import { inspectCertificate } from './tls'
 
-export interface CommandResult {
-  ok: boolean
-  stdout: string
-  stderr: string
-  errorCode: string | null
-  timedOut: boolean
-}
-
-const MAX_COMMAND_OUTPUT = 256 * 1024
-
-export function runCommand(command: string, args: string[], timeoutMs: number): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    execFile(
-      command,
-      args,
-      { timeout: timeoutMs, windowsHide: true, maxBuffer: MAX_COMMAND_OUTPUT, killSignal: 'SIGKILL' },
-      (error, stdout, stderr) => {
-        const err = error as (NodeJS.ErrnoException & { killed?: boolean }) | null
-        resolve({
-          ok: !error,
-          stdout: String(stdout ?? ''),
-          stderr: String(stderr ?? ''),
-          errorCode: err?.code ?? null,
-          timedOut: Boolean(err?.killed),
-        })
-      },
-    )
-  })
-}
-
-export type ProbeFailureReason = 'unsupported' | 'permission_denied' | 'timeout' | 'dns_resolution_failed' | 'host_unreachable'
-
-export interface PingReply {
-  sequence: number
-  latencyMs: number | null
-  ttl: number | null
-  status: 'success' | 'timeout' | 'unreachable' | 'error'
-}
-
-export interface PingResult {
-  available: boolean
-  target: string
-  address: string
-  location: 'server'
-  attempts: number
-  replies: PingReply[]
-  summary: {
-    sent: number
-    received: number
-    lossPercent: number
-    minMs: number | null
-    avgMs: number | null
-    maxMs: number | null
-  }
-  reason: ProbeFailureReason | null
-  note: string
-  raw: string
-}
-
-function limited(text: string, max = 6000): string {
-  const printable = Array.from(text)
-    .filter((character) => {
-      const code = character.charCodeAt(0)
-      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127)
-    })
-    .join('')
-  return printable.slice(0, max)
-}
-
-function pingCommand(address: string, count: number, timeoutMs: number): { command: string; args: string[] } {
-  if (process.platform === 'win32') {
-    return { command: 'ping', args: ['-n', String(count), '-w', String(timeoutMs), address] }
-  }
-  const wait = process.platform === 'darwin' ? String(timeoutMs) : String(Math.max(1, Math.ceil(timeoutMs / 1000)))
-  return { command: 'ping', args: ['-c', String(count), '-W', wait, address] }
-}
-
-export function parsePingOutput(output: string, attempts: number): { replies: PingReply[]; lossPercent: number | null; ttl: number | null } {
-  const replies: PingReply[] = []
-  let sequence = 1
-  for (const line of output.split(/\r?\n/)) {
-    const timeMatch = line.match(/time[=<]\s*([\d.]+)\s*ms/i)
-    const ttlMatch = line.match(/ttl[=\s:]+(\d+)/i)
-    if (timeMatch) {
-      replies.push({
-        sequence: sequence++,
-        latencyMs: Math.round(Number(timeMatch[1]) * 100) / 100,
-        ttl: ttlMatch ? Number(ttlMatch[1]) : null,
-        status: 'success',
-      })
-      continue
-    }
-    if (/request timed out|timed out/i.test(line)) {
-      replies.push({ sequence: sequence++, latencyMs: null, ttl: null, status: 'timeout' })
-      continue
-    }
-    if (/unreachable/i.test(line)) {
-      replies.push({ sequence: sequence++, latencyMs: null, ttl: null, status: 'unreachable' })
-    }
-  }
-  const lossMatch = output.match(/([\d.]+)\s*%\s*(?:loss|packet loss|فقد)/i)
-  return {
-    replies: replies.slice(0, attempts),
-    lossPercent: lossMatch ? Number(lossMatch[1]) : null,
-    ttl: replies.find((entry) => entry.ttl)?.ttl ?? null,
-  }
-}
-
-export async function pingHost(rawHost: string, count = 4, timeoutMs = 1500): Promise<PingResult> {
-  const target = await resolveProbeAddresses(rawHost, { allowPrivate: false, allowPublic: true })
-  const address = target.addresses.find((entry) => net.isIP(entry) === 4) ?? target.addresses[0]
-  const attempts = Math.min(10, Math.max(1, count))
-  const { command, args } = pingCommand(address, attempts, Math.min(5000, Math.max(500, timeoutMs)))
-  const result = await runCommand(command, args, attempts * (timeoutMs + 1200) + 2500)
-  const combined = `${result.stdout}\n${result.stderr}`
-  const parsed = parsePingOutput(combined, attempts)
-  const received = parsed.replies.filter((entry) => entry.status === 'success').length
-  const latencies = parsed.replies.filter((entry) => entry.status === 'success' && entry.latencyMs !== null).map((entry) => entry.latencyMs as number)
-  const reason: ProbeFailureReason | null =
-    result.errorCode === 'ENOENT'
-      ? 'unsupported'
-      : result.errorCode === 'EACCES' || result.errorCode === 'EPERM'
-        ? 'permission_denied'
-        : /unknown host|name or service not known|could not find host|not known/i.test(combined)
-          ? 'dns_resolution_failed'
-          : parsed.replies.length === 0 && result.timedOut
-            ? 'timeout'
-            : parsed.replies.length === 0
-              ? 'host_unreachable'
-              : null
-
-  return {
-    available: reason !== 'unsupported' && reason !== 'permission_denied',
-    target: target.host,
-    address,
-    location: 'server',
-    attempts,
-    replies: parsed.replies,
-    summary: {
-      sent: attempts,
-      received,
-      lossPercent: parsed.lossPercent ?? Math.round(((attempts - received) / attempts) * 100),
-      minMs: latencies.length ? Math.min(...latencies) : null,
-      avgMs: latencies.length ? Math.round((latencies.reduce((sum, value) => sum + value, 0) / latencies.length) * 100) / 100 : null,
-      maxMs: latencies.length ? Math.max(...latencies) : null,
-    },
-    reason,
-    note:
-      reason === 'unsupported'
-        ? 'The runtime does not provide an ICMP ping utility.'
-        : reason === 'permission_denied'
-          ? 'The runtime denied permission to run ICMP ping.'
-          : 'Blocked or filtered ICMP does not prove that a service is down. Firewalls often drop ping while the service remains reachable.',
-    raw: limited(combined),
-  }
-}
-
-export interface TracerouteHop {
-  hop: number
-  address: string | null
-  hostname: string | null
-  probes: Array<number | null>
-  timedOut: boolean
-}
-
-export interface TracerouteResult {
-  available: boolean
-  target: string
-  address: string
-  location: 'server'
-  maxHops: number
-  hops: TracerouteHop[]
-  totalHops: number
-  reached: boolean
-  reason: ProbeFailureReason | null
-  note: string
-  raw: string
-}
-
-export function parseTracerouteOutput(output: string, maxHops: number): TracerouteHop[] {
-  const hops: TracerouteHop[] = []
-  for (const line of output.split(/\r?\n/)) {
-    const match = line.match(/^\s*(\d{1,2})\s+(.+)$/)
-    if (!match) continue
-    const hopNumber = Number(match[1])
-    if (hopNumber < 1 || hopNumber > maxHops) continue
-    const rest = match[2]
-    const probes: Array<number | null> = []
-    const timeRegex = /(?:<\s*(\d+)|(\d+(?:\.\d+)?))\s*ms/g
-    let timeMatch = timeRegex.exec(rest)
-    while (timeMatch) {
-      probes.push(Number(timeMatch[1] ?? timeMatch[2]))
-      timeMatch = timeRegex.exec(rest)
-    }
-    const withoutTimes = rest.replace(timeRegex, ' ').replace(/ms\b/g, ' ')
-    const ipv4 = withoutTimes.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/)
-    const ipv6 = withoutTimes.match(/\b(?:[a-f0-9]{1,4}:){2,}[a-f0-9]{1,4}\b/i)
-    const address = ipv4?.[0] ?? ipv6?.[0] ?? null
-    const nameMatch = withoutTimes.match(/\b([a-z0-9-]+(?:\.[a-z0-9-]+)+)\b/i)
-    const timedOut = probes.length === 0 || rest.includes('*')
-    if (!address && !timedOut) continue
-    hops.push({
-      hop: hopNumber,
-      address,
-      hostname: nameMatch && nameMatch[0] !== address ? nameMatch[0] : null,
-      probes: probes.length ? probes : [null, null, null],
-      timedOut,
-    })
-  }
-  return hops.filter((entry, index, list) => list.findIndex((candidate) => candidate.hop === entry.hop) === index)
-}
-
-export async function tracerouteHost(rawHost: string, maxHops = 15, timeoutMs = 1500): Promise<TracerouteResult> {
-  const target = await resolveProbeAddresses(rawHost, { allowPrivate: false, allowPublic: true })
-  const address = target.addresses.find((entry) => net.isIP(entry) === 4) ?? target.addresses[0]
-  const limit = Math.min(20, Math.max(1, maxHops))
-  const wait = Math.min(5000, Math.max(500, timeoutMs))
-  const primary =
-    process.platform === 'win32'
-      ? { command: 'tracert', args: ['-d', '-h', String(limit), '-w', String(wait), address] }
-      : { command: 'traceroute', args: ['-n', '-m', String(limit), '-w', String(Math.max(1, Math.ceil(wait / 1000))), address] }
-  let result = await runCommand(primary.command, primary.args, limit * (wait + 900) + 4000)
-  let usedTracepath = false
-  if (!result.ok && (result.errorCode === 'ENOENT' || result.errorCode === 'EACCES' || result.errorCode === 'EPERM') && process.platform !== 'win32') {
-    usedTracepath = true
-    result = await runCommand('tracepath', ['-n', '-m', String(limit), address], limit * (wait + 900) + 4000)
-  }
-  const combined = `${result.stdout}\n${result.stderr}`
-  const hops = parseTracerouteOutput(combined, limit)
-  const reached = hops.some((entry) => entry.address === address)
-  const reason: ProbeFailureReason | null =
-    result.errorCode === 'ENOENT'
-      ? 'unsupported'
-      : result.errorCode === 'EACCES' || result.errorCode === 'EPERM'
-        ? 'permission_denied'
-        : hops.length === 0 && result.timedOut
-          ? 'timeout'
-          : hops.length === 0
-            ? 'host_unreachable'
-            : null
-
-  return {
-    available: reason !== 'unsupported' && reason !== 'permission_denied',
-    target: target.host,
-    address,
-    location: 'server',
-    maxHops: limit,
-    hops,
-    totalHops: hops.length,
-    reached,
-    reason,
-    note:
-      reason === 'unsupported'
-        ? 'Traceroute is not available in this runtime.'
-        : usedTracepath
-          ? 'The route was collected with tracepath because traceroute was unavailable. Some probes may be limited.'
-          : 'A * * * hop means the router did not answer the probe; it does not necessarily mean the path is broken. ICMP may be filtered along the route.',
-    raw: limited(combined),
-  }
-}
-
-export const PUBLIC_PORT_ALLOWLIST = [21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 636, 993, 995, 3389, 8080, 8443] as const
+export const MAX_PORT_PROBES = 8
 
 export interface PortCheckResult {
   target: string
@@ -278,21 +18,35 @@ export interface PortCheckResult {
   location: 'server'
   checkedAt: string
   ports: PortProbeResult[]
+  scope: 'public' | 'private'
+  timeoutMs: number
   note: string
 }
 
-export async function checkPorts(rawHost: string, ports: number[]): Promise<PortCheckResult> {
-  const target = await resolveProbeAddresses(rawHost, { allowPrivate: false, allowPublic: true })
+export async function checkPorts(
+  rawHost: string,
+  ports: number[],
+  options: { allowPrivate?: boolean; timeoutMs?: number } = {},
+): Promise<PortCheckResult> {
+  const allowPrivate = options.allowPrivate === true
+  const timeoutMs = Math.min(10_000, Math.max(500, options.timeoutMs ?? 2400))
+  const target = await resolveProbeAddresses(rawHost, { allowPrivate, allowPublic: true, allowLoopback: allowPrivate })
   const address = target.addresses.find((entry) => net.isIP(entry) === 4) ?? target.addresses[0]
-  const unique = [...new Set(ports)].slice(0, 4)
-  const results = await Promise.all(unique.map((port) => probeTcp(address, port, target.host, 2400)))
+  const unique = [...new Set(ports)].slice(0, MAX_PORT_PROBES)
+  if (unique.length === 0) throw new Error('At least one port is required.')
+  const results = await Promise.all(unique.map((port) => probeTcp(address, port, target.host, timeoutMs)))
+  const scope = target.addresses.every((entry) => classifyProbeAddress(entry) !== 'public') ? 'private' : 'public'
   return {
     target: target.host,
     address,
     location: 'server',
     checkedAt: new Date().toISOString(),
     ports: results.sort((a, b) => a.port - b.port),
-    note: 'A successful TCP connection only proves that a listener accepted a socket. It does not prove that the application is healthy. Do not scan systems you are not authorized to test.',
+    scope,
+    timeoutMs,
+    note:
+      'A successful TCP connection only proves that a listener accepted a socket. It does not prove that the application is healthy. ' +
+      'A timeout or filtered result is inconclusive and does not prove the port is closed. Do not scan systems you are not authorized to test.',
   }
 }
 
@@ -386,12 +140,13 @@ function requestHop(url: URL, method: string, timeoutMs: number): Promise<{
         timeout: timeoutMs,
         headers: {
           Host: url.host,
-          'User-Agent': 'NEXORA-Diagnostics/1.0',
+          'User-Agent': 'AdnanTech-Diagnostics/1.0',
           Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.5',
           'Accept-Encoding': 'identity',
           Connection: 'close',
         },
-        lookup: (hostname, _options, callback) => {
+        lookup: (hostname, options, callback) => {
+          const wantsAll = Boolean((options as { all?: boolean } | undefined)?.all)
           nodeDns.lookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
             if (error) {
               callback(error, '', 0)
@@ -403,6 +158,12 @@ function requestHop(url: URL, method: string, timeoutMs: number): Promise<{
             }
             if (addresses.some((entry) => classifyProbeAddress(entry.address) !== 'public')) {
               callback(new Error('The destination resolves to a private or reserved address.'), '', 0)
+              return
+            }
+            // The socket asks for either one address or the whole list; answering with the
+            // other shape leaves it reading `undefined[0]` and the connect dies before egress.
+            if (wantsAll) {
+              callback(null, addresses)
               return
             }
             const chosen = addresses.find((entry) => entry.family === 4) ?? addresses[0]
@@ -466,7 +227,7 @@ export async function checkHttp(rawUrl: string, method: 'HEAD' | 'GET' = 'HEAD',
       const port = current.port ? Number(current.port) : 443
       tls = await inspectCertificate(current.hostname, port, 7000)
     } catch (error) {
-      tlsError = error instanceof Error ? error.message : 'TLS inspection failed.'
+      tlsError = describeTlsFailure(error)
     }
   }
 
@@ -525,7 +286,13 @@ const SENSITIVE_WORDS = ['login', 'signin', 'verify', 'secure', 'account', 'upda
 
 export async function analyzeUrl(rawUrl: string): Promise<UrlAnalysisResult> {
   const url = validateHttpUrl(rawUrl)
-  await assertPublicHost(url.hostname)
+  try {
+    await assertPublicHost(url.hostname)
+  } catch (error) {
+    // A host that does not resolve is inert, so keep analyzing it for link-based
+    // signals. Every other rejection is a policy block and must stay fatal.
+    if (!(error instanceof HttpError) || error.statusCode !== 400 || error.code !== 'blocked_host') throw error
+  }
   const host = url.hostname.toLowerCase()
   const domain = host.replace(/^www\./, '')
   const signals: UrlSignal[] = []
@@ -628,7 +395,7 @@ export async function analyzeUrl(rawUrl: string): Promise<UrlAnalysisResult> {
   try {
     httpResult = await checkHttp(url.toString(), 'HEAD', true, 8000)
   } catch (error) {
-    httpError = error instanceof Error ? error.message : 'The HTTP check failed.'
+    httpError = describeHttpFailure(error)
     signals.push({ id: 'http-error', severity: 'info', title: 'HTTP check unavailable', detail: httpError })
   }
 

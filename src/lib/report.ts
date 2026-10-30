@@ -25,7 +25,7 @@ interface Labels {
 }
 
 const EN: Labels = {
-  title: 'NEXORA AI — Diagnostic Report',
+  title: 'Adnan Tech — Diagnostic Report',
   problem: 'Problem',
   category: 'Category',
   priority: 'Priority',
@@ -49,7 +49,7 @@ const EN: Labels = {
 }
 
 const AR: Labels = {
-  title: 'NEXORA AI — تقرير تشخيصي',
+  title: 'منصة عدنان تك — تقرير تشخيصي',
   problem: 'المشكلة',
   category: 'الفئة',
   priority: 'الأولوية',
@@ -157,5 +157,5 @@ export function reportFilename(title: string): string {
     .replace(/[^a-z0-9\u0600-\u06FF]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
-  return `nexora-report-${slug || 'analysis'}.md`
+  return `adnan-tech-report-${slug || 'analysis'}.md`
 }

@@ -16,12 +16,17 @@ export function parseIPv4(value: string): number[] | null {
   if (parts.length !== 4) return null
   const bytes: number[] = []
   for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return null
+    // Leading zeros are rejected: some stacks read "010" as octal, so the value is ambiguous.
+    if (!/^(0|[1-9]\d{0,2})$/.test(part)) return null
     const byte = Number(part)
     if (byte < 0 || byte > 255) return null
     bytes.push(byte)
   }
   return bytes
+}
+
+export function hasAmbiguousOctet(value: string): boolean {
+  return value.trim().split('.').some((part) => /^0\d/.test(part))
 }
 
 export function ipv4ToNumber(bytes: number[]): number {
@@ -146,9 +151,11 @@ export function classifyIPv6(expanded: string): 'loopback' | 'unspecified' | 'li
   return 'global'
 }
 
-export function transferSeconds(sizeGB: number, speedMbps: number, overheadPercent: number): number | null {
-  if (sizeGB <= 0 || speedMbps <= 0 || overheadPercent < 0 || overheadPercent >= 100) return null
-  const bits = sizeGB * 1024 ** 3 * 8
+export function transferSeconds(sizeGiB: number, speedMbps: number, overheadPercent: number): number | null {
+  if (!Number.isFinite(sizeGiB) || !Number.isFinite(speedMbps) || !Number.isFinite(overheadPercent)) return null
+  if (sizeGiB <= 0 || speedMbps <= 0 || overheadPercent < 0 || overheadPercent >= 100) return null
+  // Payload is binary (GiB, 1024^3) while the link rate is decimal Mbps; the UI labels the field GiB.
+  const bits = sizeGiB * 1024 ** 3 * 8
   const effectiveBps = speedMbps * 1_000_000 * (1 - overheadPercent / 100)
   return bits / effectiveBps
 }
@@ -173,8 +180,10 @@ export type RaidLevel = '0' | '1' | '5' | '6' | '10'
 export interface RaidResult {
   usableTB: number
   efficiency: number
+  /** Disks that are guaranteed to survive; the worst-case figure to plan against. */
   tolerance: number
-  description: string
+  /** Only reachable when failures land in different mirrors, so it is not a planning number. */
+  bestCaseTolerance: number
 }
 
 export function raidCapacity(level: RaidLevel, disks: number, diskTB: number): RaidResult | null {
@@ -182,19 +191,19 @@ export function raidCapacity(level: RaidLevel, disks: number, diskTB: number): R
   const total = disks * diskTB
   switch (level) {
     case '0':
-      return { usableTB: total, efficiency: 100, tolerance: 0, description: 'Striping, no redundancy' }
+      return { usableTB: total, efficiency: 100, tolerance: 0, bestCaseTolerance: 0 }
     case '1':
       if (disks !== 2) return null
-      return { usableTB: diskTB, efficiency: 50, tolerance: 1, description: 'Mirroring' }
+      return { usableTB: diskTB, efficiency: 50, tolerance: 1, bestCaseTolerance: 1 }
     case '5':
       if (disks < 3) return null
-      return { usableTB: (disks - 1) * diskTB, efficiency: ((disks - 1) / disks) * 100, tolerance: 1, description: 'Single parity' }
+      return { usableTB: (disks - 1) * diskTB, efficiency: ((disks - 1) / disks) * 100, tolerance: 1, bestCaseTolerance: 1 }
     case '6':
       if (disks < 4) return null
-      return { usableTB: (disks - 2) * diskTB, efficiency: ((disks - 2) / disks) * 100, tolerance: 2, description: 'Double parity' }
+      return { usableTB: (disks - 2) * diskTB, efficiency: ((disks - 2) / disks) * 100, tolerance: 2, bestCaseTolerance: 2 }
     case '10':
       if (disks < 4 || disks % 2 !== 0) return null
-      return { usableTB: (disks / 2) * diskTB, efficiency: 50, tolerance: disks / 2, description: 'Mirrored stripes' }
+      return { usableTB: (disks / 2) * diskTB, efficiency: 50, tolerance: 1, bestCaseTolerance: disks / 2 }
     default:
       return null
   }
@@ -204,6 +213,7 @@ export interface BackupEstimate {
   fullGB: number
   dailyChangeGB: number
   fullCopies: number
+  /** Growth is applied once, to the whole series in peakGB, so this is the ungrown increment total. */
   incrementGB: number
   peakGB: number
   growthFactor: number
@@ -215,11 +225,12 @@ export function backupEstimate(
   retentionDays: number,
   growthPercentPerYear: number,
 ): BackupEstimate | null {
+  if (![fullGB, changePercent, retentionDays, growthPercentPerYear].every(Number.isFinite)) return null
   if (fullGB <= 0 || retentionDays <= 0 || changePercent < 0 || changePercent > 100 || growthPercentPerYear < 0) return null
   const growthFactor = (1 + growthPercentPerYear / 100) ** (retentionDays / 365)
   const fullCopies = Math.max(1, Math.ceil(retentionDays / 7))
   const dailyChangeGB = fullGB * (changePercent / 100)
-  const incrementGB = dailyChangeGB * retentionDays * growthFactor
+  const incrementGB = dailyChangeGB * retentionDays
   const peakGB = (fullCopies * fullGB + incrementGB) * growthFactor
   return { fullGB, dailyChangeGB, fullCopies, incrementGB, peakGB, growthFactor }
 }
@@ -260,15 +271,38 @@ export interface CertStatus {
   renewBy: string
 }
 
+function formatLocalDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 export function certStatus(expiryISO: string, warningDays = 30, now = new Date()): CertStatus | null {
-  const expiry = new Date(expiryISO)
-  if (Number.isNaN(expiry.getTime())) return null
-  const daysRemaining = Math.ceil((expiry.getTime() - now.getTime()) / 86_400_000)
-  const renew = new Date(expiry.getTime() - warningDays * 86_400_000)
+  if (!Number.isFinite(warningDays) || warningDays < 0) return null
+  const text = expiryISO.trim()
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+  let expiry: Date
+  if (dateOnly) {
+    const year = Number(dateOnly[1])
+    const month = Number(dateOnly[2])
+    const day = Number(dateOnly[3])
+    // A date-only value from <input type="date"> means the certificate is valid through that local day.
+    expiry = new Date(year, month - 1, day, 23, 59, 59, 999)
+    const rolledOver = expiry.getFullYear() !== year || expiry.getMonth() !== month - 1 || expiry.getDate() !== day
+    if (Number.isNaN(expiry.getTime()) || rolledOver) return null
+  } else {
+    expiry = new Date(text)
+    if (Number.isNaN(expiry.getTime())) return null
+  }
+  const dayIndex = (value: Date): number =>
+    Math.round(new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime() / 86_400_000)
+  const daysRemaining = dayIndex(expiry) - dayIndex(now)
+  const expired = expiry.getTime() < now.getTime()
+  const renew = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate() - warningDays)
   return {
     daysRemaining,
-    expired: daysRemaining < 0,
-    warning: daysRemaining >= 0 && daysRemaining <= warningDays,
-    renewBy: renew.toISOString().slice(0, 10),
+    expired,
+    warning: !expired && daysRemaining <= warningDays,
+    renewBy: formatLocalDate(renew),
   }
 }

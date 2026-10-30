@@ -1,45 +1,32 @@
 import { requireMember } from '../lib/auth'
-import dns from 'node:dns/promises'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
-import { assertPublicHost } from '../lib/host'
+import { normalizeDnsName, pointerName, resolveDoh, type DohResolution, type DnsRecordType } from '../lib/net-doh'
 import { enforceRateLimit } from '../lib/rate'
 import { dnsRequestSchema, flattenZod } from '../lib/schema'
 
-const TYPE_CODES: Record<string, number> = {
-  A: 1,
-  NS: 2,
-  CNAME: 5,
-  SOA: 6,
-  MX: 15,
-  TXT: 16,
-  AAAA: 28,
-  SRV: 33,
-  CAA: 257,
+/**
+ * DNS lookups ask public resolvers about a name; they never open a socket to it.
+ * That is why this route does not use the connect-target guard: `_dmarc`, SRV and
+ * not-yet-existing names are legitimate questions, and an unanswered name is a
+ * result rather than a client error.
+ */
+
+function outcomeLabel(outcome: DohResolution['outcome']): string {
+  return {
+    answered: 'Answered',
+    nxdomain: 'NXDOMAIN — no such name',
+    'no-data': 'The name exists but has no record of this type',
+    servfail: 'SERVFAIL — the authoritative servers failed',
+    refused: 'REFUSED — the resolver declined to answer',
+    error: 'The resolver could not be reached',
+  }[outcome]
 }
 
-interface Answer {
-  name: string
-  type: number
-  ttl: number
-  data: string
-}
-
-function represent(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value.join(' ')
-  if (!value || typeof value !== 'object') return String(value)
-  const record = value as Record<string, unknown>
-  if (record.exchange !== undefined) return `${record.priority ?? 0} ${record.exchange}`
-  if (record.nsname !== undefined) {
-    return [record.nsname, record.hostmaster, record.serial, record.refresh, record.retry, record.expire, record.minttl].join(' ')
-  }
-  if (record.name !== undefined && record.port !== undefined) return `${record.priority ?? 0} ${record.weight ?? 0} ${record.port} ${record.name}`
-  if (record.issue !== undefined || record.issuewild !== undefined || record.iodef !== undefined) {
-    const tag = record.issue !== undefined ? 'issue' : record.issuewild !== undefined ? 'issuewild' : 'iodef'
-    return `${record.critical ?? 0} ${tag} "${record[tag] ?? ''}"`
-  }
-  if (record.buffer !== undefined) return String(record.buffer)
-  return JSON.stringify(value)
+function agree(resolutions: DohResolution[]): boolean {
+  const signatures = resolutions
+    .filter((entry) => entry.errorCode === null)
+    .map((entry) => `${entry.outcome}:${entry.answers.map((answer) => answer.data).sort().join(',')}`)
+  return new Set(signatures).size <= 1
 }
 
 export const handler: Handler = wrap(async (event, context) => {
@@ -48,33 +35,47 @@ export const handler: Handler = wrap(async (event, context) => {
   enforceRateLimit(`dns:${clientIp(event, context)}`, 30)
   const parsed = dnsRequestSchema.safeParse(readJsonBody(event, 32 * 1024))
   if (!parsed.success) throw new HttpError(400, 'invalid_input', flattenZod(parsed.error))
-  const host = await assertPublicHost(parsed.data.host)
-  const type = parsed.data.type
 
-  let records: unknown[] = []
+  let name: string
   try {
-    if (type === 'A') records = await dns.resolve4(host)
-    else if (type === 'AAAA') records = await dns.resolve6(host)
-    else if (type === 'CNAME') records = await dns.resolveCname(host)
-    else if (type === 'MX') records = await dns.resolveMx(host)
-    else if (type === 'NS') records = await dns.resolveNs(host)
-    else if (type === 'TXT') records = await dns.resolveTxt(host)
-    else if (type === 'SOA') records = [await dns.resolveSoa(host)]
-    else if (type === 'CAA') records = await dns.resolveCaa(host)
-    else if (type === 'SRV') records = await dns.resolveSrv(host)
+    name = normalizeDnsName(parsed.data.host)
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOTFOUND' || code === 'ENODATA') {
-      return json(200, { answers: [], status: code === 'ENOTFOUND' ? 3 : 0 })
-    }
-    throw new HttpError(502, 'upstream_error', 'The DNS resolver failed.', code ?? undefined)
+    throw new HttpError(400, 'invalid_input', error instanceof Error ? error.message : 'Enter a valid hostname.')
   }
 
-  const answers: Answer[] = records.map((record) => ({
-    name: host,
-    type: TYPE_CODES[type] ?? 0,
-    ttl: 0,
-    data: represent(record),
-  }))
-  return json(200, { answers, status: 0 })
+  const type = parsed.data.type as DnsRecordType
+  let queried = name
+  if (type === 'PTR') {
+    const arpa = pointerName(name)
+    if (!arpa) throw new HttpError(400, 'invalid_input', 'Enter an IP address to look up its reverse record.')
+    queried = arpa
+  }
+
+  const resolutions = await resolveDoh(queried, type, ['cloudflare', 'google'])
+  const answered = resolutions.find((entry) => entry.outcome === 'answered') ?? resolutions[0]
+  const reachable = resolutions.filter((entry) => entry.errorCode === null)
+
+  return json(200, {
+    name: queried,
+    askedAs: name,
+    type,
+    checkedAt: new Date().toISOString(),
+    outcome: reachable.length === 0 ? 'error' : answered.outcome,
+    outcomeLabel: outcomeLabel(answered.outcome),
+    rcode: answered.rcode,
+    answers: answered.answers,
+    resolvers: resolutions.map((entry) => ({
+      resolver: entry.resolver,
+      outcome: entry.outcome,
+      rcode: entry.rcode,
+      elapsedMs: entry.elapsedMs,
+      errorCode: entry.errorCode,
+      answers: entry.answers,
+    })),
+    agreement: agree(resolutions),
+    note:
+      reachable.length === 0
+        ? 'No public resolver answered. This is a resolver problem, not an answer about the name.'
+        : 'TTLs and RCODEs are read directly from public DNS-over-HTTPS resolvers, so a difference between them means the record is still propagating.',
+  })
 })

@@ -11,6 +11,8 @@ import type {
   ProblemInput,
   ProviderConfig,
   ResearchResult,
+  ResearchSource,
+  WebSearchMode,
 } from '@/types'
 
 export interface AiCredentials {
@@ -102,6 +104,13 @@ export interface ChatResponse {
   content: string
   provider: string
   model: string
+  engine?: string
+  searchUsed?: boolean
+  searchQueries?: string[]
+  searchRequests?: number
+  sources?: ResearchSource[]
+  elapsedMs?: number
+  incomplete?: boolean
 }
 
 export interface TestResponse {
@@ -126,11 +135,12 @@ export function testProvider(
 export function sendChat(
   messages: Array<Pick<ChatMessage, 'role' | 'content'>>,
   mode: CopilotMode,
+  webSearch: WebSearchMode,
   credentials: AiCredentials | null,
   signal?: AbortSignal,
 ): Promise<ChatResponse> {
   return request<ChatResponse>('/api/ai/chat', {
-    body: { messages, mode },
+    body: { messages, mode, webSearch },
     credentials,
     signal,
   })
@@ -245,13 +255,36 @@ export function fetchArticles<T>(): Promise<ContentResponse<T>> {
 
 export interface DnsAnswer {
   name: string
-  type: number
+  type: string
   ttl: number
   data: string
 }
 
-export function lookupDns(host: string, type: string): Promise<{ answers: DnsAnswer[]; status: number }> {
-  return request('/api/net/dns', { body: { host, type } })
+export interface DnsResolverResult {
+  resolver: string
+  outcome: string
+  rcode: number | null
+  elapsedMs: number
+  errorCode: string | null
+  answers: DnsAnswer[]
+}
+
+export interface DnsLookupResponse {
+  name: string
+  askedAs: string
+  type: string
+  checkedAt: string
+  outcome: string
+  outcomeLabel: string
+  rcode: number | null
+  answers: DnsAnswer[]
+  resolvers: DnsResolverResult[]
+  agreement: boolean
+  note: string
+}
+
+export function lookupDns(host: string, type: string): Promise<DnsLookupResponse> {
+  return request<DnsLookupResponse>('/api/net/dns', { body: { host, type } })
 }
 
 export interface TlsInfo {
@@ -280,7 +313,8 @@ export interface PortProbeInfo {
   errorCode: string | null
 }
 
-export interface PublicIpInfo {
+/** The deployment's own egress address — shown as where the probe ran from, never as the visitor's IP. */
+export interface ProbeSourceInfo {
   ipv4: string | null
   ipv6: string | null
   country: string | null
@@ -288,10 +322,11 @@ export interface PublicIpInfo {
   source: string
 }
 
-export interface DdnsInfo {
+export interface NameResolutionInfo {
   host: string
   ipv4: string[]
   ipv6: string[]
+  lowestTtl: number | null
   error: string | null
 }
 
@@ -322,16 +357,17 @@ export interface NetworkAnalysisReport {
 
 export interface NetworkAnalyzerResponse {
   checkedAt: string
-  publicIp: PublicIpInfo
+  probeSource: ProbeSourceInfo
+  name: NameResolutionInfo
+  expectedIp: string | null
   target: { host: string; address: string }
-  ddns: DdnsInfo | null
   ports: PortProbeInfo[]
   report: NetworkAnalysisReport
 }
 
 export function analyzeNetwork(input: {
-  host?: string
-  ddns?: string
+  host: string
+  expectedIp?: string
   ports?: number[]
   lang: 'en' | 'ar'
 }): Promise<NetworkAnalyzerResponse> {
@@ -375,54 +411,77 @@ export function probeNetworkPrinter(host: string, lang: 'en' | 'ar'): Promise<Pr
   return request<PrinterProbeResponse>('/api/net/printer', { body: { host, lang } })
 }
 
-export interface PingReply {
+export interface LatencySample {
   sequence: number
+  address: string
+  ok: boolean
   latencyMs: number | null
-  ttl: number | null
-  status: 'success' | 'timeout' | 'unreachable' | 'error'
+  errorCode: string | null
+  /** `platform` = this runtime could not originate the attempt; excluded from the loss figure. */
+  failureKind: 'target' | 'platform' | null
 }
 
-export interface PingResponse {
-  available: boolean
+export interface LatencyResponse {
   target: string
   address: string
-  location: 'server'
-  attempts: number
-  replies: PingReply[]
-  summary: { sent: number; received: number; lossPercent: number; minMs: number | null; avgMs: number | null; maxMs: number | null }
-  reason: string | null
-  note: string
-  raw: string
+  addresses: string[]
+  port: number
+  protocol: 'tcp'
+  samples: LatencySample[]
+  summary: {
+    sent: number
+    connected: number
+    failed: number
+    platformFailures: number
+    lossPercent: number
+    minMs: number | null
+    maxMs: number | null
+    avgMs: number | null
+    jitterMs: number | null
+  }
+  truncated: boolean
+  elapsedMs: number
+  checkedAt: string
+  note: string | null
 }
 
-export function runPing(host: string, count = 4, timeoutMs = 1500): Promise<PingResponse> {
-  return request<PingResponse>('/api/net/ping', { body: { host, count, timeoutMs } })
+export function runLatencyProbe(host: string, port = 443, samples = 5, timeoutMs = 1500): Promise<LatencyResponse> {
+  return request<LatencyResponse>('/api/net/latency', { body: { host, port, samples, timeoutMs } })
 }
 
-export interface TracerouteHop {
-  hop: number
-  address: string | null
-  hostname: string | null
-  probes: Array<number | null>
-  timedOut: boolean
+export interface PathResolution {
+  resolver: string
+  outcome: string
+  answers: number
+  lowestTtl: number | null
 }
 
-export interface TracerouteResponse {
-  available: boolean
+export interface PathResponse {
   target: string
-  address: string
-  location: 'server'
-  maxHops: number
-  hops: TracerouteHop[]
-  totalHops: number
-  reached: boolean
-  reason: string | null
+  resolvedAt: string
+  addresses: { v4: string[]; v6: string[] }
+  canonicalName: string[]
+  reverse: Array<{ address: string; names: string[]; outcome: string }>
+  authority: { zone: string | null; nameservers: string[]; soaSerial: string | null; soaRefresh: number | null }
+  crossResolver: PathResolution[]
+  disagreement: boolean
+  ownership: {
+    ip: string | null
+    asn: string | null
+    organisation: string | null
+    internetServiceProvider: string | null
+    domain: string | null
+    country: string | null
+    region: string | null
+    city: string | null
+    errorCode: string | null
+  } | null
+  probeOrigin: { ip: string | null; pointOfPresence: string | null; location: string | null; tls: string | null }
   note: string
-  raw: string
 }
 
-export function runTraceroute(host: string, maxHops = 15, timeoutMs = 1500): Promise<TracerouteResponse> {
-  return request<TracerouteResponse>('/api/net/traceroute', { body: { host, maxHops, timeoutMs } })
+export function runPathProbe(host: string): Promise<PathResponse> {
+  return request<PathResponse>('/api/net/path', { body: { host } })
 }
 
 export interface PortCheckResponse {
@@ -431,11 +490,19 @@ export interface PortCheckResponse {
   location: 'server'
   checkedAt: string
   ports: PortProbeInfo[]
+  scope: 'public' | 'private'
+  timeoutMs: number
   note: string
 }
 
-export function checkPublicPorts(host: string, ports: number[]): Promise<PortCheckResponse> {
-  return request<PortCheckResponse>('/api/net/port', { body: { host, ports } })
+export function checkPublicPorts(
+  host: string,
+  ports: number[],
+  options: { timeoutMs?: number } = {},
+): Promise<PortCheckResponse> {
+  return request<PortCheckResponse>('/api/net/port', {
+    body: { host, ports, protocol: 'tcp', timeoutMs: options.timeoutMs ?? 2400 },
+  })
 }
 
 export interface HttpCheckHop {

@@ -1,19 +1,19 @@
 import { Link } from 'react-router-dom'
+import { useApp } from '@/context/AppContext'
+import { APP_FOUNDER, APP_NAME } from '@/lib/config'
 import { cn } from '@/lib/utils'
 
 export function BrandMark({ size = 34, className }: { size?: number; className?: string }) {
   return (
-    <span
-      className={cn(
-        'relative inline-grid shrink-0 place-items-center rounded-xl border border-primary/25 bg-[#081a29] shadow-[0_0_24px_-8px_rgba(53,214,242,0.55)]',
-        className,
-      )}
-      style={{ width: size, height: size }}
+    <img
+      src="/icons/adnan-tech-favicon.svg"
+      width={size}
+      height={size}
+      alt=""
       aria-hidden
-    >
-      <img src="/icons/nexora-logo.svg" alt="" className="h-[86%] w-[86%]" width={size} height={size} />
-      <span className="absolute -end-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-[#081a29]" />
-    </span>
+      className={cn('shrink-0 rounded-xl shadow-[0_0_24px_-10px_rgba(53,214,242,0.6)]', className)}
+      style={{ width: size, height: size }}
+    />
   )
 }
 
@@ -28,15 +28,37 @@ export function BrandLogo({
   className?: string
   onClick?: () => void
 }) {
+  const { t, settings } = useApp()
+  const arabic = settings.language === 'ar'
+
+  if (compact) {
+    return (
+      <Link
+        to={to}
+        onClick={onClick}
+        className={cn('nx-brand-lockup group min-w-0', className)}
+        aria-label={`${APP_NAME} — ${t('brand.homeAria')}`}
+      >
+        <BrandMark size={30} />
+      </Link>
+    )
+  }
+
   return (
-    <Link to={to} onClick={onClick} className={cn('nx-brand-lockup group min-w-0', className)} aria-label="NEXORA AI — home">
-      <BrandMark size={compact ? 30 : 36} />
-      {!compact ? (
-        <span className="min-w-0">
-          <span className="nx-brand-name block truncate">NEXORA <span className="text-primary">AI</span></span>
-          <span className="nx-brand-sub block truncate">Technical Intelligence &amp; Diagnostics</span>
+    <Link
+      to={to}
+      onClick={onClick}
+      dir={arabic ? 'rtl' : 'ltr'}
+      className={cn('nx-brand-lockup group min-w-0', arabic && 'is-arabic', className)}
+      aria-label={`${APP_NAME} — ${APP_FOUNDER}`}
+    >
+      <BrandMark size={36} />
+      <span className="min-w-0">
+        <span className="nx-brand-name block truncate">
+          {t('brand.nameFirst')} <span className="text-primary">{t('brand.nameAccent')}</span>
         </span>
-      ) : null}
+        <span className="nx-brand-sub block truncate">{t('brand.lockupSub')}</span>
+      </span>
     </Link>
   )
 }

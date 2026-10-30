@@ -1,6 +1,6 @@
-# NEXORA Test and Verification Report
+# Adnan Tech Test and Verification Report
 
-Date: 2026-10-24
+Date: 2026-10-26
 Environment: Windows, Node.js 22, local workspace without a live Supabase project,
 payment provider or deployment credentials.
 
@@ -10,11 +10,12 @@ payment provider or deployment credentials.
 | --- | --- |
 | `npm run typecheck` | PASS — no TypeScript errors |
 | `npm run lint` | PASS — 0 errors, 28 warnings (mostly `react-refresh`, pre-existing) |
-| `npm test -- --run` | PASS — 23 files, 147 tests |
+| `npm test -- --run` | PASS — 25 files, 166 tests |
 | `npm run build` | PASS — production bundle generated |
 
 Build warnings: the Vite config imports lack file extensions (future `configLoader`
-warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
+warning) and the main chunk is 773.58 kB minified (239.77 kB gzip). Neither blocks the
+build; chunk splitting is tracked as a follow-up.
 
 ## Automated coverage
 
@@ -29,6 +30,8 @@ warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
 | `tests/ai-adapter.test.ts` | Provider normalization, fallback/error mapping, URL validation |
 | `tests/news.test.ts` | Feed parsing, limits, partial failures, cache behavior |
 | `tests/calculators.test.ts`, `cvss.test.ts`, `utils.test.ts` | Tool calculations and utilities |
+| `tests/appearance.test.ts` | Accent/radius/background/animation validation and corrupt-settings fallback |
+| `tests/operations.test.ts` | Port reference, latency/loss, disk capacity, firewall documentation, backup readiness |
 | `tests/scriptScan.test.ts` | Script risk scanning |
 | `tests/cron.test.ts`, `localTriage.test.ts` | Scheduling helpers and local triage |
 
@@ -36,7 +39,9 @@ warning) and the main chunk is 518.85 kB minified. Neither blocks the build.
 
 | Area | Status | Evidence / limitation |
 | --- | --- | --- |
-| Public entry pages, local tools after sign-in | PASS | Build, unit tests and existing flows; 23+ articles, 28+ tools |
+| Public entry pages, local tools after sign-in | PASS | Build, unit tests and existing flows; 44 articles, 21 scripts, 33 tools |
+| Advanced appearance controls | PASS | Validated settings, CSS attributes, light-theme contrast variants, unit tests |
+| Operations monitoring tab | PASS (code/tests) | Reads `/api/health` configuration state and admin overview; no live deployment verification |
 | Welcome / trial banner (dismissible) | PASS | Renders with trial data, localStorage dismissal, RTL/LTR |
 | Provider Hub / model radar | PASS | Adapter tests and prior live OpenRouter verification |
 | AI chat/analyze/script via user key | PASS (code/tests) | Live completion depends on the user's provider key |

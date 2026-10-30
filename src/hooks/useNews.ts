@@ -27,7 +27,9 @@ export function useNews() {
       setFetchedAt(response.fetchedAt)
       setSources(response.sources)
       setErrors(response.errors ?? [])
-      setStale(false)
+      // The endpoint keeps serving the last good list when a refresh fails and
+      // marks it, so the flag comes from the response rather than from this call.
+      setStale(response.stale)
       writeJson<NewsCache>(STORAGE_KEYS.newsCache, {
         items: response.items,
         fetchedAt: response.fetchedAt,
@@ -35,6 +37,7 @@ export function useNews() {
       })
     } catch (caught) {
       const cache = readJson<NewsCache | null>(STORAGE_KEYS.newsCache, null)
+      setErrors([])
       if (cache?.items?.length) {
         setItems(cache.items)
         setFetchedAt(cache.fetchedAt)

@@ -147,7 +147,7 @@ ${entry.solution}
 }
 
 export function knowledgeBaseToMarkdown(entries: KnowledgeBaseEntry[]): string {
-  const header = `# NEXORA AI — Troubleshooting Knowledge Base\n\nExported: ${new Date().toISOString()}\nEntries: ${entries.length}\n`
+  const header = `# Adnan Tech — Troubleshooting Knowledge Base\n\nExported: ${new Date().toISOString()}\nEntries: ${entries.length}\n`
   return `${header}\n${entries.map(knowledgeEntryToMarkdown).join('\n---\n\n')}`
 }
 

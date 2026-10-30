@@ -13,14 +13,12 @@ export function AnimatedCounter({
   className?: string
 }) {
   const { settings } = useApp()
-  const [display, setDisplay] = useState(() => (settings.reduceMotion ? value : 0))
+  const [display, setDisplay] = useState(() => (settings.reduceMotion || settings.animation === 'none' ? value : 0))
   const previous = useRef(value)
   const frame = useRef<number | null>(null)
 
   useEffect(() => {
-    const reduce =
-      settings.reduceMotion ||
-      (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    const reduce = settings.reduceMotion || settings.animation === 'none'
     if (reduce) {
       setDisplay(value)
       previous.current = value
@@ -46,7 +44,7 @@ export function AnimatedCounter({
       if (frame.current !== null) cancelAnimationFrame(frame.current)
       previous.current = value
     }
-  }, [value, duration, settings.reduceMotion])
+  }, [value, duration, settings.reduceMotion, settings.animation])
 
   const rounded = Math.round(display)
   return <span className={className}>{format ? format(rounded) : rounded.toLocaleString()}</span>

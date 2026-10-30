@@ -75,7 +75,7 @@ export const DOMAINS: DomainMeta[] = [
   {
     id: 'linux',
     labelKey: 'domain.linux',
-    route: '/windows-server?domain=linux',
+    route: '/linux-server',
     icon: 'Terminal',
     description: {
       en: 'systemd, SSH, storage, packages and networking on RHEL, Ubuntu and Debian.',

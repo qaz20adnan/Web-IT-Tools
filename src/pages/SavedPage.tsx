@@ -23,7 +23,7 @@ export function SavedPage() {
   )
 
   const exportAll = () => {
-    downloadTextFile('nexora-saved-items.json', JSON.stringify(saved, null, 2), 'application/json')
+    downloadTextFile('adnan-tech-saved-items.json', JSON.stringify(saved, null, 2), 'application/json')
     notify('success', t('saved.export'))
   }
 
@@ -68,9 +68,9 @@ export function SavedPage() {
           description={t('saved.subtitle')}
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((item) => (
-            <Card key={item.id} className="flex flex-col p-4">
+            <Card key={item.id} className="lift flex flex-col p-4">
               <div className="flex items-start justify-between gap-2">
                 <Badge tone="primary">{t(`saved.kind.${item.kind}`)}</Badge>
                 <span className="text-[10px] text-subtle">{formatDateTime(item.createdAt, settings.language)}</span>

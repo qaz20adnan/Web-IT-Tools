@@ -22,10 +22,30 @@
   --color-input: var(--input-bg);
   --font-sans: 'Segoe UI', 'Inter', system-ui, -apple-system, 'Noto Sans', 'Noto Naskh Arabic', Tahoma, sans-serif;
   --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --ease-in-quart: cubic-bezier(0.5, 0, 0.75, 0);
 }
 
 /* ------------------------------------------------------------------ */
-/* Base tokens (NEXORA Deep Navy)                                      */
+/* Motion tokens — theme independent                                   */
+/* ------------------------------------------------------------------ */
+:root {
+  --motion-instant: 90ms;
+  --motion-fast: 150ms;
+  --motion-base: 240ms;
+  --motion-slow: 380ms;
+  --motion-rise: 520ms;
+  --stagger-step: 46ms;
+  --lift: -2px;
+  --press: 0.985;
+  /* Derived from --text so light themes get a soft shadow and dark themes a faint halo. */
+  --shadow-lift: 0 14px 32px -18px color-mix(in srgb, var(--text) 32%, transparent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base tokens (Adnan Tech Midnight)                                   */
 /* ------------------------------------------------------------------ */
 :root,
 :root[data-theme='nexus-midnight'] {
@@ -99,8 +119,8 @@
   --text: #0f1c30;
   --muted: #4b5d76;
   --subtle: #6f8098;
-  --primary: #0369a1;
-  --primary-hover: #075985;
+  --primary: #0e7490;
+  --primary-hover: #155e75;
   --primary-fg: #ffffff;
   --accent: #6d28d9;
   --success: #047857;
@@ -109,8 +129,8 @@
   --info: #1d4ed8;
   --sidebar: #eef3fa;
   --input-bg: #ffffff;
-  --ring: rgba(3, 105, 161, 0.28);
-  --glow-1: rgba(3, 105, 161, 0.06);
+  --ring: rgba(14, 116, 144, 0.3);
+  --glow-1: rgba(14, 116, 144, 0.07);
   --glow-2: rgba(109, 40, 217, 0.05);
   --code-bg: #f3f6fb;
   --shadow: 0 16px 40px -26px rgba(15, 28, 48, 0.35);
@@ -127,19 +147,19 @@
   --text: #e9edf2;
   --muted: #aeb7c2;
   --subtle: #838d99;
-  --primary: #9cc7ff;
-  --primary-hover: #c3ddff;
-  --primary-fg: #0c1725;
-  --accent: #f0b37e;
+  --primary: #5ee0f2;
+  --primary-hover: #9beefb;
+  --primary-fg: #071421;
+  --accent: #a78bfa;
   --success: #7bd6a7;
   --warning: #e8c468;
   --danger: #f08a8a;
   --info: #8fb8f5;
   --sidebar: #141619;
   --input-bg: #191c20;
-  --ring: rgba(156, 199, 255, 0.35);
-  --glow-1: rgba(156, 199, 255, 0.06);
-  --glow-2: rgba(240, 179, 126, 0.05);
+  --ring: rgba(94, 224, 242, 0.34);
+  --glow-1: rgba(94, 224, 242, 0.06);
+  --glow-2: rgba(167, 139, 250, 0.05);
   --code-bg: #131518;
   --shadow: 0 18px 40px -26px rgba(0, 0, 0, 0.8);
   color-scheme: dark;
@@ -158,7 +178,7 @@
   --primary: #2dd4bf;
   --primary-hover: #5eead4;
   --primary-fg: #012029;
-  --accent: #38bdf8;
+  --accent: #8b7cf6;
   --success: #4ade80;
   --warning: #fcd34d;
   --danger: #fb7185;
@@ -167,7 +187,7 @@
   --input-bg: #041a24;
   --ring: rgba(45, 212, 191, 0.4);
   --glow-1: rgba(45, 212, 191, 0.1);
-  --glow-2: rgba(56, 189, 248, 0.08);
+  --glow-2: rgba(139, 124, 246, 0.07);
   --code-bg: #02141c;
   --shadow: 0 18px 50px -24px rgba(0, 10, 20, 0.9);
   color-scheme: dark;
@@ -186,7 +206,7 @@
   --primary: #4ade80;
   --primary-hover: #86efac;
   --primary-fg: #04180d;
-  --accent: #a3e635;
+  --accent: #22d3ee;
   --success: #34d399;
   --warning: #fde047;
   --danger: #f87171;
@@ -195,7 +215,7 @@
   --input-bg: #081a12;
   --ring: rgba(74, 222, 128, 0.38);
   --glow-1: rgba(74, 222, 128, 0.09);
-  --glow-2: rgba(163, 230, 53, 0.06);
+  --glow-2: rgba(34, 211, 238, 0.06);
   --code-bg: #05120b;
   --shadow: 0 18px 50px -24px rgba(0, 20, 8, 0.9);
   color-scheme: dark;
@@ -214,7 +234,7 @@
   --primary: #22d3ee;
   --primary-hover: #67e8f9;
   --primary-fg: #001014;
-  --accent: #e879f9;
+  --accent: #8b7cf6;
   --success: #22c55e;
   --warning: #eab308;
   --danger: #ef4444;
@@ -223,7 +243,7 @@
   --input-bg: #0a0a0a;
   --ring: rgba(34, 211, 238, 0.4);
   --glow-1: rgba(34, 211, 238, 0.05);
-  --glow-2: rgba(232, 121, 249, 0.04);
+  --glow-2: rgba(139, 124, 246, 0.04);
   --code-bg: #060606;
   --shadow: 0 18px 50px -24px rgba(0, 0, 0, 1);
   color-scheme: dark;
@@ -342,6 +362,120 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Appearance overrides (accent, radius, background, motion)           */
+/* ------------------------------------------------------------------ */
+:root[data-accent='azure'] {
+  --primary: #38bdf8;
+  --primary-hover: #7dd3fc;
+  --primary-fg: #04151d;
+  --accent: #22d3ee;
+  --ring: rgba(56, 189, 248, 0.42);
+  --glow-1: rgba(56, 189, 248, 0.13);
+  --glow-2: rgba(34, 211, 238, 0.09);
+}
+
+:root[data-accent='violet'] {
+  --primary: #a78bfa;
+  --primary-hover: #c4b5fd;
+  --primary-fg: #140a2e;
+  --accent: #c084fc;
+  --ring: rgba(167, 139, 250, 0.45);
+  --glow-1: rgba(167, 139, 250, 0.13);
+  --glow-2: rgba(192, 132, 252, 0.09);
+}
+
+:root[data-accent='emerald'] {
+  --primary: #34d399;
+  --primary-hover: #6ee7b7;
+  --primary-fg: #031b12;
+  --accent: #10b981;
+  --ring: rgba(52, 211, 153, 0.42);
+  --glow-1: rgba(52, 211, 153, 0.12);
+  --glow-2: rgba(16, 185, 129, 0.08);
+}
+
+:root[data-accent='amber'] {
+  --primary: #fbbf24;
+  --primary-hover: #fcd34d;
+  --primary-fg: #1f1300;
+  --accent: #f59e0b;
+  --ring: rgba(251, 191, 36, 0.42);
+  --glow-1: rgba(251, 191, 36, 0.11);
+  --glow-2: rgba(245, 158, 11, 0.08);
+}
+
+:root[data-accent='rose'] {
+  --primary: #fb7185;
+  --primary-hover: #fda4af;
+  --primary-fg: #2a0710;
+  --accent: #f43f5e;
+  --ring: rgba(251, 113, 133, 0.42);
+  --glow-1: rgba(251, 113, 133, 0.12);
+  --glow-2: rgba(244, 63, 94, 0.08);
+}
+
+/* Keep accent choices readable on the three light themes. */
+:root[data-theme='arctic-light'][data-accent='azure'],
+:root[data-theme='sandstone-calm'][data-accent='azure'],
+:root[data-theme='forest-mist'][data-accent='azure'] {
+  --primary: #0369a1;
+  --primary-hover: #075985;
+  --primary-fg: #ffffff;
+  --accent: #0284c7;
+  --ring: rgba(3, 105, 161, 0.3);
+  --glow-1: rgba(3, 105, 161, 0.08);
+  --glow-2: rgba(2, 132, 199, 0.06);
+}
+
+:root[data-theme='arctic-light'][data-accent='violet'],
+:root[data-theme='sandstone-calm'][data-accent='violet'],
+:root[data-theme='forest-mist'][data-accent='violet'] {
+  --primary: #6d28d9;
+  --primary-hover: #5b21b6;
+  --primary-fg: #ffffff;
+  --accent: #7c3aed;
+  --ring: rgba(109, 40, 217, 0.3);
+  --glow-1: rgba(109, 40, 217, 0.08);
+  --glow-2: rgba(124, 58, 237, 0.06);
+}
+
+:root[data-theme='arctic-light'][data-accent='emerald'],
+:root[data-theme='sandstone-calm'][data-accent='emerald'],
+:root[data-theme='forest-mist'][data-accent='emerald'] {
+  --primary: #047857;
+  --primary-hover: #065f46;
+  --primary-fg: #ffffff;
+  --accent: #059669;
+  --ring: rgba(4, 120, 87, 0.3);
+  --glow-1: rgba(4, 120, 87, 0.08);
+  --glow-2: rgba(5, 150, 105, 0.06);
+}
+
+:root[data-theme='arctic-light'][data-accent='amber'],
+:root[data-theme='sandstone-calm'][data-accent='amber'],
+:root[data-theme='forest-mist'][data-accent='amber'] {
+  --primary: #b45309;
+  --primary-hover: #92400e;
+  --primary-fg: #ffffff;
+  --accent: #d97706;
+  --ring: rgba(180, 83, 9, 0.3);
+  --glow-1: rgba(180, 83, 9, 0.08);
+  --glow-2: rgba(217, 119, 6, 0.06);
+}
+
+:root[data-theme='arctic-light'][data-accent='rose'],
+:root[data-theme='sandstone-calm'][data-accent='rose'],
+:root[data-theme='forest-mist'][data-accent='rose'] {
+  --primary: #be123c;
+  --primary-hover: #9f1239;
+  --primary-fg: #ffffff;
+  --accent: #e11d48;
+  --ring: rgba(190, 18, 60, 0.3);
+  --glow-1: rgba(190, 18, 60, 0.08);
+  --glow-2: rgba(225, 29, 72, 0.06);
+}
+
+/* ------------------------------------------------------------------ */
 /* Typography scale & density                                          */
 /* ------------------------------------------------------------------ */
 :root {
@@ -369,6 +503,73 @@
   --card-pad: 1.75rem;
   --gap: 1.4rem;
   --radius: 1.1rem;
+}
+
+/* Corner radius preference wins over the density default. */
+:root[data-radius='sharp'] { --radius: 0.3rem; }
+:root[data-radius='soft'] { --radius: 0.7rem; }
+:root[data-radius='round'] { --radius: 1.35rem; }
+
+/* Background style preference. */
+:root[data-background='plain'] body {
+  background-image: none;
+}
+:root[data-background='grid'] body {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--line) 55%, transparent) 1px, transparent 1px),
+    radial-gradient(60rem 40rem at 12% -10%, var(--glow-1), transparent 60%);
+  background-size: 48px 48px, 48px 48px, auto;
+}
+:root[data-background='dots'] body {
+  background-image:
+    radial-gradient(color-mix(in srgb, var(--line-strong) 80%, transparent) 1px, transparent 1.4px),
+    radial-gradient(60rem 40rem at 12% -10%, var(--glow-1), transparent 60%);
+  background-size: 22px 22px, auto;
+}
+
+/* Animation intensity preference. OS reduced motion still wins below. */
+:root[data-animation='subtle'] .slide-start,
+:root[data-animation='subtle'] .slide-end,
+:root[data-animation='subtle'] .animate-in,
+:root[data-animation='subtle'] .animate-fade,
+:root[data-animation='subtle'] .animate-fade-in,
+:root[data-animation='subtle'] .animate-slide-up,
+:root[data-animation='subtle'] .animate-slide-in-right,
+:root[data-animation='subtle'] .animate-pop,
+:root[data-animation='subtle'] .animate-rise,
+:root[data-animation='subtle'] .animate-mask,
+:root[data-animation='subtle'] .nx-reveal,
+:root[data-animation='subtle'] .nx-animate-rise {
+  animation-duration: 150ms;
+}
+:root[data-animation='subtle'] .animate-pulse-slow,
+:root[data-animation='subtle'] .animate-shimmer,
+:root[data-animation='subtle'] .nx-hero-network .nx-node,
+:root[data-animation='subtle'] .nx-hero-network .nx-link,
+:root[data-animation='subtle'] .nx-scanline,
+:root[data-animation='subtle'] .nx-animate-spin-slow {
+  animation: none !important;
+}
+/* Subtle keeps entry order but drops the theatrical length and the lift travel. */
+:root[data-animation='subtle'] .stagger > * {
+  animation-duration: 190ms;
+  animation-delay: 0ms;
+}
+:root[data-animation='subtle'] .animate-float,
+:root[data-animation='subtle'] .btn-primary::after {
+  animation: none !important;
+}
+:root[data-animation='subtle'] .lift:hover {
+  transform: none;
+}
+:root[data-animation='none'] *,
+:root[data-animation='none'] *::before,
+:root[data-animation='none'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,7 +654,8 @@
     border-radius: 0.6rem;
     padding: 0.55rem 0.75rem;
     color: var(--text);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    transition: border-color var(--motion-fast) linear,
+      box-shadow var(--motion-base) var(--ease-quart), background-color var(--motion-fast) linear;
   }
   .input-base::placeholder { color: var(--subtle); }
   .input-base:focus {
@@ -464,6 +666,7 @@
   .input-base:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -473,13 +676,30 @@
     padding: 0.55rem 0.95rem;
     border: 1px solid transparent;
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease, opacity 120ms ease;
+    overflow: hidden;
+    transition: background-color var(--motion-fast) linear, border-color var(--motion-fast) linear,
+      color var(--motion-fast) linear, transform var(--motion-fast) var(--ease-spring),
+      opacity var(--motion-fast) linear, box-shadow var(--motion-fast) linear;
     white-space: nowrap;
   }
-  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:active:not(:disabled) { transform: translateY(1px) scale(var(--press)); }
   .btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .btn-primary { background: var(--primary); color: var(--primary-fg); }
   .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 38%,
+      color-mix(in srgb, #fff 42%, transparent) 50%,
+      transparent 62%
+    );
+    transform: translateX(-135%);
+  }
+  .btn-primary:hover:not(:disabled)::after { animation: tn-sheen 620ms var(--ease-quart); }
   .btn-secondary {
     background: var(--surface-2);
     border-color: var(--line-strong);
@@ -525,17 +745,38 @@
     color: var(--muted);
     font-size: 0.875rem;
     font-weight: 500;
-    transition: background-color 120ms ease, color 120ms ease;
+    box-shadow: inset 0 0 0 var(--primary);
+    transition: background-color var(--motion-fast) linear, color var(--motion-fast) linear,
+      box-shadow var(--motion-base) var(--ease-spring);
   }
   .nav-link:hover { background: var(--surface-2); color: var(--text); }
+  .nav-link svg { transition: transform var(--motion-base) var(--ease-spring); }
+  /* Exclude icons whose own class already sets a transform (e.g. the collapse chevron). */
+  .nav-link:hover svg:not([class*='rotate-']) { transform: scale(1.12); }
   .nav-link[aria-current='page'] {
     background: color-mix(in srgb, var(--primary) 14%, var(--surface));
     color: var(--text);
     box-shadow: inset 2px 0 0 var(--primary);
   }
+  .nav-link[aria-current='page'] svg { color: var(--primary); }
   [dir='rtl'] .nav-link[aria-current='page'] {
     box-shadow: inset -2px 0 0 var(--primary);
   }
+
+  .nx-tab { position: relative; }
+  .nx-tab::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0.35rem;
+    bottom: -2px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--primary);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform var(--motion-base) var(--ease-spring);
+  }
+  .nx-tab[aria-selected='true']::after { transform: scaleX(1); }
 
   .table-base { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   .table-base th {
@@ -592,8 +833,42 @@
 }
 
 @layer utilities {
-  .animate-in { animation: tn-fade-up 260ms ease both; }
-  .animate-fade { animation: tn-fade 200ms ease both; }
+  /* "backwards" not "both": a filled forwards transform would override hover lift. */
+  .animate-in { animation: tn-fade-up var(--motion-slow) var(--ease-expo) backwards; }
+  .animate-fade { animation: tn-fade var(--motion-base) var(--ease-quart) backwards; }
+  .animate-pop { animation: tn-pop var(--motion-base) var(--ease-spring) backwards; }
+  .animate-rise { animation: tn-rise var(--motion-rise) var(--ease-expo) backwards; }
+  .animate-mask { animation: tn-mask var(--motion-rise) var(--ease-expo) backwards; }
+  .animate-float { animation: tn-float 7s var(--ease-quart) infinite; }
+
+  .slide-start { animation: tn-slide-start var(--motion-base) var(--ease-expo) backwards; }
+  .slide-end { animation: tn-slide-end var(--motion-base) var(--ease-expo) backwards; }
+  [dir='rtl'] .slide-start { animation-name: tn-slide-end; }
+  [dir='rtl'] .slide-end { animation-name: tn-slide-start; }
+
+  .stagger > * { animation: tn-fade-up var(--motion-rise) var(--ease-expo) backwards; }
+  .stagger > *:nth-child(1) { animation-delay: calc(var(--stagger-step) * 0); }
+  .stagger > *:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+  .stagger > *:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+  .stagger > *:nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+  .stagger > *:nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+  .stagger > *:nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
+  .stagger > *:nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
+  .stagger > *:nth-child(8) { animation-delay: calc(var(--stagger-step) * 7); }
+  .stagger > *:nth-child(9) { animation-delay: calc(var(--stagger-step) * 8); }
+  .stagger > *:nth-child(10) { animation-delay: calc(var(--stagger-step) * 9); }
+  .stagger > *:nth-child(n+11) { animation-delay: calc(var(--stagger-step) * 10); }
+
+  .lift {
+    transition: transform var(--motion-base) var(--ease-spring),
+      box-shadow var(--motion-base) var(--ease-quart),
+      border-color var(--motion-fast) linear;
+  }
+  .lift:hover {
+    transform: translateY(var(--lift));
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-lift);
+  }
   .scrollbar-thin { scrollbar-width: thin; }
   .text-balance { text-wrap: balance; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -601,20 +876,51 @@
 }
 
 @keyframes tn-fade-up {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes tn-fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes tn-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tn-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tn-mask {
+  from { clip-path: inset(0 0 100% 0); opacity: 0.4; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+@keyframes tn-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes tn-slide-start {
+  from { opacity: 0; transform: translateX(-2.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes tn-slide-end {
+  from { opacity: 0; transform: translateX(2.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes tn-sheen {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(130%); }
+}
 @keyframes tn-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
 
+/* OS reduce-motion sets the default, but an explicit in-app "Full" choice wins. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  :root:not([data-animation='full']) *,
+  :root:not([data-animation='full']) *::before,
+  :root:not([data-animation='full']) *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
@@ -638,20 +944,9 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* NEXORA Design System Components                                    */
+/* Adnan Tech Design System Components                                 */
 /* ------------------------------------------------------------------ */
 @layer components {
-  .nexora-brand {
-    background: linear-gradient(135deg, #38bdf8 0%, #22d3ee 50%, #a78bfa 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .nexora-logo-mark {
-    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
-  }
-
   .card-metric {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -808,12 +1103,16 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 1rem;
-    transition: border-color 120ms ease, background-color 120ms ease;
+    transition: transform var(--motion-base) var(--ease-spring),
+      border-color var(--motion-fast) linear, background-color var(--motion-fast) linear,
+      box-shadow var(--motion-base) var(--ease-quart);
     cursor: pointer;
   }
   .tool-card:hover {
+    transform: translateY(var(--lift));
     border-color: color-mix(in srgb, var(--primary) 40%, transparent);
     background: var(--surface-2);
+    box-shadow: var(--shadow-lift);
   }
 
   .tool-card-icon {
@@ -858,7 +1157,7 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 1rem;
-    transition: border-color 120ms ease;
+    transition: border-color var(--motion-fast) linear;
   }
   .recommendation-card:hover {
     border-color: color-mix(in srgb, var(--primary) 40%, transparent);
@@ -891,26 +1190,35 @@
   }
 }
 
-/* Animation keyframes for NEXORA */
+/* Animation keyframes for Adnan Tech */
 @layer utilities {
   .animate-pulse-slow {
     animation: tn-pulse-slow 4s ease-in-out infinite;
   }
 
   .animate-fade-in {
-    animation: tn-fade-in 300ms ease both;
+    animation: tn-fade-in var(--motion-base) var(--ease-quart) backwards;
   }
 
   .animate-slide-up {
-    animation: tn-slide-up 400ms ease both;
+    animation: tn-slide-up var(--motion-slow) var(--ease-expo) backwards;
   }
 
   .animate-slide-in-right {
-    animation: tn-slide-in-right 300ms ease both;
+    animation: tn-slide-in-right var(--motion-base) var(--ease-expo) backwards;
   }
 
   .animate-shimmer {
-    animation: tn-shimmer 2s infinite;
+    background-color: var(--surface-3);
+    background-image: linear-gradient(
+      90deg,
+      transparent 20%,
+      color-mix(in srgb, var(--text) 12%, transparent) 50%,
+      transparent 80%
+    );
+    background-size: 220% 100%;
+    background-repeat: no-repeat;
+    animation: tn-shimmer 1.4s var(--ease-quart) infinite;
   }
 }
 
@@ -941,17 +1249,17 @@
 
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse-slow,
-  .animate-fade-in,
-  .animate-slide-up,
-  .animate-slide-in-right,
-  .animate-shimmer {
+  :root:not([data-animation='full']) .animate-pulse-slow,
+  :root:not([data-animation='full']) .animate-fade-in,
+  :root:not([data-animation='full']) .animate-slide-up,
+  :root:not([data-animation='full']) .animate-slide-in-right,
+  :root:not([data-animation='full']) .animate-shimmer {
     animation: none !important;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* NEXORA 2.0 — Premium technical surface system                       */
+/* Adnan Tech — Premium technical surface system                       */
 /* ------------------------------------------------------------------ */
 @layer components {
   .nx-page {
@@ -1065,6 +1373,18 @@
     color: var(--subtle);
   }
 
+  /* Arabic lockup: tracking and uppercase transforms damage Arabic legibility. */
+  .nx-brand-lockup.is-arabic .nx-brand-name {
+    letter-spacing: 0;
+    font-size: 1.05rem;
+  }
+
+  .nx-brand-lockup.is-arabic .nx-brand-sub {
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 0.64rem;
+  }
+
   .nx-kpi {
     position: relative;
     overflow: hidden;
@@ -1072,7 +1392,8 @@
     border-radius: var(--radius);
     background: linear-gradient(165deg, var(--surface-2), var(--surface));
     padding: 0.95rem 1rem;
-    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    transition: transform var(--motion-base) var(--ease-spring),
+      border-color var(--motion-fast) linear, box-shadow var(--motion-base) var(--ease-quart);
   }
   .nx-kpi::after {
     content: '';
@@ -1083,11 +1404,16 @@
     width: 2px;
     background: var(--kpi-accent, var(--primary));
     opacity: 0.9;
+    transition: width var(--motion-base) var(--ease-spring), opacity var(--motion-fast) linear;
   }
   .nx-kpi:hover {
-    transform: translateY(-2px);
+    transform: translateY(var(--lift));
     border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
-    box-shadow: 0 18px 38px -30px rgba(0, 0, 0, 0.9);
+    box-shadow: var(--shadow-lift);
+  }
+  .nx-kpi:hover::after {
+    width: 4px;
+    opacity: 1;
   }
 
   .nx-kpi-icon {
@@ -1119,16 +1445,27 @@
     background: linear-gradient(170deg, color-mix(in srgb, var(--surface-2) 80%, transparent), var(--surface));
     padding: 0.95rem;
     text-align: start;
-    transition: transform 170ms ease, border-color 170ms ease, background-color 170ms ease;
+    transition: transform var(--motion-base) var(--ease-spring), border-color var(--motion-fast) linear, background-color var(--motion-fast) linear, box-shadow var(--motion-base) var(--ease-quart);
   }
   .nx-tool-tile:hover {
     transform: translateY(-3px);
     border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
     background: linear-gradient(170deg, color-mix(in srgb, var(--primary) 8%, var(--surface-2)), var(--surface));
+    box-shadow: var(--shadow-lift);
   }
   .nx-tool-tile:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
+  }
+  /* The card reads as one target, so the link inside it must cover the whole tile. */
+  .nx-tool-tile a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .nx-tool-tile button {
+    position: relative;
+    z-index: 1;
   }
   .nx-tool-tile .nx-tool-icon {
     display: grid;
@@ -1139,6 +1476,20 @@
     color: var(--tool-accent, var(--primary));
     background: color-mix(in srgb, var(--tool-accent, var(--primary)) 11%, transparent);
     border: 1px solid color-mix(in srgb, var(--tool-accent, var(--primary)) 20%, transparent);
+    transition: transform var(--motion-base) var(--ease-spring), border-color var(--motion-base) var(--ease-quart);
+  }
+  .nx-tool-tile:hover .nx-tool-icon {
+    transform: scale(1.08);
+    border-color: color-mix(in srgb, var(--tool-accent, var(--primary)) 45%, transparent);
+  }
+  .nx-tool-tile:hover .nx-tile-cue {
+    transform: translateX(2px);
+  }
+  [dir='rtl'] .nx-tool-tile:hover .nx-tile-cue {
+    transform: rotate(180deg) translateX(2px);
+  }
+  .nx-tile-cue {
+    transition: transform var(--motion-base) var(--ease-spring);
   }
 
   .nx-section-head {
@@ -1183,7 +1534,7 @@
   }
   .nx-chip-button {
     cursor: pointer;
-    transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+    transition: color var(--motion-fast) linear, border-color var(--motion-fast) linear, background-color var(--motion-fast) linear;
   }
   .nx-chip-button:hover {
     color: var(--text);
@@ -1280,7 +1631,7 @@
     color: var(--muted);
     border: 1px solid transparent;
     white-space: nowrap;
-    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+    transition: background-color var(--motion-fast) linear, color var(--motion-fast) linear, border-color var(--motion-fast) linear;
   }
   .nx-diag-tab:hover { color: var(--text); background: var(--surface-2); }
   .nx-diag-tab[aria-selected='true'] {
@@ -1350,7 +1701,7 @@
     background: color-mix(in srgb, var(--surface-2) 45%, transparent);
     padding: 1.4rem;
     text-align: center;
-    transition: border-color 160ms ease, background-color 160ms ease;
+    transition: border-color var(--motion-base) linear, background-color var(--motion-base) linear;
   }
   .nx-file-drop:hover,
   .nx-file-drop[data-drag='true'] {
@@ -1388,7 +1739,7 @@
   }
 
   .nx-reveal {
-    animation: nx-reveal 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation: nx-reveal var(--motion-rise) var(--ease-expo) backwards;
   }
   .nx-reveal-1 { animation-delay: 60ms; }
   .nx-reveal-2 { animation-delay: 120ms; }
@@ -1439,16 +1790,16 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  .nx-animate-rise { animation: nx-rise 240ms ease both; }
+  .nx-animate-rise { animation: nx-rise var(--motion-base) var(--ease-expo) backwards; }
   .nx-animate-spin-slow { animation: nx-spin-slow 10s linear infinite; }
 
   @media (prefers-reduced-motion: reduce) {
-    .nx-hero-network .nx-node,
-    .nx-hero-network .nx-link,
-    .nx-scanline,
-    .nx-reveal,
-    .nx-animate-rise,
-    .nx-animate-spin-slow {
+    :root:not([data-animation='full']) .nx-hero-network .nx-node,
+    :root:not([data-animation='full']) .nx-hero-network .nx-link,
+    :root:not([data-animation='full']) .nx-scanline,
+    :root:not([data-animation='full']) .nx-reveal,
+    :root:not([data-animation='full']) .nx-animate-rise,
+    :root:not([data-animation='full']) .nx-animate-spin-slow {
       animation: none !important;
     }
   }

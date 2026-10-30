@@ -22,9 +22,15 @@ interface DomainHubProps {
 const HUBS: Record<string, DomainHubProps> = {
   windows: {
     titleKey: 'nav.windows',
-    domains: ['windows-client', 'windows-server', 'printing', 'linux'],
+    domains: ['windows-client', 'windows-server', 'printing'],
     toolCategories: ['windows', 'server'],
-    referenceCategories: ['microsoft', 'linux'],
+    referenceCategories: ['microsoft'],
+  },
+  linux: {
+    titleKey: 'nav.linux',
+    domains: ['linux'],
+    toolCategories: ['server', 'developer'],
+    referenceCategories: ['linux', 'sysadmin'],
   },
   m365: {
     titleKey: 'nav.m365',
@@ -75,6 +81,7 @@ export function DomainPage({ hub }: { hub: keyof typeof HUBS }) {
       CHECKLISTS.filter((checklist) => {
         if (hub === 'backup') return checklist.id === 'backup-321'
         if (hub === 'security') return checklist.id === 'hardening' || checklist.id === 'incident-response'
+        if (hub === 'linux') return checklist.id === 'server-health' || checklist.id === 'hardening'
         if (hub === 'windows' || hub === 'datacenter') return checklist.id === 'server-health'
         return false
       }),
@@ -97,7 +104,7 @@ export function DomainPage({ hub }: { hub: keyof typeof HUBS }) {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t('nav.solutions')} value={articles.length} icon={<BookOpen className="h-4 w-4" />} tone="primary" />
         <Stat label={t('nav.toolkit')} value={tools.length} icon={<Wrench className="h-4 w-4" />} tone="accent" />
         <Stat label={t('nav.windows')} value={config.domains.length} hint={t('knowledge.contentNotice')} />

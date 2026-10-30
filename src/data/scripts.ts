@@ -1,5 +1,6 @@
 import type { ScriptTemplate } from '@/types'
 import { EXTRA_SCRIPT_TEMPLATES } from './scriptsExtra'
+import { EXPANSION_SCRIPT_TEMPLATES } from './scriptsExpansion'
 
 const CREATED = '2026-10-22'
 
@@ -96,7 +97,7 @@ Write-Warning 'Review the files before sharing. They can contain sensitive envir
 [CmdletBinding(SupportsShouldProcess)]
 param(
   [switch]$ClearQueue,
-  [string]$ArchiveRoot = 'C:\\ProgramData\\NEXORA\\SpoolArchive'
+  [string]$ArchiveRoot = 'C:\\ProgramData\\AdnanTech\\SpoolArchive'
 )
 
 $spool = Join-Path $env:SystemRoot 'System32\\spool\\PRINTERS'
@@ -173,7 +174,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
   throw 'This script must run in an elevated PowerShell session.'
 }
 
-$logPath = Join-Path $env:ProgramData "NEXORA\\wu-reset-$stamp.log"
+$logPath = Join-Path $env:ProgramData "AdnanTech\\wu-reset-$stamp.log"
 New-Item -ItemType Directory -Path (Split-Path $logPath) -Force | Out-Null
 Start-Transcript -Path $logPath | Out-Null
 
@@ -287,7 +288,7 @@ Write-Warning 'Review output before sharing. It may contain internal hostnames a
     risk: 'low',
     category: 'linux',
     code: `#!/usr/bin/env bash
-# NEXORA AI - read-only Linux disk report
+# Adnan Tech - read-only Linux disk report
 # Risk: LOW. Does not delete or modify files.
 set -u
 
@@ -393,7 +394,7 @@ Write-Warning 'Reports may contain internal IPs and hostnames. Review before sha
     language: 'sql',
     risk: 'low',
     category: 'datacenter',
-    code: `-- NEXORA AI - read-only SQL Server health queries
+    code: `-- Adnan Tech - read-only SQL Server health queries
 -- Risk: LOW. SELECT-only. Run on a secondary/reporting replica where possible.
 SET NOCOUNT ON;
 
@@ -491,6 +492,7 @@ try {
 export const SCRIPT_TEMPLATES: ScriptTemplate[] = [
   ...CORE_SCRIPT_TEMPLATES,
   ...EXTRA_SCRIPT_TEMPLATES,
+  ...EXPANSION_SCRIPT_TEMPLATES,
 ]
 
 export function getScriptTemplate(id: string): ScriptTemplate | undefined {

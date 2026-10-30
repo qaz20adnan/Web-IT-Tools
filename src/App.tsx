@@ -5,7 +5,6 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Toaster } from '@/components/ui/Toaster'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { EnglishCoachPage } from '@/pages/EnglishCoachPage'
 
 const load = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, key: K) =>
   lazy(async () => {
@@ -29,6 +28,7 @@ const CopilotPage = load(() => import('@/pages/CopilotPage'), 'CopilotPage')
 const DocsHubPage = load(() => import('@/pages/DocsHubPage'), 'DocsHubPage')
 const DomainPage = load(() => import('@/pages/DomainPage'), 'DomainPage')
 const HistoryPage = load(() => import('@/pages/HistoryPage'), 'HistoryPage')
+const IncidentsPage = load(() => import('@/pages/IncidentsPage'), 'IncidentsPage')
 const KnowledgePage = load(() => import('@/pages/KnowledgePage'), 'KnowledgePage')
 const KnowledgeBasePage = load(() => import('@/pages/KnowledgeBasePage'), 'KnowledgeBasePage')
 const NetworkDiagnosticsPage = load(() => import('@/pages/NetworkDiagnosticsPage'), 'NetworkDiagnosticsPage')
@@ -43,6 +43,7 @@ const SettingsPage = load(() => import('@/pages/SettingsPage'), 'SettingsPage')
 const TechPulsePage = load(() => import('@/pages/TechPulsePage'), 'TechPulsePage')
 const ToolkitPage = load(() => import('@/pages/ToolkitPage'), 'ToolkitPage')
 const TroubleshootingLabPage = load(() => import('@/pages/TroubleshootingLabPage'), 'TroubleshootingLabPage')
+const VirtualizationPage = load(() => import('@/pages/VirtualizationPage'), 'VirtualizationPage')
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -55,7 +56,14 @@ function ScrollToTop() {
 function PageFallback() {
   return (
     <div role="status" aria-live="polite" className="flex min-h-[40vh] flex-col items-center justify-center gap-3">
-      <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-[var(--primary)]" aria-hidden />
+      <img
+        src="/icons/adnan-tech-favicon.svg"
+        width={34}
+        height={34}
+        alt=""
+        aria-hidden
+        className="animate-pulse rounded-xl"
+      />
       <span className="text-xs text-subtle">Loading…</span>
     </div>
   )
@@ -84,7 +92,6 @@ export function App() {
               }
             >
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/english-coach" element={<EnglishCoachPage />} />
               <Route path="/lab" element={<TroubleshootingLabPage />} />
               <Route path="/copilot" element={<CopilotPage />} />
               <Route path="/research" element={<ResearchPage />} />
@@ -98,15 +105,18 @@ export function App() {
               <Route path="/security-lab" element={<SecurityLabPage />} />
               <Route path="/kb" element={<KnowledgeBasePage />} />
               <Route path="/windows-server" element={<DomainPage hub="windows" />} />
+              <Route path="/linux-server" element={<DomainPage hub="linux" />} />
               <Route path="/microsoft-365" element={<DomainPage hub="m365" />} />
               <Route path="/cybersecurity" element={<DomainPage hub="security" />} />
               <Route path="/datacenter" element={<DomainPage hub="datacenter" />} />
+              <Route path="/virtualization" element={<VirtualizationPage />} />
               <Route path="/backup" element={<DomainPage hub="backup" />} />
               <Route path="/cloud" element={<DomainPage hub="cloud" />} />
               <Route path="/news" element={<TechPulsePage />} />
               <Route path="/radar" element={<AIModelRadarPage />} />
               <Route path="/saved" element={<SavedPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/incidents" element={<IncidentsPage />} />
               <Route path="/providers" element={<ProviderHubPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/workspace" element={<WorkspacePage />} />

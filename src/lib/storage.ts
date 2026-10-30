@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   saved: 'nexora.saved.v1',
   history: 'nexora.history.v1',
   scripts: 'nexora.scripts.v1',
+  scriptFavorites: 'nexora.script-favorites.v1',
   newsCache: 'nexora.news.v1',
   researchRecent: 'nexora.research.v1',
   knowledgeBase: 'nexora.kb.v1',

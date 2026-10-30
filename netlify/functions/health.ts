@@ -1,5 +1,6 @@
 import { json, requireMethod, wrap, type Handler } from '../lib/http'
 import { aiDefaults, providerKind, serverConfig, visionDefaults } from '../lib/env'
+import { researchStatus } from '../lib/gemini'
 
 export const handler: Handler = wrap(async (event) => {
   requireMethod(event, ['GET'])
@@ -26,6 +27,7 @@ export const handler: Handler = wrap(async (event) => {
       research: {
         configured: researchProviders.length > 0,
         providers: researchProviders,
+        grounded: researchStatus(),
       },
       news: {
         configured: true,

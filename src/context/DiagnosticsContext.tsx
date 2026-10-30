@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { readJson, scopedStorageKey, STORAGE_KEYS, writeJson } from '@/lib/storage'
 import { uid } from '@/lib/utils'
 
-export type DiagnosticTool = 'ping' | 'traceroute' | 'dns' | 'port' | 'http' | 'tls' | 'url' | 'file' | 'log'
+export type DiagnosticTool = 'latency' | 'path' | 'dns' | 'port' | 'http' | 'tls' | 'url' | 'file' | 'log' | 'speed'
 
 export type DiagnosticStatus = 'success' | 'partial' | 'failure' | 'blocked' | 'error'
 
@@ -106,15 +106,15 @@ export interface DiagnosticAnalytics {
   total: number
   successRate: number | null
   todayCount: number
-  avgPingMs: number | null
+  avgLatencyMs: number | null
   byTool: Array<{ id: DiagnosticTool; label: string; count: number }>
   byStatus: Array<{ status: DiagnosticStatus; count: number }>
   activity: Array<{ key: string; label: string; count: number }>
 }
 
 const TOOL_LABELS: Record<DiagnosticTool, string> = {
-  ping: 'Ping',
-  traceroute: 'Traceroute',
+  latency: 'TCP Latency',
+  path: 'Path Intelligence',
   dns: 'DNS',
   port: 'Ports',
   http: 'HTTP',
@@ -122,10 +122,12 @@ const TOOL_LABELS: Record<DiagnosticTool, string> = {
   url: 'URL Safety',
   file: 'File Analysis',
   log: 'Log Analysis',
+  speed: 'Speed Test',
 }
 
 export function diagnosticToolLabel(tool: DiagnosticTool): string {
-  return TOOL_LABELS[tool]
+  // History written by older builds can name a tool that no longer exists.
+  return TOOL_LABELS[tool] ?? tool
 }
 
 export function buildDiagnosticAnalytics(records: DiagnosticRecord[], days = 14): DiagnosticAnalytics {
@@ -135,8 +137,8 @@ export function buildDiagnosticAnalytics(records: DiagnosticRecord[], days = 14)
   const todayCount = records.filter((entry) => new Date(entry.createdAt).getTime() >= today.getTime()).length
   const decided = records.filter((entry) => entry.status !== 'error')
   const success = records.filter((entry) => entry.status === 'success').length
-  const pingValues = records
-    .filter((entry) => entry.tool === 'ping' && typeof entry.latencyMs === 'number' && entry.latencyMs > 0)
+  const latencyValues = records
+    .filter((entry) => entry.tool === 'latency' && typeof entry.latencyMs === 'number' && entry.latencyMs > 0)
     .map((entry) => entry.latencyMs as number)
 
   const toolCounts = new Map<DiagnosticTool, number>()
@@ -162,9 +164,9 @@ export function buildDiagnosticAnalytics(records: DiagnosticRecord[], days = 14)
     total: records.length,
     successRate: decided.length === 0 ? null : Math.round((success / decided.length) * 100),
     todayCount,
-    avgPingMs: pingValues.length === 0 ? null : Math.round(pingValues.reduce((sum, value) => sum + value, 0) / pingValues.length),
+    avgLatencyMs: latencyValues.length === 0 ? null : Math.round(latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length),
     byTool: [...toolCounts.entries()]
-      .map(([id, count]) => ({ id, label: TOOL_LABELS[id], count }))
+      .map(([id, count]) => ({ id, label: diagnosticToolLabel(id), count }))
       .sort((a, b) => b.count - a.count),
     byStatus: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
     activity,

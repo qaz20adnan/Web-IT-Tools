@@ -1,4 +1,4 @@
-# NEXORA Subscriptions and Entitlements
+# Adnan Tech Subscriptions and Entitlements
 
 ## Plans
 

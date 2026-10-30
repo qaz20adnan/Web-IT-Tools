@@ -2,6 +2,7 @@ import { requireMember } from '../lib/auth'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { assertPublicHost, normalizeHost } from '../lib/host'
 import { enforceRateLimit } from '../lib/rate'
+import { describeTlsFailure } from '../lib/net-errors'
 import { flattenZod, tlsRequestSchema } from '../lib/schema'
 import { inspectCertificate } from '../lib/tls'
 
@@ -21,7 +22,7 @@ export const handler: Handler = wrap(async (event, context) => {
   await assertPublicHost(host)
 
   const info = await inspectCertificate(host, port).catch((error: unknown) => {
-    throw new HttpError(502, 'upstream_error', 'Could not complete the TLS handshake.', error instanceof Error ? error.message : undefined)
+    throw new HttpError(502, 'upstream_error', describeTlsFailure(error))
   })
 
   return json(200, info)

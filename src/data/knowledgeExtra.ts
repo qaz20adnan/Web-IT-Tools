@@ -21,7 +21,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## When to use this',
@@ -116,7 +116,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Symptoms',
@@ -225,7 +225,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'intermediate',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Symptoms',
@@ -340,7 +340,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## When to use this',
@@ -441,7 +441,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Symptoms',
@@ -562,7 +562,7 @@ export const EXTRA_KNOWLEDGE_ARTICLES: KnowledgeArticle[] = [
     difficulty: 'advanced',
     verification: 'source-verified',
     updatedAt: SEED_DATE,
-    author: 'NEXORA AI seed library',
+    author: 'Adnan Tech knowledge library',
     body: {
       en: md(
         '## Symptoms',

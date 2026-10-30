@@ -1,10 +1,10 @@
-# NEXORA Auth and RBAC
+# Adnan Tech Auth and RBAC
 
 ## Authentication
 
-NEXORA uses Supabase Auth through a server-side REST proxy. The browser sends
+Adnan Tech uses Supabase Auth through a server-side REST proxy. The browser sends
 credentials to `/api/auth`; the function calls Supabase and returns only the session
-tokens and the application account. No password hash is stored in NEXORA tables.
+tokens and the application account. No password hash is stored in Adnan Tech tables.
 
 ### Flows
 
@@ -186,4 +186,4 @@ Unit tests cover role/permission lookup, suspension override, inherited-key safe
 account-status gating, safe post-login redirects and per-user storage namespaces.
 Auth/session parsing tests cover stored sessions and fragment tokens. Live Supabase
 signup, email delivery, verification and password reset require a configured project; see
-`docs/NEXORA_TEST_REPORT.md`.
+`docs/ADNAN_TECH_TEST_REPORT.md.

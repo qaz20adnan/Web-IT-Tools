@@ -29,7 +29,7 @@ export const handler: Handler = wrap(async (event, context) => {
     throw new HttpError(
       403,
       'blocked_host',
-      'Network printer probes are disabled on this deployment. Run NEXORA locally or enable PRINTER_ALLOW_PRIVATE / PRINTER_ALLOW_PUBLIC.',
+      'Network printer probes are disabled on this deployment. Run Adnan Tech locally or enable PRINTER_ALLOW_PRIVATE / PRINTER_ALLOW_PUBLIC.',
     )
   }
 
@@ -61,8 +61,8 @@ export const handler: Handler = wrap(async (event, context) => {
   if (!local && !allowPrivate) {
     notes.push(
       parsed.data.lang === 'ar'
-        ? 'طابعات الشبكة المحلية غير قابلة للوصول من نشر سحابي. شغّل NEXORA محلياً أو استخدم سكربت PowerShell المحلي.'
-        : 'Local network printers are not reachable from a cloud deployment. Run NEXORA locally or use the local PowerShell agent.',
+        ? 'طابعات الشبكة المحلية غير قابلة للوصول من نشر سحابي. شغّل منصة عدنان تك محلياً أو استخدم سكربت PowerShell المحلي.'
+        : 'Local network printers are not reachable from a cloud deployment. Run Adnan Tech locally or use the local PowerShell agent.',
     )
   }
   notes.push(

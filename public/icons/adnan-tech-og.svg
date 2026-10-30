@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Adnan Tech — Open Graph / social preview master (1200x630). Rasterised sibling: /og-cover.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630"
+     role="img" aria-labelledby="og-title og-desc" focusable="false">
+  <title id="og-title">Adnan Tech — Intelligent Technology. Powerful Solutions.</title>
+  <desc id="og-desc">Enterprise engineering platform by Adnan Al Qadi: AI troubleshooting, IT support, networking, cybersecurity, servers, data centers, backup and disaster recovery, cloud and DevOps.</desc>
+
+  <defs>
+    <linearGradient id="ogTrace" x1="32" y1="17" x2="32" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35D6F2"/>
+      <stop offset="1" stop-color="#30D6B5"/>
+    </linearGradient>
+    <radialGradient id="ogGlow1" cx="0.18" cy="0.05" r="0.75">
+      <stop stop-color="#35D6F2" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#35D6F2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ogGlow2" cx="0.86" cy="0.12" r="0.6">
+      <stop stop-color="#8B7CF6" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#8B7CF6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="ogLattice" width="60" height="60" patternUnits="userSpaceOnUse">
+      <circle cx="30" cy="30" r="1.4" fill="#35D6F2" fill-opacity="0.18"/>
+      <path d="M30 30H60M30 30V60" stroke="#35D6F2" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="#071421"/>
+  <rect width="1200" height="630" fill="url(#ogLattice)"/>
+  <rect width="1200" height="630" fill="url(#ogGlow1)"/>
+  <rect width="1200" height="630" fill="url(#ogGlow2)"/>
+  <rect x="0.5" y="0.5" width="1199" height="629" rx="0" fill="none" stroke="#1B3A50"/>
+
+  <!-- monogram tile -->
+  <g transform="translate(96,150) scale(2.05)">
+    <rect x="-10" y="-10" width="84" height="84" rx="20" fill="#0A1B29" stroke="#1B3A50"/>
+    <path d="M32 17 17 49" stroke="url(#ogTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M32 17 47 49" stroke="url(#ogTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M22.2 38H41.8" stroke="url(#ogTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M16 17H48" stroke="url(#ogTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <path d="M32 17V49" stroke="url(#ogTrace)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+    <circle cx="16" cy="17" r="2" fill="#35D6F2"/>
+    <circle cx="48" cy="17" r="2" fill="#35D6F2"/>
+    <circle cx="22.2" cy="38" r="2" fill="#35D6F2"/>
+    <circle cx="41.8" cy="38" r="2" fill="#35D6F2"/>
+    <circle cx="17" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="47" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="32" cy="49" r="2.5" fill="#30D6B5"/>
+    <circle cx="32" cy="17" r="6.2" fill="#0A1B29"/>
+    <circle cx="32" cy="17" r="5.4" fill="none" stroke="#35D6F2" stroke-width="1.6"/>
+    <circle cx="32" cy="17" r="2.6" fill="#8B7CF6"/>
+  </g>
+
+  <text x="300" y="222" font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="76" font-weight="700"
+        letter-spacing="1" fill="#EAF4FA">Adnan <tspan fill="#35D6F2">Tech</tspan></text>
+  <text x="302" y="272" font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="26" font-weight="600"
+        letter-spacing="3" fill="#91A9BA">Intelligent Technology. Powerful Solutions.</text>
+
+  <text x="1104" y="352" direction="rtl" text-anchor="start"
+        font-family="'Noto Naskh Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+        font-size="40" font-weight="700" fill="#EAF4FA">منصة عدنان تك</text>
+  <text x="1104" y="400" direction="rtl" text-anchor="start"
+        font-family="'Noto Naskh Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+        font-size="24" font-weight="600" fill="#35D6F2">ذكاء تقني، حلول تصنع الفرق.</text>
+
+  <path d="M96 462H1104" stroke="#1B3A50"/>
+  <text x="96" y="506" font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="20" font-weight="600"
+        letter-spacing="1.6" fill="#91A9BA">AI Troubleshooting · IT Support · Networking</text>
+  <text x="96" y="538" font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="20" font-weight="600"
+        letter-spacing="1.6" fill="#91A9BA">Cybersecurity · Servers · Data Centers</text>
+  <text x="96" y="570" font-family="'Segoe UI', Inter, system-ui, sans-serif" font-size="20" font-weight="600"
+        letter-spacing="1.6" fill="#91A9BA">Backup &amp; DR · Cloud · DevOps</text>
+  <text x="1104" y="522" text-anchor="end" font-family="'Segoe UI', Inter, system-ui, sans-serif"
+        font-size="22" font-weight="600" fill="#30D6B5">Developed by Adnan Al Qadi</text>
+  <text x="1104" y="562" direction="rtl" text-anchor="start"
+        font-family="'Noto Naskh Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif"
+        font-size="22" font-weight="600" fill="#91A9BA">تم التطوير بواسطة م. عدنان القاضي</text>
+</svg>

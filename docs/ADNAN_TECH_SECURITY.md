@@ -1,4 +1,4 @@
-# NEXORA Security
+# Adnan Tech Security
 
 ## Threat model
 

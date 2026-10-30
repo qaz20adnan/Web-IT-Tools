@@ -4,6 +4,7 @@ export type CvssPrivilegesRequired = 'N' | 'L' | 'H'
 export type CvssUserInteraction = 'N' | 'R'
 export type CvssScope = 'U' | 'C'
 export type CvssImpact = 'H' | 'L' | 'N'
+export type CvssSeverity = 'None' | 'Low' | 'Medium' | 'High' | 'Critical'
 
 export interface CvssVector {
   AV: CvssAttackVector
@@ -38,35 +39,57 @@ export function cvssVectorString(vector: CvssVector): string {
   return `CVSS:3.1/AV:${vector.AV}/AC:${vector.AC}/PR:${vector.PR}/UI:${vector.UI}/S:${vector.S}/C:${vector.C}/I:${vector.I}/A:${vector.A}`
 }
 
-export function calculateCvss(vector: CvssVector): { baseScore: number; severity: string; vector: string; impact: number; exploitability: number } {
+export function cvssSeverity(score: number): CvssSeverity {
+  if (score <= 0) return 'None'
+  if (score < 3.5) return 'Low'
+  if (score < 7) return 'Medium'
+  if (score < 9) return 'High'
+  return 'Critical'
+}
+
+export function calculateCvss(vector: CvssVector): { baseScore: number; severity: CvssSeverity; vector: string; impact: number; exploitability: number } {
   const scopeChanged = vector.S === 'C'
   const iss = 1 - (1 - IMPACT[vector.C]) * (1 - IMPACT[vector.I]) * (1 - IMPACT[vector.A])
   const impact = scopeChanged ? 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15 : 6.42 * iss
   const exploitability = 8.22 * AV[vector.AV] * AC[vector.AC] * privilegeWeight(vector.PR, scopeChanged) * UI[vector.UI]
   const raw = impact <= 0 ? 0 : scopeChanged ? Math.min(1.08 * (impact + exploitability), 10) : Math.min(impact + exploitability, 10)
   const baseScore = roundUp(raw)
-  const severity =
-    baseScore === 0 ? 'None' : baseScore < 4 ? 'Low' : baseScore < 7 ? 'Medium' : baseScore < 9 ? 'High' : 'Critical'
-  return { baseScore, severity, vector: cvssVectorString(vector), impact: Number(impact.toFixed(2)), exploitability: Number(exploitability.toFixed(2)) }
+  return { baseScore, severity: cvssSeverity(baseScore), vector: cvssVectorString(vector), impact: Number(impact.toFixed(2)), exploitability: Number(exploitability.toFixed(2)) }
 }
 
-export function parseCvssVector(value: string): CvssVector | null {
-  const trimmed = value.trim().replace(/^CVSS:3\.[01]\//i, '')
-  const parts = Object.fromEntries(trimmed.split('/').map((part) => part.split(':'))) as Record<string, string>
-  const pick = <T extends string>(key: string, allowed: readonly T[]): T | null => {
-    const entry = parts[key] as T | undefined
-    return entry && allowed.includes(entry) ? entry : null
-  }
-  const vector: CvssVector = {
-    AV: pick('AV', ['N', 'A', 'L', 'P'] as const) ?? 'N',
-    AC: pick('AC', ['L', 'H'] as const) ?? 'L',
-    PR: pick('PR', ['N', 'L', 'H'] as const) ?? 'N',
-    UI: pick('UI', ['N', 'R'] as const) ?? 'N',
-    S: pick('S', ['U', 'C'] as const) ?? 'U',
-    C: pick('C', ['H', 'L', 'N'] as const) ?? 'N',
-    I: pick('I', ['H', 'L', 'N'] as const) ?? 'N',
-    A: pick('A', ['H', 'L', 'N'] as const) ?? 'N',
-  }
-  if (Object.keys(parts).length === 0) return null
-  return vector
+export type CvssMetric = keyof CvssVector
+
+export interface ParsedCvssVector {
+  vector: CvssVector
+  /** Metrics that were absent or invalid in the input and therefore fell back to a default. */
+  defaulted: CvssMetric[]
 }
+
+const CVSS_METRICS: Array<{ key: CvssMetric; allowed: readonly string[]; fallback: string }> = [
+  { key: 'AV', allowed: ['N', 'A', 'L', 'P'], fallback: 'N' },
+  { key: 'AC', allowed: ['L', 'H'], fallback: 'L' },
+  { key: 'PR', allowed: ['N', 'L', 'H'], fallback: 'N' },
+  { key: 'UI', allowed: ['N', 'R'], fallback: 'N' },
+  { key: 'S', allowed: ['U', 'C'], fallback: 'U' },
+  { key: 'C', allowed: ['H', 'L', 'N'], fallback: 'N' },
+  { key: 'I', allowed: ['H', 'L', 'N'], fallback: 'N' },
+  { key: 'A', allowed: ['H', 'L', 'N'], fallback: 'N' },
+]
+
+export function parseCvssVector(value: string): ParsedCvssVector | null {
+  const trimmed = value.trim().replace(/^CVSS:3\.[01]\//i, '')
+  if (!trimmed) return null
+  const parts = Object.fromEntries(trimmed.split('/').map((part) => part.split(':'))) as Record<string, string>
+  const values: Record<string, string> = {}
+  const defaulted: CvssMetric[] = []
+  for (const metric of CVSS_METRICS) {
+    const provided = parts[metric.key]
+    if (provided && metric.allowed.includes(provided)) values[metric.key] = provided
+    else {
+      values[metric.key] = metric.fallback
+      defaulted.push(metric.key)
+    }
+  }
+  return { vector: values as unknown as CvssVector, defaulted }
+}
+

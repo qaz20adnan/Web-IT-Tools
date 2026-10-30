@@ -4,7 +4,7 @@ import { buildPrinterAgentScript } from '@/lib/printer-agent'
 describe('printer agent script', () => {
   it('generates a read-only inventory by default', () => {
     const script = buildPrinterAgentScript()
-    expect(script).toContain('# NEXORA AI - local printer diagnostics and queue agent')
+    expect(script).toContain('# Adnan Tech - local printer diagnostics and queue agent')
     expect(script).toContain('[switch]$RestartSpooler = $false')
     expect(script).toContain('[switch]$CancelJobs = $false')
     expect(script).toContain('Get-Printer')

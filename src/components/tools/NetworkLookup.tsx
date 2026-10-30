@@ -2,22 +2,32 @@ import { useState } from 'react'
 import { Lock, Search, ShieldCheck } from 'lucide-react'
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Spinner } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
-import { ApiError, inspectTls, lookupDns, type DnsAnswer, type TlsInfo } from '@/services/api'
+import { ApiError, inspectTls, lookupDns, type DnsLookupResponse, type TlsInfo } from '@/services/api'
 import { safeExternalUrl } from '@/lib/utils'
+import type { LocalizedText } from '@/types'
 
 function useLabels() {
   const { settings } = useApp()
   return (en: string, ar: string) => (settings.language === 'ar' ? ar : en)
 }
 
-const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA', 'SRV'] as const
+const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA', 'SRV', 'PTR'] as const
+
+const DNS_PRESETS: Array<{ id: string; label: LocalizedText; type: (typeof RECORD_TYPES)[number]; prefix: string }> = [
+  { id: 'website', label: { en: 'Website address', ar: 'عنوان الموقع' }, type: 'A', prefix: '' },
+  { id: 'mail', label: { en: 'Mail servers', ar: 'خوادم البريد' }, type: 'MX', prefix: '' },
+  { id: 'spf', label: { en: 'SPF', ar: 'SPF' }, type: 'TXT', prefix: '' },
+  { id: 'dmarc', label: { en: 'DMARC', ar: 'DMARC' }, type: 'TXT', prefix: '_dmarc.' },
+  { id: 'reverse', label: { en: 'Reverse (PTR)', ar: 'العكس (PTR)' }, type: 'PTR', prefix: '' },
+]
 
 export function DnsTool() {
   const L = useLabels()
-  const [host, setHost] = useState('learn.microsoft.com')
+  const { settings } = useApp()
+  const [host, setHost] = useState('adnan-tech.netlify.app')
   const [type, setType] = useState<(typeof RECORD_TYPES)[number]>('A')
-  const [answers, setAnswers] = useState<DnsAnswer[] | null>(null)
-  const [status, setStatus] = useState<number | null>(null)
+  const [preset, setPreset] = useState('website')
+  const [result, setResult] = useState<DnsLookupResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -26,11 +36,9 @@ export function DnsTool() {
     if (!target) return
     setLoading(true)
     setError(null)
-    setAnswers(null)
+    setResult(null)
     try {
-      const response = await lookupDns(target, type)
-      setAnswers(response.answers)
-      setStatus(response.status)
+      setResult(await lookupDns(target, type))
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -44,16 +52,36 @@ export function DnsTool() {
     }
   }
 
-  const statusLabel =
-    status === null ? null : status === 0 ? L('NOERROR', 'NOERROR') : status === 3 ? L('NXDOMAIN (name does not exist)', 'NXDOMAIN (الاسم غير موجود)') : String(status)
+  const applyPreset = (entry: (typeof DNS_PRESETS)[number]) => {
+    setPreset(entry.id)
+    setType(entry.type)
+    const bare = host.trim().replace(/^https?:\/\//, '').split('/')[0].replace(/^_dmarc\./, '')
+    setHost(`${entry.prefix}${bare}`)
+  }
+
+  const tone = result === null ? 'default' : result.outcome === 'answered' ? (result.agreement ? 'success' : 'warning') : result.outcome === 'no-data' || result.outcome === 'nxdomain' ? 'warning' : 'danger'
 
   return (
     <Card>
-      <CardHeader title={L('DNS Lookup', 'استعلام DNS')} icon={<Search className="h-4 w-4" />} subtitle={L('Queries run through the deployment DNS-over-HTTPS proxy to avoid browser CORS limits.', 'تُنفذ الاستعلامات عبر وسيط DNS-over-HTTPS في النشر لتجاوز قيود CORS.')} />
+      <CardHeader title={L('DNS Lookup', 'استعلام DNS')} icon={<Search className="h-4 w-4" />} subtitle={L('Asks two public resolvers over DNS-over-HTTPS, with real TTLs and the exact RCODE.', 'يسأل محلّلين عامين عبر DNS-over-HTTPS مع TTL حقيقية وRCODE دقيق.')} />
       <div className="space-y-3 p-4">
+        <div className="flex flex-wrap gap-1.5">
+          {DNS_PRESETS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => applyPreset(entry)}
+              className="nx-chip nx-chip-button text-[11px]"
+              data-active={preset === entry.id}
+              aria-pressed={preset === entry.id}
+            >
+              {settings.language === 'ar' ? entry.label.ar : entry.label.en}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
-          <Field label={L('Hostname', 'اسم المضيف')} htmlFor="dns-host">
-            <Input id="dns-host" value={host} onChange={(event) => setHost(event.target.value)} placeholder="example.com" dir="ltr" />
+          <Field label={L('Hostname or IP', 'اسم المضيف أو IP')} htmlFor="dns-host">
+            <Input id="dns-host" value={host} onChange={(event) => setHost(event.target.value)} placeholder="example.com" dir="ltr" className="force-ltr" onKeyDown={(event) => { if (event.key === 'Enter') void lookup() }} />
           </Field>
           <Field label={L('Type', 'النوع')} htmlFor="dns-type">
             <Select id="dns-type" value={type} onChange={(event) => setType(event.target.value as typeof type)}>
@@ -64,15 +92,20 @@ export function DnsTool() {
             <Button onClick={() => void lookup()} loading={loading} disabled={!host.trim()} icon={<Search className="h-4 w-4" />}>{L('Lookup', 'استعلام')}</Button>
           </div>
         </div>
-        {loading ? <Spinner label={L('Querying resolver…', 'جارٍ استعلام المحلل…')} /> : null}
-        {error ? <Alert tone="warning" title={L('Lookup unavailable', 'الاستعلام غير متاح')}>{error}</Alert> : null}
-        {answers ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Badge tone={status === 0 ? 'success' : 'warning'}>{statusLabel}</Badge>
-              <span className="text-xs text-muted">{answers.length} {L('answers', 'إجابة')}</span>
+        {loading ? <Spinner label={L('Querying resolvers…', 'جارٍ استعلام المحلّلات…')} /> : null}
+        {error ? <Alert tone="danger" title={L('Lookup failed', 'فشل الاستعلام')}>{error}</Alert> : null}
+        {result ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={tone}>{result.outcomeLabel}</Badge>
+              <Badge tone={result.agreement ? 'success' : 'warning'}>
+                {result.agreement ? L('Resolvers agree', 'المحلّلات متفقة') : L('Resolvers disagree', 'المحلّلات مختلفة')}
+              </Badge>
+              <span className="text-xs text-muted" dir="ltr">{result.askedAs} · {result.type}</span>
             </div>
-            {answers.length === 0 ? <p className="text-xs text-muted">{L('No records returned for this type.', 'لم تُرجع سجلات لهذا النوع.')}</p> : (
+            {result.answers.length === 0 ? (
+              <p className="text-xs text-muted">{L('No record of this type exists for the name. That is an answer, not a failure.', 'لا يوجد سجل من هذا النوع للاسم. هذه إجابة وليست إخفاقًا.')}</p>
+            ) : (
               <div className="overflow-auto rounded-lg border border-line">
                 <table className="w-full text-xs">
                   <thead className="bg-surface-2 text-subtle">
@@ -83,10 +116,10 @@ export function DnsTool() {
                     </tr>
                   </thead>
                   <tbody>
-                    {answers.map((answer, index) => (
-                      <tr key={`${answer.name}-${index}`} className="border-t border-line">
+                    {result.answers.map((answer, index) => (
+                      <tr key={`${answer.name}-${answer.data}-${index}`} className="border-t border-line">
                         <td className="break-all p-2 font-mono" dir="ltr">{answer.name}</td>
-                        <td className="p-2 font-mono">{answer.ttl}s</td>
+                        <td className="p-2 font-mono tabular-nums" dir="ltr">{answer.ttl}s</td>
                         <td className="break-all p-2 font-mono" dir="ltr">{answer.data}</td>
                       </tr>
                     ))}
@@ -94,12 +127,39 @@ export function DnsTool() {
                 </table>
               </div>
             )}
-          </>
+            <div className="overflow-auto rounded-lg border border-line">
+              <table className="w-full text-xs">
+                <thead className="bg-surface-2 text-subtle">
+                  <tr>
+                    <th className="p-2 text-start">{L('Resolver', 'المحلّل')}</th>
+                    <th className="p-2 text-start">{L('Outcome', 'النتيجة')}</th>
+                    <th className="p-2 text-start">RCODE</th>
+                    <th className="p-2 text-start">{L('Records', 'السجلات')}</th>
+                    <th className="p-2 text-start">{L('Time', 'الزمن')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.resolvers.map((entry) => (
+                    <tr key={entry.resolver} className="border-t border-line">
+                      <td className="p-2 font-semibold">{entry.resolver}</td>
+                      <td className="p-2">{entry.errorCode ? <span className="text-danger">{L('Unreachable', 'غير متاح')}</span> : entry.outcome}</td>
+                      <td className="p-2 font-mono tabular-nums">{entry.rcode === null ? '—' : entry.rcode}</td>
+                      <td className="p-2 font-mono tabular-nums">{entry.answers.length}</td>
+                      <td className="p-2 font-mono tabular-nums" dir="ltr">{entry.elapsedMs} ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-subtle">{result.note}</p>
+          </div>
         ) : null}
       </div>
     </Card>
   )
 }
+
+const TLS_PORTS = [443, 465, 587, 636, 990, 993, 995, 8443] as const
 
 export function TlsTool() {
   const L = useLabels()
@@ -140,7 +200,9 @@ export function TlsTool() {
             <Input id="tls-host" value={host} onChange={(event) => setHost(event.target.value)} placeholder="example.com" dir="ltr" />
           </Field>
           <Field label={L('Port', 'المنفذ')} htmlFor="tls-port">
-            <Input id="tls-port" type="number" min={1} max={65535} value={port} onChange={(event) => setPort(event.target.value)} dir="ltr" />
+            <Select id="tls-port" value={port} onChange={(event) => setPort(event.target.value)}>
+              {TLS_PORTS.map((entry) => <option key={entry} value={String(entry)}>{entry}</option>)}
+            </Select>
           </Field>
           <div className="flex items-end">
             <Button onClick={() => void inspect()} loading={loading} disabled={!host.trim()} icon={<ShieldCheck className="h-4 w-4" />}>{L('Inspect', 'فحص')}</Button>

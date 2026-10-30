@@ -27,6 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-[60vh] items-center justify-center p-6">
           <div className="card card-pad max-w-lg text-center">
+            <img src="/icons/adnan-tech-favicon.svg" width={40} height={40} alt="" aria-hidden className="mx-auto mb-4 rounded-lg" />
             <h1 className="text-lg font-bold">{arabic ? 'فشل عرض هذا الجزء من الواجهة' : 'This part of the interface failed to render'}</h1>
             <p className="mt-2 text-sm text-muted">
               {arabic

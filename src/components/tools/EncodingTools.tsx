@@ -14,19 +14,20 @@ function useLabels() {
 }
 
 const encoder = new TextEncoder()
-const decoder = new TextDecoder()
 
-function toBase64(text: string): string {
+function toBase64(text: string, urlSafe: boolean): string {
   const bytes = encoder.encode(text)
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
+  const standard = btoa(binary)
+  // RFC 4648 base64url: "-" and "_" replace "+" and "/", and the "=" padding is dropped.
+  return urlSafe ? standard.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : standard
 }
 
-function fromBase64(value: string): string {
-  const binary = atob(value.replace(/\s+/g, ''))
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  return decoder.decode(bytes)
+function base64From(value: string): Uint8Array {
+  const standard = value.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/')
+  const binary = atob(standard)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
 
 async function digest(algo: 'SHA-1' | 'SHA-256' | 'SHA-512', data: ArrayBuffer): Promise<string> {
@@ -108,14 +109,27 @@ export function Base64Tool() {
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [urlSafe, setUrlSafe] = useState(false)
 
   const convert = (mode: 'encode' | 'decode') => {
     setError(null)
+    if (mode === 'encode') {
+      setOutput(toBase64(input, urlSafe))
+      return
+    }
+    let bytes: Uint8Array
     try {
-      setOutput(mode === 'encode' ? toBase64(input) : fromBase64(input))
+      bytes = base64From(input)
     } catch {
       setOutput('')
       setError(L('Invalid Base64 input.', 'مدخل Base64 غير صالح.'))
+      return
+    }
+    try {
+      setOutput(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+    } catch {
+      setOutput('')
+      setError(L('The decoded bytes are not valid UTF-8 text; the source may be binary data.', 'البايتات المفكوكة ليست نصًا بصيغة UTF-8 صالحة؛ قد يكون المصدر بيانات ثنائية.'))
     }
   }
 
@@ -132,10 +146,17 @@ export function Base64Tool() {
             <Button size="sm" variant="secondary" onClick={() => convert('decode')}>{L('Decode', 'فك')}</Button>
             <Button size="sm" variant="ghost" onClick={() => { setInput(''); setOutput(''); setError(null) }}>{L('Clear', 'مسح')}</Button>
           </div>
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input type="checkbox" checked={urlSafe} onChange={(event) => setUrlSafe(event.target.checked)} className="h-4 w-4 accent-[var(--primary)]" />
+            {L('URL-safe output (base64url, no padding)', 'خرج آمن للروابط (base64url بدون حشو)')}
+          </label>
           <div className="min-h-40 flex-1 rounded-lg border border-line bg-surface-2 p-3">
             {error ? <p className="text-xs text-danger">{error}</p> : <p className="break-all font-mono text-xs" dir="ltr">{output || L('Output appears here.', 'تظهر النتيجة هنا.')}</p>}
           </div>
           {output ? <CopyButton value={output} label={L('Copy output', 'نسخ النتيجة')} /> : null}
+          <p className="text-[10px] text-subtle">
+            {L('Decoding accepts both the standard and URL-safe alphabets.', 'يقبل فك الترميز كلا الأبجدية القياسية والآمنة للروابط.')}
+          </p>
         </div>
       </div>
     </Card>
@@ -307,11 +328,21 @@ export function TimestampTool() {
   const parsed = useMemo(() => {
     const trimmed = value.trim()
     if (!trimmed) return null
-    if (/^\d{10}$/.test(trimmed)) return new Date(Number(trimmed) * 1000)
-    if (/^\d{13}$/.test(trimmed)) return new Date(Number(trimmed))
+    // Digit-only input is ambiguous, so length decides: up to 10 is seconds, 11-13 is milliseconds.
+    if (/^\d{1,10}$/.test(trimmed)) return { date: new Date(Number(trimmed) * 1000), unit: 'seconds' as const }
+    if (/^\d{11,13}$/.test(trimmed)) return { date: new Date(Number(trimmed)), unit: 'milliseconds' as const }
+    if (/^\d{14,}$/.test(trimmed)) return null
     const date = new Date(trimmed)
-    return Number.isNaN(date.getTime()) ? null : date
+    return Number.isNaN(date.getTime()) ? null : { date, unit: 'text' as const }
   }, [value])
+
+  const note = parsed
+    ? parsed.unit === 'seconds'
+      ? L('Interpreted as Unix seconds.', 'تُفسر كثوانٍ Unix.')
+      : parsed.unit === 'milliseconds'
+        ? L('Interpreted as Unix milliseconds.', 'تُفسر كمللي ثانية Unix.')
+        : L('Parsed as a date string.', 'تم تحليلها كنص تاريخ.')
+    : null
 
   return (
     <Card>
@@ -324,19 +355,25 @@ export function TimestampTool() {
           <Button variant="secondary" onClick={() => setValue(String(Math.floor(Date.now() / 1000)))}>{L('Now', 'الآن')}</Button>
         </div>
         {parsed ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              [L('Unix seconds', 'ثواني Unix'), String(Math.floor(parsed.getTime() / 1000))],
-              [L('Unix milliseconds', 'مللي ثانية Unix'), String(parsed.getTime())],
-              [L('ISO 8601 (UTC)', 'ISO 8601 (UTC)'), parsed.toISOString()],
-              [L('Local time', 'الوقت المحلي'), parsed.toLocaleString()],
-            ].map(([label, result]) => (
-              <div key={label} className="rounded-lg border border-line bg-surface-2 p-2.5">
-                <p className="text-[10px] uppercase text-subtle">{label}</p>
-                <p className="break-all font-mono text-xs" dir="ltr">{result}</p>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                [L('Unix seconds', 'ثواني Unix'), String(Math.floor(parsed.date.getTime() / 1000))],
+                [L('Unix milliseconds', 'مللي ثانية Unix'), String(parsed.date.getTime())],
+                [L('ISO 8601 (UTC)', 'ISO 8601 (UTC)'), parsed.date.toISOString()],
+                [L('Local time', 'الوقت المحلي'), parsed.date.toLocaleString()],
+              ].map(([label, result]) => (
+                <div key={label} className="rounded-lg border border-line bg-surface-2 p-2.5">
+                  <p className="text-[10px] uppercase text-subtle">{label}</p>
+                  <p className="break-all font-mono text-xs" dir="ltr">{result}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-subtle" dir="auto">
+              {note}{' '}
+              {L('Digit-only input up to 10 digits is read as seconds and 11-13 digits as milliseconds; longer digit strings are rejected.', 'المدخل الرقمي حتى 10 أرقام يُقرأ كثوانٍ، ومن 11 إلى 13 رقمًا كمللي ثانية، وما طال عن ذلك يُرفض.')}
+            </p>
+          </>
         ) : <Alert tone="danger">{L('Unrecognized timestamp or date.', 'طابع زمني أو تاريخ غير معروف.')}</Alert>}
       </div>
     </Card>
@@ -420,7 +457,7 @@ export function MarkdownTool() {
         title={L('Markdown Editor', 'محرر Markdown')}
         actions={
           <>
-            <Button size="sm" variant="secondary" icon={<TextCursorInput className="h-3.5 w-3.5" />} onClick={() => downloadTextFile('nexora-note.md', input, 'text/markdown;charset=utf-8')}>{L('Export .md', 'تصدير .md')}</Button>
+            <Button size="sm" variant="secondary" icon={<TextCursorInput className="h-3.5 w-3.5" />} onClick={() => downloadTextFile('adnan-tech-note.md', input, 'text/markdown;charset=utf-8')}>{L('Export .md', 'تصدير .md')}</Button>
             <CopyButton value={input} />
           </>
         }
@@ -513,6 +550,7 @@ export function ApiTool() {
     }
     if (!['GET', 'HEAD'].includes(method) && !body.trim()) {
       setError(L('This method usually needs a request body.', 'تتطلب هذه الطريقة عادةً جسم طلب.'))
+      return
     }
     setLoading(true)
     const controller = new AbortController()

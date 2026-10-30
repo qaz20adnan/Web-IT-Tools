@@ -2,7 +2,7 @@
   "name": "nexora-ai",
   "private": true,
   "version": "1.0.0",
-  "description": "NEXORA AI — unified IT intelligence, AI troubleshooting and engineering knowledge platform",
+  "description": "Adnan Tech | منصة عدنان تك — intelligent technology, powerful solutions. AI-powered troubleshooting, networking, cybersecurity, servers, data centers, cloud and DevOps engineering platform",
   "type": "module",
   "engines": {
     "node": ">=20.19"
@@ -10,8 +10,12 @@
   "scripts": {
     "dev": "vite",
     "dev:netlify": "netlify dev",
+    "dev:vercel": "vercel dev",
     "build": "tsc --noEmit && vite build",
+    "build:vercel-api": "node scripts/build-vercel-api.mjs",
     "preview": "vite preview",
+    "env:vercel": "vercel env pull .env.local",
+    "deploy:vercel": "vercel deploy --prod",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -42,6 +46,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
@@ -54,4 +59,3 @@
     "vitest": "^5.0.5"
   }
 }
-

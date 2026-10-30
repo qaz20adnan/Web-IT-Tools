@@ -117,7 +117,7 @@ export function AccountPage() {
     setExportBusy(true)
     try {
       const data = await exportData()
-      downloadTextFile(`nexora-account-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')
+      downloadTextFile(`adnan-tech-account-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')
       notify('success', t('auth.exportReady'))
     } catch (caught) {
       notify('error', caught instanceof ApiError ? caught.message : t('auth.genericError'))

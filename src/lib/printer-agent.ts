@@ -13,7 +13,7 @@ export function buildPrinterAgentScript(options: PrinterAgentOptions = {}): stri
   const restart = options.restartSpooler === true
   const cancel = options.cancelJobs === true
 
-  return `# NEXORA AI - local printer diagnostics and queue agent
+  return `# Adnan Tech - local printer diagnostics and queue agent
 # Generated on ${new Date().toISOString()}
 # Run in an elevated PowerShell window on the Windows device that owns the printer.
 # This script only reads state unless you enabled restart/cancel below.
@@ -29,11 +29,11 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
   [Security.Principal.WindowsBuiltInRole]::Administrator
 )
 
-$logPath = Join-Path $env:TEMP 'nexora-printer-report.txt'
+$logPath = Join-Path $env:TEMP 'adnan-tech-printer-report.txt'
 try { Start-Transcript -Path $logPath -Force | Out-Null } catch { }
 
 Write-Host ''
-Write-Host '=== NEXORA printer inventory ===' -ForegroundColor Cyan
+Write-Host '=== Adnan Tech printer inventory ===' -ForegroundColor Cyan
 Write-Host "Administrator: $isAdmin"
 Write-Host "Report log: $logPath"
 

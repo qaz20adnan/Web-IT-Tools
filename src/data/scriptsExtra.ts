@@ -80,7 +80,7 @@ $certificates | Where-Object { $_.Expired -or $_.ExpiringSoon } |
 # Does not change services, networking, users or files outside the output folder.
 set -euo pipefail
 
-OUT_DIR="\${1:-/tmp/nexora-evidence-$(date +%Y%m%d-%H%M%S)}"
+OUT_DIR="\${1:-/tmp/adnan-tech-evidence-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT_DIR"
 
 run() {

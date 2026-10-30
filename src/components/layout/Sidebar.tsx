@@ -4,6 +4,7 @@ import { NAV_GROUPS } from './nav'
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
+import { APP_FOUNDER } from '@/lib/config'
 import { cn } from '@/lib/utils'
 
 export function Sidebar({
@@ -90,8 +91,12 @@ export function Sidebar({
       <div className="border-t border-line p-2">
         {!collapsed ? (
           <div className="px-2 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-subtle">Eng. Adnan Al Qadi</p>
-            <p className="text-[10px] text-subtle" dir="rtl">م. عدنان القاضي</p>
+            <p className="text-[10px] font-semibold text-subtle" dir="auto">
+              {APP_FOUNDER} · {t('about.founder')}
+            </p>
+            <p className="text-[10px] text-subtle" dir="auto">
+              {t('footer.developerName')}
+            </p>
           </div>
         ) : null}
         <button
@@ -122,7 +127,7 @@ export function Sidebar({
       {mobileOpen ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCloseMobile} aria-hidden />
-          <aside className="absolute inset-y-0 start-0 w-72 border-e border-line bg-[var(--sidebar)] shadow-2xl animate-fade">
+          <aside className="slide-start absolute inset-y-0 start-0 w-72 border-e border-line bg-[var(--sidebar)] shadow-2xl">
             {content}
           </aside>
         </div>
