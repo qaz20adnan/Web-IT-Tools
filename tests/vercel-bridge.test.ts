@@ -5,7 +5,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { handler as healthHandler } from '../netlify/functions/health'
-import { HttpError, json, wrap, type Handler, type NetlifyEvent } from '../netlify/lib/http'
+import { HttpError, json, readJsonBody, wrap, type Handler, type NetlifyEvent } from '../netlify/lib/http'
+import { MAX_BODY_BYTES } from '../shared/upload-limits'
 import { createVercelDispatcher, resolveRoute, toVercelEvent } from '../vercel/serverless'
 import { routes } from '../vercel/dispatcher'
 
@@ -31,8 +32,8 @@ interface Captured {
   body: string
 }
 
-function makeRequest(init: { method?: string; url?: string; headers?: Record<string, string | string[]>; body?: string }) {
-  const chunk = init.body === undefined ? [] : [Buffer.from(init.body, 'utf8')]
+function makeRequest(init: { method?: string; url?: string; headers?: Record<string, string | string[]>; body?: string | Buffer }) {
+  const chunk = init.body === undefined ? [] : [Buffer.isBuffer(init.body) ? init.body : Buffer.from(init.body, 'utf8')]
   return {
     method: init.method ?? 'GET',
     url: init.url ?? '/api/index?_fn=/health',
@@ -94,12 +95,32 @@ describe('toVercelEvent', () => {
     expect(event.path).toBe('/api/net/port')
     expect(event.queryStringParameters).toEqual({ refresh: '1', tag: 'a,b' })
     expect(event.headers.cookie).toBe('a=1, b=2')
-    expect(event.isBase64Encoded).toBe(false)
-    expect(event.body).toBe('{"host":"example.com"}')
+    expect(event.isBase64Encoded).toBe(true)
+    expect(Buffer.from(event.body ?? '', 'base64').toString('utf8')).toBe('{"host":"example.com"}')
   })
 
   it('sends a null body when there is no payload', async () => {
     expect((await toVercelEvent(makeRequest({}))).body).toBeNull()
+  })
+
+  it('carries a body that is not valid UTF-8 byte for byte', async () => {
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe, 0x00, 0x42])
+    const event = await toVercelEvent(makeRequest({ method: 'POST', url: '/api/index?_fn=/echo', body: binary }))
+    expect(Buffer.from(event.body ?? '', 'base64')).toEqual(binary)
+  })
+
+  it('keeps multibyte text intact through the same path', async () => {
+    const arabic = JSON.stringify({ note: 'محاولة رفع صورة — تحليل الشبكة' })
+    const event = await toVercelEvent(makeRequest({ method: 'POST', url: '/api/index?_fn=/echo', body: arabic }))
+    expect(Buffer.from(event.body ?? '', 'base64').toString('utf8')).toBe(arabic)
+  })
+
+  it('measures the payload cap on raw bytes, not on the base64 form', async () => {
+    // 4 MB of binary becomes ≈5.33 MB of base64; the limit is about what the edge accepted.
+    const event = await toVercelEvent(makeRequest({ method: 'POST', url: '/api/index?_fn=/echo', body: Buffer.alloc(4 * 1024 * 1024, 0xff) }))
+    const body = event.body ?? ''
+    expect(body.length).toBeGreaterThan(MAX_BODY_BYTES)
+    expect(Buffer.from(body, 'base64').length).toBe(4 * 1024 * 1024)
   })
 })
 
@@ -128,6 +149,13 @@ describe('createVercelDispatcher', () => {
       json(200, { ip: context.ip, method: event.httpMethod, path: event.path, query: event.queryStringParameters })
     const result = await dispatch({ echo }, { url: '/api/index?_fn=/echo&x=2', headers: { 'x-forwarded-for': '198.51.100.7, 10.0.0.1' } })
     expect(result.json).toMatchObject({ ip: '198.51.100.7', method: 'GET', path: '/api/echo', query: { x: '2' } })
+  })
+
+  it('hands a handler the decoded JSON body, since the event itself is base64', async () => {
+    const echo: Handler = async (event) => json(200, { body: readJsonBody<{ note: string; imageDataUrl?: string }>(event, MAX_BODY_BYTES) })
+    const payload = { note: 'تحليل', imageDataUrl: `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')}` }
+    const result = await dispatch({ echo }, { method: 'POST', url: '/api/index?_fn=/echo', body: JSON.stringify(payload) })
+    expect(result.json).toEqual({ body: payload })
   })
 
   it('rejects bodies above the Vercel payload limit before calling the handler', async () => {

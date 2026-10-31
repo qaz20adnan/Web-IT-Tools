@@ -62,7 +62,7 @@ same signature:
 | Runtime | Adapter | Evidence |
 | --- | --- | --- |
 | Netlify | native `Handler` from `netlify/functions` | `netlify/functions/*.ts` |
-| Vercel | `vercel/serverless.ts` bridges Node `req/res` → Lambda event, buffers the body (4.5 MB cap), and hands the path to `createVercelDispatcher` | `vercel/serverless.ts`, `vercel/dispatcher.ts:31-56` |
+| Vercel | `vercel/serverless.ts` bridges Node `req/res` → Lambda event, keeps the body as raw bytes (4.5 MB cap on the **raw** length, base64 into the event since M-14), and hands the path to `createVercelDispatcher` | `vercel/serverless.ts`, `vercel/dispatcher.ts:31-56` |
 | Local dev | `scripts/dev-api-plugin.ts` registers the same route table on Vite's connect server | `vite.config.ts` |
 
 `scripts/build-vercel-api.mjs` bundles `netlify/functions/*.ts` + `netlify/lib/*.ts` with esbuild

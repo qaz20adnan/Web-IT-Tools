@@ -37,7 +37,7 @@ function flattenHeaders(req: IncomingMessage): Record<string, string | undefined
   return headers
 }
 
-async function readBody(req: IncomingMessage): Promise<string | null> {
+async function readBody(req: IncomingMessage): Promise<Buffer | null> {
   const chunks: Buffer[] = []
   let total = 0
   for await (const piece of req) {
@@ -48,7 +48,7 @@ async function readBody(req: IncomingMessage): Promise<string | null> {
     }
     chunks.push(chunk)
   }
-  const raw = Buffer.concat(chunks).toString('utf8')
+  const raw = Buffer.concat(chunks)
   return raw.length > 0 ? raw : null
 }
 
@@ -84,11 +84,14 @@ export function resolveRoute(url: URL): ResolvedRoute {
 }
 
 export async function toVercelEvent(req: IncomingMessage, resolved = resolveRoute(new URL(req.url ?? '/', 'http://localhost'))): Promise<NetlifyEvent> {
+  const raw = await readBody(req)
   return {
     httpMethod: req.method ?? 'GET',
     headers: flattenHeaders(req),
-    body: await readBody(req),
-    isBase64Encoded: false,
+    // Bytes, not a decoded string: base64 survives anything UTF-8 cannot (a multipart
+    // boundary, an image), and readJsonBody() decodes when this flag is set.
+    body: raw ? raw.toString('base64') : null,
+    isBase64Encoded: true,
     path: resolved.path,
     queryStringParameters: resolved.query,
   }

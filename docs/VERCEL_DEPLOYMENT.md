@@ -154,7 +154,8 @@ Consequences worth knowing:
 - **Image analysis** (`POST /api/ai/analyze`, and `POST /api/ai/chat` with attachments) is
   capped at 4.5 MB instead of 6 MB. The adapter enforces it itself and returns the same
   `413 payload_too_large` JSON envelope, so the UI message stays localised rather than
-  surfacing an edge-level error.
+  surfacing an edge-level error. The cap counts **raw request bytes** before any re-encoding, and
+  the body reaches handlers as base64 since M-14, so a non-UTF-8 payload no longer arrives corrupted.
 - **Duration is now generous**: the 45 s Gemini grounding timeout fits inside 60 s, which it
   did not inside Netlify's 10 s default.
 - **Node runtime.** Vercel offers majors 26.x (default), 24.x and 22.x only, and an open range in

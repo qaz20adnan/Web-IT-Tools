@@ -137,6 +137,29 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   is still there (it is expected to be). If the owner wants the Toolbar on previews, say so and it
   becomes an approved, preview-scoped exception rather than a silent edit. Not deployed.
 
+- **W2 · M-14 Vercel bridge bodies** (last MEDIUM of the platform wave, request half only): the
+  adapter used to concatenate the incoming request and hand the handler a UTF-8 string while
+  asserting `isBase64Encoded: false`. Anything that is not UTF-8 — a multipart boundary, an
+  image part, a stray `0xFF` — was already destroyed before the first handler line ran, and no
+  error said so. `readBody()` now returns the raw `Buffer`, the event carries it as base64 with
+  `isBase64Encoded: true`, and the 4.5 MB cap is checked against the **raw** length before
+  encoding, so 4 MB of binary is accepted even though its base64 form is ≈5.33 MB. No handler was
+  touched: `readJsonBody()` has honoured that flag all along, which is why the fix belongs in the
+  adapter and nowhere else.
+  The second half of the finding (`Set-Cookie` impossible because response headers are
+  `Record<string, string>`) is **intentionally not implemented** — `grep Set-Cookie` across
+  `src/`, `netlify/`, `vercel/` and `scripts/` returns nothing, and auth lives in `localStorage`,
+  so widening the type would buy a capability with no user. Whoever adds cookies widens the type,
+  the dev plugin and this adapter together.
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npm test` 54 files / 511 tests in
+  26.76 s (these four cases allocate real 4 MB buffers, which is why the wall time roughly doubled —
+  earlier runs of the same suite measured 12–14 s); `npm run build` 1.47 s, and the regenerated
+  `api/index.js` contains `isBase64Encoded: true` + `raw.toString("base64")`, which also proves the
+  H-5 build wiring on a real code change rather than by grep. **Mutation-checked**: encoding the
+  body as `utf8` again fails 5 of the 20 bridge tests.
+  **Not verified**: nothing was posted to a live Vercel function — the byte-preservation claim is
+  proven against the adapter, not against the platform's own request handling. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -215,7 +238,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **H-4, H-3, H-5, M-12 fixed and M-13 closed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift — see the five batches above; none deployed). Open: M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
+| W2 platform | **all six named findings closed locally** — H-4, H-3, H-5, M-12, M-13 and M-14 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64 — see the six batches above; none deployed). Only the LOW items of the wave remain: L-3, L-5, L-6. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 54 files, 507 tests, 0 failed, 14.19 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 699 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 54 files, 511 tests, 0 failed, 26.76 s wall (the M-14 byte tests allocate 4 MB buffers; earlier runs measured 12–14 s) |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 1.47 s (entry chunk 745.57 kB min / 231.85 kB gzip) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,7 +24,7 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 507 tests actually cover
+## 2. What the 511 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 26 · permissions 19 ·
@@ -46,8 +46,12 @@ Frontend: 27 `src/lib/*` pure modules and 5 tool/UI files render under test (`to
 the only reference to it is `vi.mock('@/services/api')` in `tests/copilot-research.test.tsx:42`.
 
 Notable behavioural tests that exist and pass (these are the ones worth keeping honest):
-- `tests/vercel-bridge.test.ts` (16) — the req/res→Lambda adapter, body cap, header mapping, and
-  that `npm run build` itself contains the bundle step (so Vercel cannot be handed a stale `api/`).
+- `tests/vercel-bridge.test.ts` (20) — the req/res→Lambda adapter, header mapping, and that
+  `npm run build` itself contains the bundle step (so Vercel cannot be handed a stale `api/`).
+  Since M-14 the event body is base64, so it also proves a PNG-header buffer arrives byte-for-byte,
+  multibyte Arabic text survives, the 4.5 MB cap is measured on raw bytes (4 MB of `0xFF` encodes to
+  ≈5.33 MB and must still pass), and a handler reading `readJsonBody()` gets the decoded object.
+  **Mutation-checked**: encoding the body as `utf8` again fails 5 of the 20.
 - `tests/route-parity.test.ts` (4) — the same `/api` tree on all three hosts: the route list is
   derived from `netlify/functions/*.ts` + `netlify.toml`, then compared with `vercel/dispatcher.ts`,
   the dev plugin's file lookup, and every `'/api/…'` literal under `src/` (scanned recursively).
