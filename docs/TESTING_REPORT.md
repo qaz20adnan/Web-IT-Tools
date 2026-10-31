@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 52 files, 500 tests, 0 failed, 12.74 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 467 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 53 files, 503 tests, 0 failed, 12.51 s wall |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 413 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,7 +24,7 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 500 tests actually cover
+## 2. What the 503 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 26 · permissions 19 ·
@@ -53,6 +53,10 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   the dev plugin's file lookup, and every `'/api/…'` literal under `src/` (scanned recursively).
   **Mutation-checked**: dropping `net/path` from the dispatcher fails 2 of the 4, and a fake
   `'/api/net/nonexistent'` added to a page fails the frontend scan.
+- `tests/runtime-pin.test.ts` (3) — `engines.node`, `.nvmrc`, `netlify.toml NODE_VERSION` and the
+  esbuild target must name one Node major, and the pin must be a single major rather than a range
+  (Vercel resolves `>=x` to its newest runtime, not its floor). **Mutation-checked**: `NODE_VERSION =
+  "24"` in `netlify.toml` fails the cross-declaration test.
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.

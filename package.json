@@ -5,7 +5,7 @@
   "description": "Adnan Tech | منصة عدنان تك — intelligent technology, powerful solutions. AI-powered troubleshooting, networking, cybersecurity, servers, data centers, cloud and DevOps engineering platform",
   "type": "module",
   "engines": {
-    "node": ">=20.19"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite",

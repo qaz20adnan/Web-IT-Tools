@@ -118,7 +118,11 @@ authored message — never a body, header or query string (`netlify/lib/http.ts:
   app; keep `npm ci` (already the Vercel install command).
 - M-12: Node 22 (Netlify build) vs 24 (Vercel + local) vs `engines >=20.19` vs esbuild target
   `node22` — one drift away from a runtime-specific bug (`X509Certificate` options are the
-  realistic one). Pin 24 everywhere.
+  realistic one). **Fixed locally (2026-10-31) on 22.x, not 24 as first recommended**: Netlify is
+  the host that actually serves traffic, its build already declares 22, and the bundle is compiled
+  for `node22`, so moving the working host was the larger risk. `engines.node`, `.nvmrc`,
+  `netlify.toml` and the esbuild target now name one major and `tests/runtime-pin.test.ts` fails if
+  they disagree. Flipping the canonical version later is a four-line change the test will police.
 
 ## 7. Data protection
 

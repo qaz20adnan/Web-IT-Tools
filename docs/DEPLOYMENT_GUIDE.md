@@ -38,7 +38,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 
 | Needed | Where | Verify |
 | --- | --- | --- |
-| Node ≥ 20.19 (the repo pins 22 for Netlify builds; local is 24.22) | `package.json:8-10`, `netlify.toml:7` | `node -v` |
+| Node 22.x — one pin, four places (`package.json engines`, `.nvmrc`, `netlify.toml`, esbuild target); a test fails if they disagree. npm prints an advisory warning if you build on 24 | `package.json:8-10`, `.nvmrc`, `netlify.toml:7`, `scripts/build-vercel-api.mjs:24` | `node -v`, `npm test` → `tests/runtime-pin.test.ts` |
 | Netlify site connected to the repo, or the Netlify CLI | app.netlify.com | `GET /api/health` → 200 |
 | Vercel project `adnan-tech`, CLI optional | vercel.com dashboard | see §5 |
 | Supabase project + 3 migrations applied | supabase.com dashboard | §6 |
@@ -56,7 +56,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Install | `npm ci --no-audit --no-fund` | `vercel.json:6` |
 | Functions | `netlify/functions` (22 flat files, esbuild bundler) | `netlify.toml:4,11-14` |
 | Vercel function | `api/index.js`, generated, git-ignored, 60 s `maxDuration` | `vercel.json:7-11` |
-| Node | 22 on Netlify; Vercel project is 24.x — see M-12, pin one value when Vercel is used | `netlify.toml:7` |
+| Node | **22.x on both hosts.** `engines.node = "22.x"` overrides the Vercel project dropdown, so the dashboard can stay on 24.x and the deploy still runs 22.x (M-12) | `netlify.toml:7`, `package.json:8-10` |
 
 **Two structural traps, both already bitten once:**
 - Nested function folders do not work on Netlify. Handlers stay flat and `/api/*` redirects stay
@@ -167,7 +167,7 @@ Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Current measured state: all four PASS (0 lint errors / 19 warnings; 500 tests in 52 files; 467 ms
+Current measured state: all four PASS (0 lint errors / 19 warnings; 503 tests in 53 files; 413 ms
 build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 

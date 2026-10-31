@@ -95,6 +95,27 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   `vercel dev` against a bundle built before the last source edit still needs the rebuild that now
   happens in `npm run build`. Not deployed.
 
+- **W2 · M-12 Node runtime pin** (same wave): the repository now names one Node major in the four
+  places that each used to name their own — `package.json engines.node` (`>=20.19` → **`22.x`**),
+  a new `.nvmrc`, `netlify.toml [build.environment] NODE_VERSION` and the esbuild
+  `target: 'node22'` in `scripts/build-vercel-api.mjs`. Two facts from Vercel's own reference made
+  the old range meaningless: an open range resolves to the **highest** runtime Vercel offers
+  (26.x today; 26/24/22 are the only choices), and Node 20 was dropped from Builds and Functions on
+  2026-10-01. So `>=20.19` was really "whatever is newest", while Netlify built on 22. `engines.node`
+  also overrides the Vercel project dropdown, so no dashboard change is needed.
+  **Chose 22 over 24 deliberately** (the first audit note said "pin 24"): Netlify is the host that
+  serves live traffic, its build already declared 22, and the shipped bundle is compiled for
+  `node22` — moving the working host is the bigger risk with production already in an error state.
+  If the owner later standardises on 24, it is four lines and the new test reports which one was
+  missed.
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npm test` 53 files / 503 tests in
+  12.51 s (new `tests/runtime-pin.test.ts`, 3); `npm run build` 413 ms. **Mutation-checked**:
+  `NODE_VERSION = "24"` in `netlify.toml` fails the cross-declaration test, restored afterwards.
+  **Not verified**: what Node version a Vercel deployment actually runs cannot be read from this
+  machine — it needs a build log (`node -v`) or the Settings → Build & Deployment dropdown. Local
+  dev stays on Node 24.22, which npm now reports as an `EBADENGINE` **warning** on install, not an
+  error (`engine-strict` is off). Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -173,7 +194,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **H-4, H-3 and H-5 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test — see the three batches above; none deployed). Open: M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
+| W2 platform | **H-4, H-3, H-5 and M-12 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places — see the four batches above; none deployed). Open: M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

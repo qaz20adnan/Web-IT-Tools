@@ -146,7 +146,7 @@ setting under Project Settings → General → Vercel Toolbar, and the CLI has n
 | Max request/response body | **4.5 MB** (`413 FUNCTION_PAYLOAD_TOO_LARGE`) | 6 MB |
 | Function duration | `maxDuration: 60` set in `vercel.json` | 10 s default |
 | Region | single region, `iad1` by default (decision open) | single region |
-| Build Node.js | 24.x; the bundle targets `node22` | Node 22 |
+| Build Node.js | pinned to **22.x** by `package.json engines.node`, which overrides the project dropdown; bundle targets `node22` | Node 22 (`netlify.toml:7`) |
 | In-memory rate limits / research cache | per warm instance | per warm instance |
 
 Consequences worth knowing:
@@ -157,6 +157,11 @@ Consequences worth knowing:
   surfacing an edge-level error.
 - **Duration is now generous**: the 45 s Gemini grounding timeout fits inside 60 s, which it
   did not inside Netlify's 10 s default.
+- **Node runtime.** Vercel offers majors 26.x (default), 24.x and 22.x only, and an open range in
+  `engines.node` resolves to the *highest* available major, not the floor — the previous
+  `>=20.19` therefore meant "whatever is newest", while Node 20 left the supported list on
+  2026-10-01. `engines.node = "22.x"` fixes it; confirm from a build log (`node -v` in the build
+  command) because `process.version` cannot be read from this machine.
 - **Region changes the network tools.** `ping`, `traceroute`, port checks and the speed test
   measure from the function's own region. Pick the region near the users who need those
   numbers, and say which region produced a result when reporting one.
