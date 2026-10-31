@@ -101,6 +101,8 @@ export interface ChatMessage {
     searchRequests?: number
     sources?: ResearchSource[]
     elapsedMs?: number
+    /** The provider flagged the grounded answer as truncated, cancelled or safety-limited. */
+    incomplete?: boolean
   }
 }
 
@@ -170,6 +172,8 @@ export interface AnalysisSource {
   url: string
   publisher?: string
   retrievedAt?: string
+  /** False when the URL was recalled by a model instead of retrieved by a search call. */
+  verified?: boolean
 }
 
 export interface AnalysisResult {

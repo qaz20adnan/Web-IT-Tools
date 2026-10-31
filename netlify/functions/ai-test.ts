@@ -1,4 +1,4 @@
-import { requireMember } from '../lib/auth'
+import { recordAiUsage, requireMember, usesClientProviderKey } from '../lib/auth'
 import { chatComplete, listModels, resolveAiConfig, verifyProviderAuth, type LiveModelInfo } from '../lib/ai'
 import { clientIp, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { enforceRateLimit } from '../lib/rate'
@@ -8,7 +8,7 @@ interface TestBody {
 }
 
 export const handler: Handler = wrap(async (event, context) => {
-  await requireMember(event)
+  const account = await requireMember(event, 'ai.use')
   requireMethod(event, ['POST'])
   enforceRateLimit(`test:${clientIp(event, context)}`, 12)
 
@@ -25,7 +25,10 @@ export const handler: Handler = wrap(async (event, context) => {
   if (mode === 'connectivity') {
     const config = resolveAiConfig(event, { requireModel: false })
     const started = Date.now()
-    await verifyProviderAuth(config)
+    const verification = await verifyProviderAuth(config)
+    if (!usesClientProviderKey(event)) {
+      await recordAiUsage(account, 'ai.test', config.provider, config.model || 'connectivity')
+    }
     let models: LiveModelInfo[]
     try {
       models = await listModels(config)
@@ -40,6 +43,9 @@ export const handler: Handler = wrap(async (event, context) => {
       model: config.model || null,
       models: models.length,
       modelAvailable,
+      keyVerified: verification.keyVerified,
+      ...(verification.reason ? { unverifiedReason: verification.reason } : {}),
+      ...(verification.note ? { note: verification.note } : {}),
       latencyMs: Date.now() - started,
     })
   }
@@ -50,6 +56,9 @@ export const handler: Handler = wrap(async (event, context) => {
     maxTokens: 16,
     temperature: 0,
   })
+  if (!usesClientProviderKey(event)) {
+    await recordAiUsage(account, 'ai.test', config.provider, config.model)
+  }
   return json(200, {
     ok: true,
     mode: 'chat',

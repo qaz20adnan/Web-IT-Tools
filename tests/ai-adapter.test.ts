@@ -88,6 +88,7 @@ describe('normalizeBaseUrl', () => {
     expect(normalizeBaseUrl('https://api.openai.com/v1/')).toBe('https://api.openai.com/v1')
     expect(normalizeBaseUrl('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent')).toBe('https://generativelanguage.googleapis.com/v1beta')
     expect(normalizeBaseUrl('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash')).toBe('https://generativelanguage.googleapis.com/v1beta')
+    expect(normalizeBaseUrl('http://localhost:11434/api/chat')).toBe('http://localhost:11434')
   })
 
   it('is idempotent', () => {
@@ -210,8 +211,10 @@ describe('chatComplete', () => {
 describe('verifyProviderAuth', () => {
   it('uses the authenticated /key endpoint for OpenRouter instead of the public catalog', async () => {
     stubFetch(() => fakeResponse(200, JSON.stringify({ data: { label: 'test' } })))
-    const latency = await verifyProviderAuth(config())
-    expect(latency).toBeGreaterThanOrEqual(0)
+    const result = await verifyProviderAuth(config())
+    expect(result.keyVerified).toBe(true)
+    expect(result.note).toBeUndefined()
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0)
     expect(calls.map((call) => call.url)).toEqual(['https://openrouter.ai/api/v1/key'])
     expect(calls[0].headers.Authorization).toBe('Bearer sk-or-v1-test')
   })
@@ -219,6 +222,39 @@ describe('verifyProviderAuth', () => {
   it('reports an invalid key from /key', async () => {
     stubFetch(() => fakeResponse(401, JSON.stringify({ error: { message: 'User not found.' } })))
     await expect(verifyProviderAuth(config())).rejects.toMatchObject({ statusCode: 401, code: 'invalid_key' })
+  })
+
+  it('counts a catalog that needs no key as reachable but unproven', async () => {
+    stubFetch(() => fakeResponse(200, JSON.stringify({ data: [{ id: 'gpt-4.1-mini' }] })))
+    const result = await verifyProviderAuth(config({ provider: 'openai', baseUrl: 'https://api.openai.com/v1' }))
+    expect(result.keyVerified).toBe(false)
+    expect(result.note).toMatch(/not verified/)
+    expect(calls.map((call) => call.url)).toEqual(['https://api.openai.com/v1/models', 'https://api.openai.com/v1/models'])
+    expect(calls[0].headers.Authorization).toBe('Bearer sk-or-v1-test')
+    expect(calls[1].headers.Authorization).toBeUndefined()
+  })
+
+  it('proves the key when the catalog is only served with credentials', async () => {
+    stubFetch((call) =>
+      call.headers.Authorization
+        ? fakeResponse(200, JSON.stringify({ data: [{ id: 'gpt-4.1-mini' }] }))
+        : fakeResponse(401, JSON.stringify({ error: { message: 'Incorrect API key provided.' } })),
+    )
+    const result = await verifyProviderAuth(config({ provider: 'openai', baseUrl: 'https://api.openai.com/v1' }))
+    expect(result).toEqual({ latencyMs: expect.any(Number), keyVerified: true })
+  })
+
+  it('reports Ollama as reachable without claiming a credential', async () => {
+    process.env.AI_ALLOWED_HOSTS = 'ollama.example'
+    stubFetch(() => fakeResponse(200, JSON.stringify({ models: [{ name: 'llama3' }] })))
+    try {
+      const result = await verifyProviderAuth(config({ provider: 'ollama', baseUrl: 'https://ollama.example', apiKey: '' }))
+      expect(result.keyVerified).toBe(false)
+      expect(result.note).toMatch(/does not use an API key/)
+      expect(calls.map((call) => call.url)).toEqual(['https://ollama.example/api/tags'])
+    } finally {
+      delete process.env.AI_ALLOWED_HOSTS
+    }
   })
 })
 

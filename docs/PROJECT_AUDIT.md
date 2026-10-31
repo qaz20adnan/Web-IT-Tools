@@ -20,7 +20,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | Vercel path | 1 generated function (`api/index.js`) dispatching 22 `/api` routes | `vercel/dispatcher.ts:31-54`, `scripts/build-vercel-api.mjs` |
 | Auth/DB | Supabase Auth + PostgREST over HTTPS, service-role server-side only | `netlify/lib/supabase.ts`, `netlify/lib/auth.ts` |
 | AI | OpenRouter default, OpenAI/Anthropic/Gemini/Ollama/custom; Gemini Interactions for grounded search | `netlify/lib/env.ts:5-12`, `netlify/lib/ai.ts`, `netlify/lib/gemini.ts` |
-| Tests | Vitest 5, 46 files / 456 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
+| Tests | Vitest 5, 49 files / 479 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
 | Naming | brand is Adnan Tech; npm name `nexora-ai`, `NEXORA_*` env vars and `nexora.*` storage keys intentionally unchanged | `package.json:2`, `README.md:153-159` |
 
 ## 2. Live environment state (measured)
@@ -38,7 +38,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | `https://adnan-tech.vercel.app` | VPROD | **FAIL — `DEPLOYMENT_NOT_FOUND`**; this hostname has never been assigned to project `adnan-mohamed/adnan-tech` |
 | Vercel preview `GET /api/health` | VPREV | PASS 200 but `database.configured=false`, `contentAdmin.configured=false` → **no Supabase env vars on the Vercel project** |
 | Vercel preview anonymous `GET /` | VPREV | 302 → `vercel.com/sso-api` (Deployment Protection / Vercel Authentication is ON) |
-| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 456 passed in 11.4 s / built in 573 ms (entry chunk 745 kB min, 232 kB gzip). Re-run twice on 2026-10-31; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
+| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 479 passed in 13.98 s / built in 531 ms (entry chunk 745.58 kB min, 231.87 kB gzip). Re-run on 2026-10-31 after the W1 AI-honesty batch; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
 | `npm audit --omit=dev` | LOCAL | PASS — 0 vulnerabilities in production dependencies |
 
 Consequence of the VPROD row: **Netlify is the only working production target today.** The
@@ -189,7 +189,7 @@ or misleads the user; MEDIUM is a real defect with a bounded blast radius; LOW i
 | AI assistant + grounded search | Code complete, fail-closed and unit-tested, but **`ai.configured=false` and `research.configured=false` on NETLIVE** → the flagship feature has never answered a real request in production (D4) |
 | Ping / traceroute | Impossible in this runtime by design; the honest TCP-connect replacements are `net/latency` and `net/path`. Nothing fakes an ICMP result |
 | LAN tools (printer agent, private probes) | Work only under `npm run dev` (`localRuntime()` is false on both hosts); the UI says so |
-| Tests | 456 pass, but **no test imports `src/services/api.ts`**, and 5 of 46 files render components → 26 of 33 pages and 13 of 22 functions have zero coverage, including every admin mutation |
+| Tests | 479 pass, but `src/services/api.ts` is only ever `vi.mock`ed and never executed, and 5 of 49 files render components → 26 of 33 pages and 16 of 22 functions have zero coverage, including every admin mutation |
 
 ## 6. What I could do without any external credential (already done)
 
@@ -219,9 +219,9 @@ or misleads the user; MEDIUM is a real defect with a bounded blast radius; LOW i
 
 ## 8. Priority order for the fix program
 
-| Wave | Contents | Why first |
-| --- | --- | --- |
-| W1 safe-now | H-1 fake citations, M-1 pepper fail-closed, M-2 printer default, M-5/M-6/M-7 AI gating and redaction, M-8 health truthfulness, L-1/L-2/L-4, H-6 light-theme contrast, M-9/M-10 | local, testable, no external dependency, and several violate the "no fake results" rule directly |
+| Wave | Contents | Why first | Status |
+| --- | --- | --- | --- |
+| W1 safe-now | H-1 fake citations, M-1 pepper fail-closed, M-2 printer default, M-5/M-6/M-7 AI gating and redaction, M-8 health truthfulness, L-1/L-2/L-4, H-6 light-theme contrast, M-9/M-10 | local, testable, no external dependency, and several violate the "no fake results" rule directly | **8 of 13 done locally** (`70e1deb` plus the W1 follow-up commit that carries this line): H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-2. Still open: L-1 (needs the canonical site URL from the owner), L-4, M-9, M-10, H-6 (browser pass). None of it is deployed. |
 | W2 platform | H-3 upload caps, H-4 timeout budget, H-5 stale-bundle guard, M-12 Node pin, M-13 CSP on previews only, M-14 binary bodies, L-3/L-5/L-6 | makes both hosts behave the same |
 | W3 security depth | H-7 sign-out sweep + account scoping, H-8 limiter, M-1 content-admin token, M-3 TLS rebinding, M-4 PKCE, H-2 cookie migration | each needs a design decision, ordered by blast radius |
 | W4 resilience/UX | H-9 per-route boundary, H-10 single error mapping, M-15/M-16/M-17, M-18 bundle split | user-visible quality |

@@ -75,6 +75,7 @@ interface TestState {
   latencyMs?: number
   models?: number
   modelAvailable?: boolean | null
+  unverifiedReason?: 'public_catalog' | 'no_key_provider' | null
 }
 
 function hasCapability(model: LiveModel, capability: 'vision' | 'tools' | 'structured'): boolean {
@@ -218,13 +219,18 @@ export function ProviderHubPage() {
     setTest({ status: 'testing', mode })
     try {
       const result = await testProvider(draftCredentials(), mode)
+      const unverifiedReason = mode === 'connectivity' && result.keyVerified === false ? result.unverifiedReason ?? null : null
       setTest({
         status: 'ok',
         mode,
         latencyMs: result.latencyMs,
-        message: `${t('providers.connectionOk')} · ${result.provider}/${result.model ?? draft.model} · ${result.latencyMs}ms`,
+        message:
+          unverifiedReason
+            ? `${t('providers.connectionReachable')} · ${result.provider}/${result.model ?? draft.model} · ${result.latencyMs}ms`
+            : `${t('providers.connectionOk')} · ${result.provider}/${result.model ?? draft.model} · ${result.latencyMs}ms`,
         models: result.models,
         modelAvailable: result.modelAvailable ?? null,
+        unverifiedReason,
       })
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null
@@ -241,11 +247,19 @@ export function ProviderHubPage() {
     setCardTestingId(provider.id)
     try {
       const result = await testProvider({ provider, apiKey: getKey(provider.id) }, 'connectivity')
+      const unproven = result.keyVerified === false
       setCardTests((current) => ({
         ...current,
-        [provider.id]: { status: 'ok', mode: 'connectivity', latencyMs: result.latencyMs, message: `${result.latencyMs}ms · ${result.models ?? 0} models` },
+        [provider.id]: {
+          status: 'ok',
+          mode: 'connectivity',
+          latencyMs: result.latencyMs,
+          message: unproven
+            ? `${result.latencyMs}ms · ${result.models ?? 0} models · ${t('providers.connectionReachable')}`
+            : `${result.latencyMs}ms · ${result.models ?? 0} models`,
+        },
       }))
-      notify('success', `${t('providers.connectionOk')} · ${result.latencyMs}ms`)
+      notify(unproven ? 'warning' : 'success', `${unproven ? t('providers.connectionReachable') : t('providers.connectionOk')} · ${result.latencyMs}ms`)
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null
       setCardTests((current) => ({
@@ -583,12 +597,19 @@ export function ProviderHubPage() {
           </div>
 
           {test.status === 'ok' ? (
-            <Alert tone="success" title={t('providers.connectionOk')}>
+            <Alert tone={test.unverifiedReason ? 'warning' : 'success'} title={test.unverifiedReason ? t('providers.connectionReachable') : t('providers.connectionOk')}>
               <span className="block">{test.message}</span>
               {test.mode === 'connectivity' && test.models !== undefined ? (
                 <span className="mt-0.5 block text-[11px] text-subtle">
                   {t('providers.modelsLoaded', { count: test.models })}
                   {test.modelAvailable === false ? ' · ⚠ configured model was not found in the catalog' : ''}
+                </span>
+              ) : null}
+              {test.unverifiedReason ? (
+                <span className="mt-1 block text-[11px] text-warning">
+                  {test.unverifiedReason === 'no_key_provider'
+                    ? t('providers.keyUnverifiedNoKeyProvider')
+                    : t('providers.keyUnverifiedPublicCatalog')}
                 </span>
               ) : null}
             </Alert>

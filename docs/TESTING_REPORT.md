@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 46 files, 456 tests, 0 failed, 11.40 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 573 ms (second run same day) |
+| Tests | `npm test` | LOCAL | **PASS** | 49 files, 479 tests, 0 failed, 13.98 s wall |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 531 ms (entry chunk 745.58 kB min / 231.87 kB gzip) |
 | Vercel API bundle | `npm run build:vercel-api` | LOCAL | **PASS** | `api/index.js` ≈1.17 MB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,25 +24,26 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 456 tests actually cover
+## 2. What the 479 tests actually cover
 
 Top of the suite by test count:
-`x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · permissions 19 · ai-adapter 17 ·
+`x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 20 · permissions 19 ·
 incidents 17 · diff 16 · vercel-bridge 16 · operations 15 · mtu 14 · trial 14 · calculators 13 ·
 net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 4 of 22
+Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 6 of 22
 `netlify/functions/*` files are imported by at least one test:
 
 | Covered | Not covered by any test |
 | --- | --- |
-| `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`supabase.ts`**, `tls.ts` |
-| functions: `ai-chat`, `auth`, `health`, `news` | the other 18 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-analyze.ts`, `ai-script.ts`, every `net-*` handler |
+| `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`rate.ts`**, **`supabase.ts`**, `tls.ts` |
+| functions: `ai-analyze`, `ai-chat`, `ai-test`, `auth`, `health`, `news` | the other 16 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
 
 Frontend: 27 `src/lib/*` pure modules and 5 tool/UI files render under test (`tool-ui`,
 `toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`).
 **26 of 33 pages and 5 of 18 tool modules have no test.**
-`src/services/api.ts` — the 650-line module every page depends on — **is imported by zero tests**.
+`src/services/api.ts` — the 650-line module every page depends on — **is never executed by a test**;
+the only reference to it is `vi.mock('@/services/api')` in `tests/copilot-research.test.tsx:42`.
 
 Notable behavioural tests that exist and pass (these are the ones worth keeping honest):
 - `tests/vercel-bridge.test.ts` (16) — the req/res→Lambda adapter, body cap, header mapping.
@@ -143,5 +144,5 @@ plus 5 rendering tests, which is not enough to claim any of the following:
 | Is the Netlify production site live and functioning for anonymous visitors? | **YES** for SPA + health/auth-config/content/news; AI and network tools need sign-in and there is no provider key. |
 | Is the platform usable by a real signed-up user today? | **NOT VERIFIED.** Auth reaches Supabase (proven by the 401 upstream detail), but no session was ever obtained in this audit, so register → verify → login → use-a-tool has not been walked end-to-end. |
 | Is Vercel production usable? | **NO.** Dead production alias (C-2) and missing env vars (C-3). Owner actions D1–D4. |
-| Is it safe to publish? | **NO**, not until W1 lands (H-1 fake citations and M-1 pepper default directly contradict the product's own no-fake-results and fail-closed rules). |
-| Ready to mark production-approved? | **NOT TESTED / NOT READY.** The blocking set is: W1 fixes, one authenticated end-to-end walk, one real AI answer, one upload ≤ and > the cap, one live SSRF attempt, and a browser pass over §7. |
+| Is it safe to publish? | **CONDITIONALLY.** The two rule-breaking findings are fixed in the working tree — H-1 (model-recalled URLs are now labelled unverified in the payload and in the UI) and M-1 (trial hashing refuses to start without `NEXORA_HASH_PEPPER`) — plus M-5/M-6/M-7/M-8/L-2. They are **verified only by unit tests on LOCAL**, not deployed, and the remaining W1 items (L-1, L-4, M-9, M-10, H-6) are open. Publishing is still owner-gated by D10. |
+| Ready to mark production-approved? | **NOT TESTED / NOT READY.** The blocking set is now: deploy the W1 batch, one authenticated end-to-end walk, one real AI answer, one upload ≤ and > the cap, one live SSRF attempt, and a browser pass over §7. |

@@ -227,6 +227,7 @@ export function CopilotPage() {
             searchRequests: response.searchRequests ?? 0,
             sources: response.sources ?? [],
             elapsedMs: response.elapsedMs ?? 0,
+            incomplete: response.incomplete === true,
           },
         },
       ])
@@ -420,6 +421,9 @@ export function CopilotPage() {
                       </span>
                     ) : message.role === 'assistant' && message.webSearch === 'on' ? (
                       <span>{t('copilot.research.offline')}</span>
+                    ) : null}
+                    {message.meta?.incomplete ? (
+                      <span className="text-warning">{t('copilot.research.incomplete')}</span>
                     ) : null}
                   </div>
                 </div>

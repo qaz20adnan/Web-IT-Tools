@@ -38,6 +38,41 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   `/api/net/path`, so Vercel would have served a 404 for both while Netlify and dev worked.
   Regenerated with `npm run build:vercel-api` (~1.17 MB, 22 routes). **Verified** by grep of the
   regenerated bundle. (Finding H-5.)
+- **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
+  `70e1deb` plus the follow-up commit that carries this line):
+  - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
+    `retrievedAt` a model would invent, and the Lab heading switches to "Sources recalled by the
+    model" with an explicit no-search note (`src/pages/TroubleshootingLabPage.tsx`,
+    `lab.modelSources*` in both catalogues). The analysis prompt now tells the model nothing was
+    searched and to omit rather than guess.
+  - M-5: `verifyProviderAuth()` no longer calls a public catalog "authenticated". It probes the
+    catalog with and without the key and returns `ProviderVerification {latencyMs, keyVerified,
+    reason?, note?}`; OpenRouter still uses the documented `/key` endpoint, Ollama is reported as
+    reachability with no credential. `/api/ai/test` forwards `keyVerified`, `unverifiedReason` and
+    `note`, and the Providers page shows a warning panel plus a warning toast instead of a green
+    "Connection OK".
+  - M-6: `ai/models`, `ai/test` and `research` now gate on `ai.use` / `research.read` (was the
+    `requireMember` default `workspace.read`) and record usage through `recordAiUsage` — except for
+    BYOK traffic, which `usesClientProviderKey()` detects from `x-tn-key` so a member's own key does
+    not spend platform quota.
+  - M-7: `mapUpstreamStatus(status, detail, secret)` + `redactSecret()` in `netlify/lib/fetch.ts`
+    move redaction into the shared path, so upstream error text cannot echo a submitted key to the
+    browser; `gemini.ts` now reuses it instead of keeping its own copy.
+  - M-8: `/api/health` derives `news.configured` / `research.configured` from the live feed
+    and key state, reports `sources` and `invalidCustomFeeds`, and the About page counts the same
+    feeds instead of asserting them.
+  - M-1, M-2: `emailHash()` refuses to start a trial without `NEXORA_HASH_PEPPER` (existing trials
+    are untouched, one server warning, no login 503), rate-limit buckets use the per-process
+    `emailBucketKey()` instead of the peppered hash, and printer public probing is opt-in.
+  - L-2: `normalizeBaseUrl()` also strips a pasted `/api/chat`, so an Ollama endpoint URL no longer
+    doubles to `/api/chat/api/chat`.
+  **Verified**: `npm run typecheck` 0 errors; `npm run lint` 0 errors / 19 warnings; `npm test`
+  49 files / 479 tests pass in 13.98 s (new: `tests/analyze-honesty.test.ts` 5 tests,
+  `verifyProviderAuth` cases in `tests/ai-adapter.test.ts` 17 → 20); `npm run build` 531 ms.
+  **Not verified**: nothing in this batch was deployed or exercised against a live provider — the
+  unproven-key panel, the lab source label and the entitlement rejections have only been proven by
+  mocked handlers.
+
 - **Work rescue.** 187+ uncommitted files from 2026-10-25→31 were committed as a checkpoint
   (`9805209`) after the ignore fix, so the six days of platform work are no longer single-copy on a
   laptop. No remote exists yet — backup remote approval is owner action D6.
@@ -58,7 +93,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 ### Discovered, not yet fixed (next waves)
 | Wave | Items |
 | --- | --- |
-| W1 safe-now | H-1 model-asserted citations presented as verified, M-1 pepper fallback, M-2 printer default `true`, M-6 AI/research endpoints gate on `workspace.read`, M-7 unredacted upstream error detail, M-8 hardcoded `news.configured` in `/api/health`, L-1 `og:image` still pointing at `nexora-ai.netlify.app` |
+| W1 safe-now | **code-side done** (see the W1 batch below); still open: L-1 `og:image` still pointing at `nexora-ai.netlify.app`, L-4 dead storage keys, M-9 export/clear key lists incomplete, M-10 palette searches 30 of 44 articles, H-6 light-theme contrast (needs a browser) |
 | W2 platform | H-3 three conflicting upload caps, H-4 per-attempt timeout exceeds the 60 s platform ceiling, H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |

@@ -75,12 +75,6 @@ function textPart(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-/** Some providers echo the rejected credential back in their error body. */
-function redact(value: string, secret: string): string {
-  if (!secret) return value
-  return value.split(secret).join('[redacted]')
-}
-
 /**
  * Only URLs the provider actually returned are kept. Anything that is not an
  * absolute http(s) URL, or that repeats an earlier citation, is dropped so the
@@ -275,7 +269,7 @@ export async function runGroundedResearch(input: {
     throw error
   }
   if (!response.ok) {
-    throw mapUpstreamStatus(response.status, redact(response.text.slice(0, 300), settings.apiKey))
+    throw mapUpstreamStatus(response.status, response.text.slice(0, 300), settings.apiKey)
   }
 
   let payload: unknown

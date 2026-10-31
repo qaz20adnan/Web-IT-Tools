@@ -578,7 +578,12 @@ export function TroubleshootingLabPage() {
 
                 {result.sources.length > 0 ? (
                   <section>
-                    <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{t('common.sources')}</h3>
+                    <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                      {result.sources.some((source) => source.verified === false) ? t('lab.modelSources') : t('common.sources')}
+                    </h3>
+                    {result.sources.some((source) => source.verified === false) ? (
+                      <p className="mb-1.5 text-[11px] text-warning">{t('lab.modelSourcesNote')}</p>
+                    ) : null}
                     <ul className="space-y-1">
                       {result.sources.map((source, index) => (
                         <li key={index}>

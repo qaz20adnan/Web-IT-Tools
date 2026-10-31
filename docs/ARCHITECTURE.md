@@ -102,8 +102,8 @@ by hand.
 | meta | `GET /api/health` | none | honest per-service `configured` flags |
 | auth | `ANY /api/auth` — 14 actions: config, register, login, refresh, logout, me, update-profile, change-password, reset-password, recover, resend, verify, delete-account, export | mixed | two branches in one file: dev-local store (`netlify/functions/auth.ts:199-285`) and Supabase (`:286-556`); the only endpoint family with a per-runtime code path |
 | AI | `POST /api/ai/chat`, `POST /api/ai/analyze`, `POST /api/ai/script` | `ai.use` via `enforceAiAccess` | billed-capable paths; daily limit enforced server-side |
-| AI meta | `GET /api/ai/models`, `POST /api/ai/test` | sign-in + **`workspace.read`** (the `requireMember` default, `netlify/lib/auth.ts:357`) | M-6: should gate on `ai.use` and record usage — a member without AI entitlement can still spend provider credits |
-| research | `POST /api/research` | sign-in + `workspace.read` | M-6: same gap for paid Tavily/Brave calls |
+| AI meta | `GET /api/ai/models`, `POST /api/ai/test` | sign-in + **`ai.use`**, and the call is recorded | Fixed in W1 (was the `requireMember` default `workspace.read`, and uncounted). BYOK requests still count as the member's own spend, not platform quota |
+| research | `POST /api/research` | sign-in + **`research.read`**, and the call is recorded | Fixed in W1 (was `workspace.read` and uncounted, so paid Tavily/Brave calls were invisible) |
 | content | `GET /api/content`, `ANY /api/content/admin` | public read / `CONTENT_ADMIN_TOKEN` | admin token is a shared secret (M-11) |
 | news | `GET /api/news` | none | real feeds, cached |
 | network | `GET/POST /api/net/{analyzer,dns,tls,latency,path,port,http,url,printer}` | mixed | public-internet targets only on hosts |

@@ -79,8 +79,17 @@ export function sanitizeUpstreamDetail(raw?: string): string | undefined {
   return text.replace(/\s+/g, ' ').slice(0, 300)
 }
 
-export function mapUpstreamStatus(status: number, detail?: string): HttpError {
-  const safe = sanitizeUpstreamDetail(detail)
+/**
+ * Some providers echo the rejected credential back in their error body, and that
+ * body is forwarded to the browser as the `detail` field. Remove the key first.
+ */
+export function redactSecret(value: string, secret?: string): string {
+  if (!secret || secret.length < 6) return value
+  return value.split(secret).join('[redacted]')
+}
+
+export function mapUpstreamStatus(status: number, detail?: string, secret?: string): HttpError {
+  const safe = sanitizeUpstreamDetail(detail === undefined ? undefined : redactSecret(detail, secret))
   if (status === 400) return new HttpError(400, 'invalid_input', 'The provider rejected the request as invalid.', safe)
   if (status === 401) return new HttpError(401, 'invalid_key', 'The provider rejected the API key (HTTP 401).', safe)
   if (status === 402) return new HttpError(402, 'insufficient_credits', 'The provider account does not have enough credits (HTTP 402).', safe)

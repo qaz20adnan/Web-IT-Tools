@@ -44,7 +44,7 @@ export const PROVIDER_ENDPOINTS: Record<Exclude<ProviderKind, 'custom'>, {
   ollama: { chat: 'api/chat', models: 'api/tags' },
 }
 
-const KNOWN_SUFFIXES = ['/chat/completions', '/completions', '/models', '/api/tags', '/messages']
+const KNOWN_SUFFIXES = ['/chat/completions', '/completions', '/models', '/api/tags', '/api/chat', '/messages']
 
 /**
  * Normalizes a user-supplied base URL. Users frequently paste a full endpoint
@@ -175,7 +175,7 @@ async function postJson(url: string, config: AiConfig, body: unknown, timeoutMs:
       timeoutMs,
       maxBytes: 12 * 1024 * 1024,
     })
-    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300))
+    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return { status: response.status, text: response.text }
   })
 }
@@ -401,8 +401,21 @@ export async function completeWithFallback(
  * The OpenRouter model catalog is public, so listing models does NOT prove the
  * key is valid. `GET /api/v1/key` is the documented authenticated endpoint and
  * returns 401 for missing or invalid keys.
+ *
+ * For every other provider the model list is fetched twice — once with the key
+ * and once without. A host that answers both is publishing a public catalog, so
+ * reaching it says nothing about the key; that case is reported as reachable but
+ * unproven rather than as a passed authentication test.
  */
-export async function verifyProviderAuth(config: AiConfig): Promise<number> {
+export interface ProviderVerification {
+  latencyMs: number
+  keyVerified: boolean
+  /** Machine-readable cause for `keyVerified: false`, so the UI can translate it. */
+  reason?: 'public_catalog' | 'no_key_provider'
+  note?: string
+}
+
+export async function verifyProviderAuth(config: AiConfig): Promise<ProviderVerification> {
   await validateAiEndpoint(config.baseUrl)
   const started = Date.now()
   if (config.provider === 'openrouter') {
@@ -411,20 +424,38 @@ export async function verifyProviderAuth(config: AiConfig): Promise<number> {
       timeoutMs: 15000,
       maxBytes: 512 * 1024,
     })
-    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300))
-    return Date.now() - started
+    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
+    return { latencyMs: Date.now() - started, keyVerified: true }
   }
   if (config.provider === 'ollama') {
     const response = await fetchText(endpoint(config.baseUrl, 'api/tags'), { timeoutMs: 10000, maxBytes: 2 * 1024 * 1024 })
-    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300))
-    return Date.now() - started
+    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
+    return {
+      latencyMs: Date.now() - started,
+      keyVerified: false,
+      reason: 'no_key_provider',
+      note: 'Ollama does not use an API key. This proves the server is reachable, not a credential.',
+    }
   }
   // OpenAI-compatible, Anthropic and Gemini all require auth on their model list.
   const models = await listModels(config)
   if (models.length === 0 && config.model) {
     throw new HttpError(422, 'not_found', 'Authentication succeeded but the model catalog is empty or unreadable.')
   }
-  return Date.now() - started
+  // A second fetch with no credential distinguishes a real authentication from
+  // an open catalog; a failure here simply means the catalog is not public.
+  const publicCatalog = await listModels({ ...config, apiKey: '' })
+    .then((entries) => entries.length > 0)
+    .catch(() => false)
+  if (publicCatalog) {
+    return {
+      latencyMs: Date.now() - started,
+      keyVerified: false,
+      reason: 'public_catalog',
+      note: 'This endpoint publishes its model catalog without a key, so the connection works but the key itself was not verified. Run a chat test to prove it.',
+    }
+  }
+  return { latencyMs: Date.now() - started, keyVerified: true }
 }
 
 function stringArray(value: unknown): string[] {
@@ -453,7 +484,7 @@ export async function listModels(config: AiConfig): Promise<LiveModelInfo[]> {
 
   const data = await withRetry(async () => {
     const response = await fetchText(url, { headers, timeoutMs: 20000, maxBytes: 4 * 1024 * 1024 })
-    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300))
+    if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return parseJson(response.text)
   })
 

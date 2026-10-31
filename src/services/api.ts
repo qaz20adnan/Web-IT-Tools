@@ -120,6 +120,9 @@ export interface TestResponse {
   model: string | null
   models?: number
   modelAvailable?: boolean | null
+  keyVerified?: boolean
+  unverifiedReason?: 'public_catalog' | 'no_key_provider'
+  note?: string
   reply?: string
   latencyMs: number
   detail?: string

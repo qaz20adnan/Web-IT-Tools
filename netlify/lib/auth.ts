@@ -492,12 +492,17 @@ export async function recordUsage(input: {
  * Guests are rejected. Signed-in users must have the `ai.use` permission; a
  * suspended account is rejected even when it supplies its own provider key.
  */
+/** True when the request brings its own provider key, so the platform is not paying. */
+export function usesClientProviderKey(event: NetlifyEvent): boolean {
+  return Boolean(header(event, 'x-tn-key')?.trim())
+}
+
 export async function enforceAiAccess(event: NetlifyEvent): Promise<AuthAccount> {
   if (!bearer(event)) throw new HttpError(401, 'unauthorized', 'Sign in to use the AI assistant.')
   const account = await authenticate(event)
   requireVerified(account)
   requirePermission(account, 'ai.use')
-  const usingOwnKey = Boolean(header(event, 'x-tn-key')?.trim())
+  const usingOwnKey = usesClientProviderKey(event)
   if (!usingOwnKey) {
     if (!account.entitlements.features.ai) {
       throw new HttpError(403, 'forbidden', 'AI features are not included in your current plan. Upgrade, start a trial, or connect your own provider key.')

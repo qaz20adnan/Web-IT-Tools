@@ -29,8 +29,19 @@ export const handler: Handler = wrap(async (event, context) => {
     throw new HttpError(422, 'upstream_error', 'The model returned an analysis that did not match the required schema.', flattenZod(validated.error))
   }
 
+  // This path has no search tool, so every URL below is something the model
+  // claims to remember. They are labelled, never presented as retrieved sources,
+  // and the timestamp a model would invent for a retrieval is dropped.
+  const sources = validated.data.sources.map((source) => ({
+    title: source.title,
+    url: source.url,
+    ...(source.publisher ? { publisher: source.publisher } : {}),
+    verified: false,
+  }))
+
   return json(200, {
     ...validated.data,
+    sources,
     generatedAt: new Date().toISOString(),
     provider: config.provider,
     model: result.model,

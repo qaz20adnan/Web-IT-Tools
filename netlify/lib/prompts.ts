@@ -91,7 +91,7 @@ export function analysisPrompt(input: ProblemInput): string {
 
 Rules for this response:
 - diagnosticSteps must be ordered and mostly read-only. solutions must be ordered and include rollback where relevant.
-- sources must be real, official URLs you are confident about. If you cannot verify a URL, return an empty array. Never fabricate URLs.
+- sources are recalled from your own knowledge — nothing on this request was searched. Give official URLs you are certain of, omit the array rather than guess a single URL, and never fabricate URLs. The platform labels these as unverified before showing them.
 - Do not claim the issue is fixed. Do not include markdown outside the JSON.
 - If an image is attached, describe only what is visibly relevant; never infer unseen text.
 

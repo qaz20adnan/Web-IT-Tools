@@ -1,4 +1,4 @@
-import { requireMember } from '../lib/auth'
+import { recordAiUsage, requireMember } from '../lib/auth'
 import { createHash } from 'node:crypto'
 import { fetchText } from '../lib/fetch'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
@@ -123,7 +123,7 @@ async function brave(query: string, officialOnly: boolean): Promise<ResearchItem
 }
 
 export const handler: Handler = wrap(async (event, context) => {
-  await requireMember(event)
+  const account = await requireMember(event, 'research.read')
   requireMethod(event, ['POST'])
   enforceRateLimit(`research:${clientIp(event, context)}`, 15)
   const parsed = researchRequestSchema.safeParse(readJsonBody(event, 32 * 1024))
@@ -142,6 +142,7 @@ export const handler: Handler = wrap(async (event, context) => {
   }
 
   const settled = await Promise.allSettled([tavily(query, officialOnly), brave(query, officialOnly)])
+  await recordAiUsage(account, 'research.search', providers.join(' + '), 'web-search')
   const merged = new Map<string, ResearchItem>()
   const errors: string[] = []
   for (const result of settled) {
