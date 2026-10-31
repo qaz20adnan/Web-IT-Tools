@@ -6,10 +6,87 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (server-guard coverage batch: L-12, L-13 + 203 tests)
+
+The last three unimported server libraries and the entire admin surface now have tests, and the two
+tests that found real defects in the process were fixed rather than only written down.
+
+### Fixed
+- **L-13 · the service-role key could ride an upstream error body into the browser.**
+  `restError()` in `netlify/lib/supabase.ts` put the raw PostgREST/GoTrue body into `error.detail`,
+  which `errorResponse()` sends to the caller, while the AI path in `netlify/lib/fetch.ts` already
+  redacted *its* key from the same field. The credential the database path would leak is the one
+  whose exposure is a full-table compromise. Fixed by reuse, not by a second redactor:
+  `extractMessage(redactSecret(text, serverConfig.supabaseServiceRoleKey))` (+5/−2 in one file).
+- **L-12 · a TLS answer that could never be reached.** `describeTlsFailure()` tested the generic
+  `/certificate/i` pattern *above* `/no peer certificate/i`, so the exact sentence
+  `inspectCertificate()` raises (`netlify/lib/tls.ts:48`) was answered with the wrong wording — the
+  user was told "the certificate chain could not be verified" when the real answer was "the endpoint
+  returned no certificate". The branch moved above the generic test (+4/−1) with a comment naming
+  `inspectCertificate()` as the producer, so a future tidy-up cannot re-invert the order.
+
+### Added (tests only — no new product surface)
+- `tests/admin-rbac-gates.test.ts` (79) — the first test that runs `netlify/functions/admin.ts` at all.
+  `authenticate`, the two audit/setting writers and the five Supabase row helpers are mocked; the real
+  `requirePermission()`, `canAssignRole()` and `permissionsFor()` stay in the loop, so the suite proves
+  the project's actual permission source of truth. 12 actions × `premium_member` → 403 with no write
+  and no audit row, the same 12 × `owner` → 200, rank ceilings, self-targeting, last-owner rules,
+  audit-before-delete ordering, `escapeFilter()` asserted structurally, the settings whitelist, the
+  billing-period check, plan/usage aggregation, and L-14's three local-only actions pinned as the 400
+  they currently are.
+- `tests/supabase-rest-errors.test.ts` (46) — the DB client's error surface with `fetchText` stubbed:
+  the `restError()` table, `extractMessage()` precedence + 300-char cap, which auth header goes out,
+  `Prefer`/`on_conflict` shapes, the timeouts and byte caps, empty-200 → `null`, non-array → `[]`,
+  `content-range` counting, every fail-closed 503, and L-13's redaction.
+- `tests/net-error-texts.test.ts` (60) — every HTTP/TLS sentence the network tools can show a user,
+  including codes that arrive only on `error.cause`, plus two leak guards: an input naming
+  `10.0.4.17:5432`, `127.0.0.1:11434` or `node:internal/deps/undici` must answer from the fixed
+  vocabulary and must not repeat an address, a port or an internal path.
+- `tests/json-extract.test.ts` (18) — the helper every structured AI answer begins with: four fence
+  spellings, prose-wrapped and fence-then-prose replies, the fenced object beating a second bare one,
+  the two failure sentences kept distinct on purpose, and the known limits (top-level array, two
+  objects in one reply) pinned as failures rather than silently reinterpreted.
+
+### Verified
+**LOCAL only.** `npm run typecheck` 0 errors; `npm run lint` 0 errors / 16 warnings (unchanged — the
+pre-existing `react-refresh` set); `npm test` **65 files / 790 tests** passing on two consecutive
+confirmation runs, 19.9 and 22.3 s wall; `npm run build` green in 604 and 843 ms with the same chunks
+as the previous run (entry `index-Yn_l6Uvp.js` 484.91 kB / 149.51 kB gzip,
+`ArticlePage` 318.05 / 98.45, `utils` 173.23 / 54.16) because nothing in this batch is frontend code,
+and `api/index.js` ready at 1180 kB. Both new product strings were grepped into that generated bundle.
+**Mutation-checked 21/21**: `supabase.ts` 6 (401→generic 502, redaction removed, admin reads falling
+back to the anon key, `ignore-duplicates` dropped, `content-range` ignored, `supabaseAdminConfigured()`
+no longer requiring the key), `admin.ts` 9, `net-errors.ts` 4, `json.ts` 2 — every mutation failed at
+least one test, and every file was restored from a temp copy, never from `git checkout`.
+Register counts are now honest in all five docs: 61/587 → 65/790 files/tests, `netlify/lib` coverage
+20/23 → **23/23** (every shared server library is imported by at least one test), functions 8/22 →
+9/22, LOW/INFO 11 → 15.
+
+### Found while verifying (L-15)
+Adding four files to the suite made an existing render test fail twice with `Test timed out in 5000ms`
+— `command-palette.test.tsx > never leaves the pointer outside the option range`, which runs in 0.8 s
+alone and 10.2–11.3 s beside 64 other files. No product file changed between the passing and the
+failing run, so it is the known jsdom-per-file overhead meeting a keystroke loop that re-renders the
+whole palette list (nav pages + 43 tools + 44 articles, unsliced since M-10) once per key. Mitigated
+with a per-test 30 s budget on that case only — **not** a global `testTimeout` raise, which would hide
+a real hang elsewhere. The underlying cost is registered as open: an unmeasured browser question, and
+the honest fixes (virtualise, or memo the row) change what the user sees.
+
+### Not verified
+Nothing was deployed, no preview was created, no browser was opened, and no live Supabase, TLS or AI
+endpoint was called. The service-key redaction is proved against a stubbed upstream, not against
+PostgREST's real behaviour; the admin handler tests run with the database mocked, so **RLS, the
+`0003` trigger path and a real role change are still unproven** — the suite proves the code refuses,
+not that the database would also refuse. The two product fixes reach the generated Vercel bundle but
+have never run on either host.
+
+---
+
 ## Unreleased — 2026-10-31 (audit phase + foundation repair)
 
 ### Added
-- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO (11 since this session added L-11),
+- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO (15
+  since this session added L-11 and the 2026-11-01 batch added L-12, L-13, L-14 and L-15),
   each with file:line evidence, plus a measured live-environment table and the owner-action list
   D1–D10. **Verified** (live probes against NETLIVE/VPROD/VPREV + LOCAL gate runs).
 - `docs/ENVIRONMENT_VARIABLES.md` — authoritative variable census extracted from code, with the
@@ -562,7 +639,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token. ~~M-3 TLS DNS-rebinding window~~ **fixed in this session** — it was re-verified open by the documentation pass above and closed by the W3 entry that follows it |
 | W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
-| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
+| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts` (done in H-10), `netlify/lib/host.ts` (done in M-3) and `admin.ts` (done 2026-11-01, `tests/admin-rbac-gates.test.ts`) — what is left of this wave is the browser pass, the coverage provider and the 13 unimported functions |
 
 ### Blocked on the owner (no code change will move these)
 Vercel production build log (D2) · Vercel env vars (D3) · AI/Gemini keys (D4) · authenticated

@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 61 files, 587 tests, 0 failed, 15.82 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 69% of the tracked time is ~102 s of jsdom setup across 61 environments) |
-| Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`, 0.44–0.69 s depending on cache (entry chunk 484.91 kB min / 149.51 kB gzip after M-18; M-15/M-16/M-17 together cost 0.92 kB min, 0.40 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 65 files, 790 tests, 0 failed. Wall time **19.9 and 22.3 s** on the two 2026-11-01 confirmation runs (15.6 s earlier the same night, before the load effect below; the range across the week is 11–27 s). jsdom is created once per file: **65 environments, ~112 s cumulative, 65–68 % of tracked time**. The 4 new server-guard files add 203 tests and cost only 1.20 s in isolation (77 ms inside test bodies), but they tipped an existing time-sensitive case over the edge: `command-palette.test.tsx > never leaves the pointer outside the option range` failed twice at >5 s (0.8 s when the file runs alone, 10.2–11.3 s beside 64 other files). That was a load timeout, not a behaviour change — recorded as **L-15** and given a per-test 30 s budget, deliberately not a global `testTimeout` raise, so every other test still hangs loudly |
+| Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`, 0.44–0.84 s depending on cache and load (entry chunk 484.91 kB min / 149.51 kB gzip after M-18; unchanged by the 2026-11-01 batch, which touches no frontend code) |
 | Generated knowledge index | `npm run build:knowledge-index` | LOCAL | **PASS** | `src/data/knowledgeMeta.ts` regenerated: 44 articles, 62 kB, byte-identical to the committed artifact; `tests/knowledge-meta.test.ts` fails if it drifts |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1180 kB (was 1179 until M-3's resolver landed in it), 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
@@ -25,21 +25,24 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 587 tests actually cover
+## 2. What the 790 tests actually cover
 
 Top of the suite by test count:
-`x509 37 · ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 ·
-vercel-bridge 20 · permissions 19 · incidents 17 · diff 16 · operations 15 · net-dns-rebinding 15 ·
-mtu 14 · trial 14 · calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 ·
-tool-ui 11 · command-palette 10 · local-auth 10 · rbac 10`
+`admin-rbac-gates 79 · net-error-texts 60 · supabase-rest-errors 46 · x509 37 · ai-adapter 26 ·
+csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 · vercel-bridge 20 · permissions 19 ·
+json-extract 18 · incidents 17 · diff 16 · operations 15 · net-dns-rebinding 15 · mtu 14 · trial 14 ·
+calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 ·
+command-palette 10 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — 20 of 23 `netlify/lib/*` files and 8 of 22
-`netlify/functions/*` files are imported by at least one test:
+Server-side (the part that holds secrets and money) — **all 23 `netlify/lib/*` files and 9 of 22
+`netlify/functions/*` files** are imported by at least one test (LOCAL scan 2026-11-01: every
+`netlify/lib/*.ts` basename appears in a `tests/` import, and the only unimported files are
+`content.ts`, `content-admin.ts`, `ai-script.ts`, `workspace.ts` and the 9 `net-*` handlers):
 
 | Covered | Not covered by any test |
 | --- | --- |
-| `ai`, `auth`, `env`, `fetch`, `gemini`, **`host`**, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, **`tls`**, `trial` — `host.ts` and `tls.ts` were untested guards until M-3, and the guard is the DNS-resolver contract itself, not just "a function was called" | `json.ts`, `net-errors.ts`, **`supabase.ts`** |
-| functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler (`net-tls` has only a source-shape guard, because the handler sits behind auth + rate limiting) |
+| `ai`, `auth`, `env`, `fetch`, `gemini`, **`host`**, `http`, **`json`**, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, **`net-errors`**, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, **`supabase`**, **`tls`**, `trial` — `host.ts` and `tls.ts` were untested guards until M-3, and `json.ts`, `net-errors.ts`, `supabase.ts` until the 2026-11-01 batch, so the shared server library now has at least one test importing every file | *(none left — the last three landed in this batch)* |
+| functions: `admin`, `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 13 functions: `content.ts`, `content-admin.ts`, `ai-script.ts`, `workspace.ts` and the nine `net-*` handlers (`net-tls` has only a source-shape guard, because the handler sits behind auth + rate limiting) |
 
 Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
 `src/services/api.ts` (see below), and 7 UI files render under test (`tool-ui`,
@@ -142,6 +145,58 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   step fails it too — but only after the first version was caught vacuous, because `indexOf` returns
   `-1` when the step is gone and `-1` sorts before every real index, so an ordering assertion alone
   passes on a build that quietly stopped generating the file.
+- `tests/admin-rbac-gates.test.ts` (79) — the first test that runs `netlify/functions/admin.ts` at all,
+  and the first proof of the RBAC matrix **at the handler** rather than from the role table. Only
+  `authenticate`, `writeAudit`, `setPlatformSetting` and the five Supabase row helpers are mocked;
+  `requirePermission()`, `canAssignRole()` and `permissionsFor()` stay real, so the tests validate the
+  project's actual source of truth for who may do what. Groups: 12 actions × `premium_member` → 403
+  naming the missing permission with no write/audit/auth-admin call, and the same 12 × `owner` → 200;
+  method gate that fires *before* authentication (405 with `authenticate` never called) and the 413
+  on a 400 kB body; the exact zod 4
+  message per field; an undeclared body field (`role:'owner'`, `is_admin:true`) is dropped, not honoured;
+  rank ceilings (`admin` cannot grant owner, cannot touch an equal-or-higher account, has no
+  `users.delete` at all; `super_admin` cannot delete an owner); self-targeting refused for update-role,
+  suspend and delete; last-owner and last-super-admin guards on both update and delete, with the
+  positive control (a second privileged account lets the change through) and the negative one (a
+  *suspended* owner is not protected, so it stays reclaimable); audit ordering asserted with
+  `invocationCallOrder` — the audit row is written **before** the delete, and a failed write leaves no
+  audit at all; `escapeFilter()` proven structurally (one `(`, one `)`, one `,`, one `or=` segment)
+  because a stripped term still survives as inert text inside `ilike.*…*`, and that an injected `%25`
+  wildcard never reaches the query and never opens a second `or=` group or a `role=` segment; the settings key whitelist;
+  a past billing period refused; `god_mode` in the database downgrading to `standard_member` in the list
+  but 422 for a subscription; plan/usage aggregation; and the three local-only actions answering
+  `Unknown administrative action.` on the Supabase path (L-14, pinned as current behaviour).
+  **Mutation-checked** 9/9: drop the `users.delete` capability check (3 fail), drop the
+  `settings.manage` check, ignore rank when assigning, stop the last-owner count, allow self-targeting,
+  pass the search term to PostgREST raw, report an empty update as success, accept a past period, make
+  the local-only actions pretend to succeed (3 fail).
+- `tests/supabase-rest-errors.test.ts` (46) — the DB client's whole failure surface, with `fetchText`
+  stubbed so nothing touches the network: the full `restError()` status table, `extractMessage()`
+  precedence (`msg` → `message` → `error_description` → `error` → nested `.message`) with the 300-char
+  cap and whitespace collapse, which header goes out (service key vs anon vs the member's own token, and
+  an empty token still producing `Bearer `), `Prefer` strings and `on_conflict` encoding, the timeouts and
+  byte caps, empty-200 → `null` and non-array → `[]`, `content-range` counting, and every fail-closed 503
+  when the URL or a key is missing. It is also where L-13's redaction is pinned. **Mutation-checked** 6/6:
+  a 401 becoming a generic 502, the service key no longer redacted, admin reads falling back to the anon
+  key, `ignore-duplicates` dropped, `content-range` ignored, and `supabaseAdminConfigured()` no longer
+  requiring the service key.
+- `tests/net-error-texts.test.ts` (60) — the vocabulary every network tool shows a user, table-driven
+  over `describeHttpFailure` / `describeTlsFailure`: each code maps to its sentence, a code that arrives
+  only on `error.cause` (with the useless `fetch failed` message the platform gives) still maps, an
+  `HttpError` passes its own message through, and a non-`Error` throw cannot crash the handler. Two leak
+  guards are the point of the file: an input naming `10.0.4.17:5432`, `127.0.0.1:11434` or a
+  `node:internal/deps/undici` stack must produce an answer with **no IP address in it**. It also pins the
+  L-12 ordering against the literal `'No peer certificate was returned.'` that `netlify/lib/tls.ts:48`
+  actually raises. **Mutation-checked** 4/4: the no-peer-certificate branch losing its place (2 fail),
+  the `cause` chain ignored (9 fail), `HttpError` passthrough removed, and an internal address leaking.
+- `tests/json-extract.test.ts` (18) — the AI replies are steered by `extractJsonObject()`, so this is the
+  guard behind "the assistant's structured answers parse or fail honestly": fenced ```json / ```JSON /
+  prose-fenced / `ts` fences, a fence followed by trailing prose, a fence beating a second bare object,
+  and the two *distinct* 422 sentences — "no JSON object" versus "malformed JSON" — kept distinct on
+  purpose because they tell the user different things. Its last cases document the known limits rather
+  than pretending otherwise: a top-level array and a two-object answer both fail as "malformed".
+  **Mutation-checked** 2/2: collapsing the two failure sentences (3 fail) and stopping unwrapping the
+  fence (2 fail — only after the first draft of the file proved vacuous on a fenced-plus-prose reply).
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
@@ -232,7 +287,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Total JS emitted | LOCAL | 61 chunks, 1.94 MB minified JS | PASS (splitting works; M-18 moved the bodies between chunks and removed them from the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
-| Test suite wall time | LOCAL | 15.1–15.8 s tracked (16.3 s wall for `npm test`), 69 % of tracked time spent creating 61 jsdom environments (~102 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet. Only 8 of the 61 files render a component, so the environment is wasted on the other 53 — the new `tests/net-dns-rebinding.test.ts` (15 tests, 15 ms) included |
+| Test suite wall time | LOCAL | 19.9–22.3 s tracked (65 files / 790 tests), 65–68 % of tracked time spent creating 65 jsdom environments (~112 s cumulative across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet, and the cost stopped being theoretical on 2026-11-01: the added files tipped an existing render test over the 5 s timeout (see **L-15**). Only 8 of the 65 files render a component, so the environment is wasted on the other 57. The four new server files are the clearest example — 203 tests, 77 ms of test body, 1.20 s of wall in isolation because four environments were built for code that never touches the DOM (they pay the global `environment: 'jsdom'` from `vitest.config.ts`; a per-file `@vitest-environment node` comment is the cheap fix and is **not** applied, because it is a config-level change to how every suite runs). The slowest single file is `command-palette.test.tsx` at 10.2–11.3 s for 10 tests |
 | Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
 | Real-device / mid-tier network | — | **NOT TESTED** |
 
@@ -253,12 +308,12 @@ plus 7 rendering tests, which is not enough to claim any of the following:
 
 ## 8. Highest-risk untested surfaces (what a new test should attack first)
 
-1. `src/services/api.ts` — 650 lines, 0 tests, every page depends on it.
-2. `netlify/lib/host.ts` + `supabase.ts` — the SSRF guard and the DB client are both uninstrumented.
-3. `netlify/functions/admin.ts` — every mutation (role change, suspension, delete, export) is unverified.
-4. `workspace.ts` upload path — size/MIME/binary behaviour, and M-14 says the Vercel bridge corrupts binary bodies.
-5. The whole AI answer chain on a real provider (H-1 fake citations, M-7 key redaction in upstream errors).
-6. Entitlement enforcement: a member without `ai.use` calling `/api/ai/test` (M-6, live-reproducible once a token exists).
+1. `workspace.ts` upload path — size/MIME/binary behaviour, and M-14 says the Vercel bridge corrupts binary bodies. **Still open.**
+2. The nine `net-*` handlers and `content.ts` / `content-admin.ts` / `ai-script.ts` — 13 of 22 functions still have no test importing them. `content-admin.ts` is the one that holds a shared bearer token (M-11). **Still open.**
+3. The whole AI answer chain on a real provider (H-1 fake citations, M-7 key redaction in upstream errors). **Still open — blocked on D4.**
+4. Entitlement enforcement against a live deployment: a member without `ai.use` calling `/api/ai/test` (M-6). The handler logic is now tested; the live repro needs a token. **Blocked on D5/D6.**
+5. 26 of 33 pages and 5 of 18 tool modules render no test at all — jsdom coverage exists for the shared kit and the two fixed surfaces only.
+6. ~~`src/services/api.ts`, `netlify/lib/host.ts`, `netlify/lib/supabase.ts`, `netlify/functions/admin.ts`~~ — all four were on this list; `api.ts` is executed since H-10, `host.ts` since M-3, and `supabase.ts` + the whole admin surface since the 2026-11-01 batch. What that batch does **not** prove: any real database round trip, any authenticated live call, and the `users.create` / `users.reset_password` / `users.revoke_sessions` actions that the Supabase path never implemented (L-14).
 
 ## 9. Honest verdict
 

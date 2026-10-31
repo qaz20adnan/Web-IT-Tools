@@ -17,7 +17,7 @@ platform into a scanner for hosts the caller does not own).
 | Vector | Verdict | Evidence |
 | --- | --- | --- |
 | Command injection | **N/A by construction** — no `child_process`, no `dgram`, no raw socket anywhere in `netlify/`. Probes are `net.connect`/`tls.connect`/HTTPS fetch, never a shell | grep across `netlify/` |
-| SQL injection | Structurally impossible in the app path: queries are PostgREST query strings with every interpolated value run through `encodeURIComponent`, and all table access goes through the typed helpers in `netlify/lib/supabase.ts` | `netlify/lib/auth.ts:143-215`, `netlify/functions/workspace.ts:121,247-249` |
+| SQL injection | Structurally impossible in the app path: queries are PostgREST query strings with every interpolated value run through `encodeURIComponent`, and all table access goes through the typed helpers in `netlify/lib/supabase.ts`. The admin search box is the one place a user string becomes a *filter*, so `escapeFilter()` (`netlify/functions/admin.ts:120-122`) replaces every `%`, `*`, `,`, `(`, `)` and backslash with a space before encoding, and `tests/admin-rbac-gates.test.ts` asserts it structurally — the outgoing query keeps exactly one `(`, one `)`, one `,` and one `or=` segment — rather than asserting that a stolen `role=` term disappears, which it does not: it survives as inert text inside `ilike.*…*` | `netlify/lib/auth.ts:143-215`, `netlify/functions/workspace.ts:121,247-249`, `tests/admin-rbac-gates.test.ts` |
 | XSS | `script-src 'self'` with no `unsafe-eval`, served live. No `dangerouslySetInnerHTML` in `src/`. Residual risk is the Markdown renderer used for AI answers — worth an explicit check before any rich rendering of model output | `netlify.toml:128`, `vercel.json:33`, live header on `/` |
 | SSRF | The core control is `resolvePublicAddress` (`netlify/lib/host.ts:79-112`): resolve **once**, reject if *any* answer is loopback/RFC1918/link-local/reserved, and hand the caller the literal address to connect to — `assertPublicHost` is now a thin delegate over it (`host.ts:59-62`), so a socket-facing caller cannot validate a name and then re-resolve it. Connect-time recheck still applies to the other probe paths, and cloud metadata `169.254.169.254` stays blocked even when `NET_PROBE_ALLOW_PRIVATE=true` (`netlify/lib/net-probe.ts:67,128,166-219`). Custom provider base URLs are restricted to `AI_ALLOWED_HOSTS` (`netlify/lib/host.ts:114-141`). **The DNS-rebinding TOCTOU this table used to list as open (M-3) is closed**: `net-tls.ts:22,24` connects to the address it validated and passes the typed hostname as SNI (`netlify/lib/tls.ts:16-32`), and `checkHttp`'s certificate probe now uses the peer the hop actually reached (`netlify/lib/net-diagnostics.ts:183,235`) instead of resolving a third time. **One sharp edge** remains: `NET_PROBE_ALLOW_PRIVATE=true` also enables loopback, so never set it on a hosted runtime (M-5/F-05 of the DevOps pass) |
 | Path traversal | No filesystem writes from user input; the only file sink is `.local-auth/store.json` under an env-chosen directory (`netlify/lib/local-auth.ts`) |
@@ -63,7 +63,16 @@ Verified correct, and this is the strongest part of the platform:
 
 - Every privileged handler re-derives the identity from the bearer token and then checks a named
   permission server-side: `authenticate` → `requireVerified` → `requirePermission`
-  (`netlify/lib/auth.ts:289-311,315-343`).
+  (`netlify/lib/auth.ts:289-311,315-343`). **Now proved at the handler, not only read**: since
+  2026-11-01, `tests/admin-rbac-gates.test.ts` (79) drives `netlify/functions/admin.ts` with the real
+  `requirePermission()` and the real `permissionsFor()` in the loop — 12 actions refused for a
+  `premium_member` holding a valid session, the rank ceilings (`admin` cannot grant `owner`, cannot
+  touch an equal-or-higher account, has no `users.delete` at all; `super_admin` cannot delete an
+  `owner`), self-targeting refused for role change, suspension and deletion, and an undeclared body
+  field like `role:'owner'` dropped by the schema instead of honoured. Nine mutations inside
+  `admin.ts` itself — a dropped capability check, ignored rank, an un-counted last owner, allowed
+  self-targeting, a raw search term, an empty update reported as success, an accepted past billing
+  period, the local-only actions pretending to succeed — are each caught by at least one test.
 - Gate map (no privileged handler is ungated): `auth` per action; `admin` and `workspace` →
   `authenticate` + permission; `ai/chat|analyze|script` → `enforceAiAccess`;
   `ai/models|test` → `requireMember`; all `net/*` and `research` → `requireMember` + per-IP rate;
@@ -76,7 +85,10 @@ Verified correct, and this is the strongest part of the platform:
   (`netlify/lib/auth.ts:380-381`); promotion is an explicit audited local command with
   `--confirm` that refuses unverified addresses (`scripts/promote-admin.mjs`).
 - Last-owner / last-super-admin protection exists in the API **and** in a trigger
-  (`netlify/functions/admin.ts:435-454`; `0002:126-142`, `0003:81-97`).
+  (`netlify/functions/admin.ts:435-454`; `0002:126-142`, `0003:81-97`). The API half is now
+  exercised: refuse to demote, suspend or delete the only active owner or super admin, allow it when
+  a second privileged account exists, and do not treat a *suspended* owner as protected (that
+  account must stay reclaimable, or a suspension becomes an unrecoverable lockout).
 - Tenancy: every workspace query filters `user_id=eq.<authenticated id>` and RLS mirrors it —
   **no IDOR found** (`netlify/functions/workspace.ts:121,247-249`, `0001:398-410`).
 - The owner's three roles map cleanly onto what already exists: Owner → `owner`, Admin →
@@ -99,9 +111,21 @@ key column; audit writes strip `pass|token|secret|key|authorization|credential|s
 truncate strings (`netlify/lib/auth.ts:402-418`); `[nexora]` logs print path, method, code and an
 authored message — never a body, header or query string (`netlify/lib/http.ts:121-123`).
 
+One more control was missing until 2026-11-01, and it was the highest-value one: an upstream error
+body is forwarded to the browser as `error.detail`, and the AI path already redacted the provider key
+out of it (`redactSecret()` in `netlify/lib/fetch.ts`) while the Supabase path did not — so a
+PostgREST or GoTrue error that echoes the rejected credential would have published the
+**service-role key**, the one secret that reads and writes every table with RLS bypassed.
+`restError()` now calls the same `redactSecret()` with `serverConfig.supabaseServiceRoleKey`
+(`netlify/lib/supabase.ts`), pinned by `tests/supabase-rest-errors.test.ts`. Status: **resolved
+locally, mutation-checked (removing the call fails the test), and verified to be present in the
+generated `api/index.js`** — but not provable against real PostgREST behaviour from this machine,
+because no live database error was provoked and nothing was deployed.
+
 | ID | Sev | Issue | Fix |
 | --- | --- | --- | --- |
 | M-7 | MEDIUM | `netlify/lib/ai.ts:178` forwards raw upstream error text (≤300–500 chars) into `error.detail` and hence the browser; a provider that echoes the submitted prompt, an image fragment or a key leaks. `netlify/lib/gemini.ts:278` already does this right with `redact()` | redact `config.apiKey` + strip echo in `postJson` |
+| L-13 | LOW, but the secret it hides is the most powerful one | The same leak sat on the database path: `restError()` in `netlify/lib/supabase.ts` forwarded the upstream body into `error.detail` unredacted, and the credential in that body would be the **service-role key**, not a per-user provider key | **RESOLVED locally 2026-11-01** by reusing `redactSecret()`; `tests/supabase-rest-errors.test.ts` pins it and a mutation that removes the call fails. Not deploy-verified |
 | S-2 | INFO | `.local-auth/store.json` holds scrypt hashes and session tokens in a git-ignored file; correct for dev, but a shared machine can read it | keep git-ignored (done: `.gitignore:8`), warn in docs |
 
 ## 5. Headers, transport, platform

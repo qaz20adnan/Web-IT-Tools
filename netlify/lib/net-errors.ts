@@ -47,11 +47,14 @@ export function describeTlsFailure(error: unknown): string {
   if (code === 'ERR_TLS_CERT_ALTNAME_INVALID') return 'The certificate does not cover this hostname.'
   if (/expired/i.test(message)) return 'The certificate has expired.'
   if (/revoked/i.test(message)) return 'The certificate was revoked.'
+  // `inspectCertificate()` raises this exact sentence when the socket connected but
+  // handed back no certificate at all, which is a different answer from an
+  // untrusted chain: it must be matched before the generic `certificate` test below.
+  if (/no peer certificate/i.test(message)) return 'The endpoint returned no certificate.'
   if (/unable to verify|self[- ]signed|not after|not before|certificate/i.test(message)) return 'The certificate chain could not be verified.'
   if (code === 'ETIMEDOUT' || /timed out/i.test(message)) return 'The TLS handshake timed out.'
   if (code === 'ECONNREFUSED') return 'The endpoint refused the connection.'
   if (code === 'ENOTFOUND' || /getaddrinfo/i.test(message)) return 'The hostname did not resolve.'
-  if (/no peer certificate/i.test(message)) return 'The endpoint returned no certificate.'
   if (/alert|handshake|protocol|cipher|reset|closed/i.test(message)) return 'The TLS handshake failed before a certificate was returned.'
   return 'TLS inspection failed for this endpoint.'
 }

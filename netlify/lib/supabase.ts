@@ -1,5 +1,5 @@
 import { serverConfig } from './env'
-import { fetchText } from './fetch'
+import { fetchText, redactSecret } from './fetch'
 import { HttpError } from './http'
 
 export function supabasePublicConfigured(): boolean {
@@ -57,7 +57,10 @@ function extractMessage(text: string): string | undefined {
 }
 
 function restError(status: number, text: string, area: string): HttpError {
-  const detail = extractMessage(text)
+  // An upstream body can echo the credential it was rejected for, and `detail`
+  // travels to the browser. `fetch.ts` already redacts the AI providers' keys; the
+  // service-role key is the one whose exposure is a full database compromise.
+  const detail = extractMessage(redactSecret(text, serverConfig.supabaseServiceRoleKey))
   const lower = (detail ?? '').toLowerCase()
   if (status === 401) return new HttpError(401, 'unauthorized', 'The session is invalid or has expired.', detail)
   if (status === 404) return new HttpError(404, 'not_found', `${area} was not found.`, detail)

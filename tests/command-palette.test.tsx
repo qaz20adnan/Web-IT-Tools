@@ -77,6 +77,12 @@ describe('the palette tells assistive technology which option is active', () => 
     expect(activeOption(input)).toBe(options[0])
   })
 
+  /**
+   * One `fireEvent` per keystroke across the whole option list, so this case is the slowest in the
+   * suite by an order of magnitude (~0.8 s alone, over 5 s once 64 other files compete for the
+   * workers) and the default timeout made it fail on load, not on behaviour. The budget is raised
+   * here rather than globally so every other test keeps hanging loudly.
+   */
   it('never leaves the pointer outside the option range', () => {
     const input = open()
     const options = screen.getAllByRole('option')
@@ -86,7 +92,7 @@ describe('the palette tells assistive technology which option is active', () => 
 
     for (let i = 0; i < options.length + 3; i++) fireEvent.keyDown(input, { key: 'ArrowDown' })
     expect(activeOption(input)).toBe(options[options.length - 1])
-  })
+  }, 30_000)
 
   it('runs the option it is pointing at when Enter is pressed', () => {
     const input = open()
