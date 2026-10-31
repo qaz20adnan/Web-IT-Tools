@@ -29,6 +29,12 @@ vi.mock('../netlify/lib/ai', () => ({
   chatComplete: vi.fn(async () => 'OK'),
   completeWithFallback: vi.fn(async () => ({ content: 'answer', model: 'openai/gpt-4.1-mini', fallbackUsed: false })),
   verifyProviderAuth: vi.fn(async () => ({ latencyMs: 8, keyVerified: true })),
+  newDeadline: (budgetMs = 50_000) => ({
+    budgetMs,
+    remainingMs: () => budgetMs,
+    nextAttemptMs: (desiredMs: number) => Math.min(desiredMs, budgetMs),
+    canAttempt: () => true,
+  }),
 }))
 
 import { handler as modelsHandler } from '../netlify/functions/ai-models'

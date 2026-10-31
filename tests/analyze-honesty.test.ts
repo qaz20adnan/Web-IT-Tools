@@ -46,6 +46,12 @@ vi.mock('../netlify/lib/ai', () => ({
   chatComplete: vi.fn(async () => 'OK'),
   listModels: vi.fn(async () => [{ id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 mini', contextLength: null }]),
   verifyProviderAuth: vi.fn(async () => ({ latencyMs: 12, keyVerified: false, reason: 'public_catalog', note: 'public catalog' })),
+  newDeadline: (budgetMs = 50_000) => ({
+    budgetMs,
+    remainingMs: () => budgetMs,
+    nextAttemptMs: (desiredMs: number) => Math.min(desiredMs, budgetMs),
+    canAttempt: () => true,
+  }),
 }))
 
 import { handler as analyzeHandler } from '../netlify/functions/ai-analyze'

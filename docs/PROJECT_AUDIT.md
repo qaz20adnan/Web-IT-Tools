@@ -20,7 +20,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | Vercel path | 1 generated function (`api/index.js`) dispatching 22 `/api` routes | `vercel/dispatcher.ts:31-54`, `scripts/build-vercel-api.mjs` |
 | Auth/DB | Supabase Auth + PostgREST over HTTPS, service-role server-side only | `netlify/lib/supabase.ts`, `netlify/lib/auth.ts` |
 | AI | OpenRouter default, OpenAI/Anthropic/Gemini/Ollama/custom; Gemini Interactions for grounded search | `netlify/lib/env.ts:5-12`, `netlify/lib/ai.ts`, `netlify/lib/gemini.ts` |
-| Tests | Vitest 5, 50 files / 484 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
+| Tests | Vitest 5, 50 files / 490 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
 | Naming | brand is Adnan Tech; npm name `nexora-ai`, `NEXORA_*` env vars and `nexora.*` storage keys intentionally unchanged | `package.json:2`, `README.md:153-159` |
 
 ## 2. Live environment state (measured)
@@ -38,7 +38,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | `https://adnan-tech.vercel.app` | VPROD | **FAIL — `DEPLOYMENT_NOT_FOUND`**; this hostname has never been assigned to project `adnan-mohamed/adnan-tech` |
 | Vercel preview `GET /api/health` | VPREV | PASS 200 but `database.configured=false`, `contentAdmin.configured=false` → **no Supabase env vars on the Vercel project** |
 | Vercel preview anonymous `GET /` | VPREV | 302 → `vercel.com/sso-api` (Deployment Protection / Vercel Authentication is ON) |
-| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 484 passed in 11.52 s / built in 467 ms (entry chunk 745.58 kB min, 231.87 kB gzip). Re-run on 2026-10-31 after the W1 AI-honesty batch; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
+| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 490 passed in 10.53 s / built in 464 ms (entry chunk 745.57 kB min, 231.86 kB gzip). Re-run on 2026-10-31 after the W1 AI-honesty batch; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
 | `npm audit --omit=dev` | LOCAL | PASS — 0 vulnerabilities in production dependencies |
 
 Consequence of the VPROD row: **Netlify is the only working production target today.** The
@@ -70,7 +70,7 @@ What has since been fixed locally — and how it was proved — is tracked in §
 | H-1 | Security/UX | Analysis mode renders **model-asserted** `sources[]` as citations; the URLs are never fetched or verified, only `z.string().url()` checked | `netlify/functions/ai-analyze.ts:32-34`, `netlify/lib/schema.ts:78`, `netlify/lib/prompts.ts:94`, rendered at `src/pages/TroubleshootingLabPage.tsx:579-592`. Grounded search does this correctly (`netlify/lib/gemini.ts:89-118`) |
 | H-2 | Session security | Access **and refresh** tokens live in `localStorage` → any XSS gives durable account takeover. README admits the risk but the code has no mitigation | `src/services/authSession.ts:3,7,23`; `README.md:117-118` |
 | H-3 | Upload/vision | Three different body caps for the same feature: client 4 MB image → ≈5.33 MB base64 JSON, server limit 8 MB, Vercel bridge 4.5 MB. Real usable cap ≈3.3 MB raw image; on Vercel the request dies with a raw 413 and the friendly "too large" message never runs | `netlify/functions/ai-analyze.ts:12`, `vercel/serverless.ts:25,48`, `netlify/lib/ai.ts:293`, `netlify/lib/http.ts:96-98` |
-| H-4 | AI reliability | Timeout budget exceeds the platform ceiling: `AI_TIMEOUT_MS` default 60000 is **per attempt**, retried twice → up to ~120 s, while Netlify standard functions are capped at 60 s and `vercel.json` sets `maxDuration: 60`. Failure appears as an opaque platform kill, not a structured error | `netlify/lib/env.ts:56`, `netlify/lib/ai.ts:153-177`, `vercel.json:9`, official Netlify docs (60 s default) |
+| H-4 | AI reliability | Timeout budget exceeds the platform ceiling: `AI_TIMEOUT_MS` default 60000 is **per attempt**, retried twice → up to ~120 s, while Netlify standard functions are capped at 60 s and `vercel.json` sets `maxDuration: 60`. Failure appears as an opaque platform kill, not a structured error | `netlify/lib/env.ts:56`, `netlify/lib/ai.ts:153-177`, `vercel.json:9`, official Netlify docs (60 s default) — **RESOLVED** locally: one 50 s `Deadline` per request (`ai.ts:157`), clamped attempts, structured `504 timeout`, retries and model fallback share the budget; 6 tests, not deployed |
 | H-5 | Deployment | The generated `api/index.js` served locally was **stale** — it lacked the `net/latency` and `net/path` routes present in source | `vercel/dispatcher.ts:41-44` vs bundle built 10-28 13:05; regenerated at 2026-10-31 02:32 (now present) — **RESOLVED** locally; needs a guard so it cannot go stale again |
 | H-6 | Theming | Hard-coded dark-navy panels bypass the token layer, so `arctic-light`, `sandstone-calm` and `forest-mist` render dark text on dark navy (unreadable hero + signal board). Charts and the hero SVG are likewise pinned to the midnight palette | `src/pages/DashboardPage.tsx:287,425,459`; `src/components/charts/index.tsx:17,171,293,336`; `src/components/dashboard/HeroNetwork.tsx:67-72,108,120`; `src/components/layout/Topbar.tsx:191` |
 | H-7 | Privacy | `signOut()` clears only the tokens. Every account-scoped record (saved items, chat history, diagnostic targets, KB notes, provider base URLs, inventory) stays in `localStorage` indefinitely, and the user id is in the key name. Two keys are not account-scoped at all, so they leak between accounts on a shared browser | `src/context/AuthContext.tsx:213-222`, `src/services/authSession.ts:20`, `src/lib/storage.ts:49` (`removeKey()` has zero callers), `src/components/tools/DdnsPortAnalyzer.tsx:126`, `src/components/tools/CertDecodeTool.tsx:35`; `tests/access-control.test.ts:50-65` only tests the helper, never the call sites |
@@ -192,7 +192,7 @@ What has since been fixed locally — and how it was proved — is tracked in §
 | AI assistant + grounded search | Code complete, fail-closed and unit-tested, but **`ai.configured=false` and `research.configured=false` on NETLIVE** → the flagship feature has never answered a real request in production (D4) |
 | Ping / traceroute | Impossible in this runtime by design; the honest TCP-connect replacements are `net/latency` and `net/path`. Nothing fakes an ICMP result |
 | LAN tools (printer agent, private probes) | Work only under `npm run dev` (`localRuntime()` is false on both hosts); the UI says so |
-| Tests | 484 pass, but `src/services/api.ts` is only ever `vi.mock`ed and never executed, and 5 of 50 files render components → 26 of 33 pages and 14 of 22 functions have zero coverage, including every admin mutation |
+| Tests | 490 pass, but `src/services/api.ts` is only ever `vi.mock`ed and never executed, and 5 of 50 files render components → 26 of 33 pages and 14 of 22 functions have zero coverage, including every admin mutation |
 
 ## 6. What I could do without any external credential (already done)
 
@@ -225,7 +225,7 @@ What has since been fixed locally — and how it was proved — is tracked in §
 | Wave | Contents | Why first | Status |
 | --- | --- | --- | --- |
 | W1 safe-now | H-1 fake citations, M-1 pepper fail-closed, M-2 printer default, M-5/M-6/M-7 AI gating and redaction, M-8 health truthfulness, L-1/L-2/L-4, H-6 light-theme contrast, M-9/M-10 | local, testable, no external dependency, and several violate the "no fake results" rule directly | **11 of 13 fixed locally** (`70e1deb` plus the W1 follow-up commits): H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — itemised with proof in §8.1. Still open: M-9 (needs your approval, it widens what "clear everything" deletes) and H-6 (needs a browser pass in the light themes). **None of it is deployed.** |
-| W2 platform | H-3 upload caps, H-4 timeout budget, H-5 stale-bundle guard, M-12 Node pin, M-13 CSP on previews only, M-14 binary bodies, L-3/L-5/L-6 | makes both hosts behave the same | not started |
+| W2 platform | H-3 upload caps, H-4 timeout budget, H-5 stale-bundle guard, M-12 Node pin, M-13 CSP on previews only, M-14 binary bodies, L-3/L-5/L-6 | makes both hosts behave the same | **H-4 fixed locally** (shared 50 s request budget, `ai.ts:157-215` — see §8.1); rest not started. Not deployed. |
 | W3 security depth | H-7 sign-out sweep + account scoping, H-8 limiter, M-1 content-admin token, M-3 TLS rebinding, M-4 PKCE, H-2 cookie migration | each needs a design decision, ordered by blast radius | not started |
 | W4 resilience/UX | H-9 per-route boundary, H-10 single error mapping, M-15/M-16/M-17, M-18 bundle split | user-visible quality | not started |
 | W5 verification | §18 mandatory API matrix against preview, the 10 untested surfaces, Lighthouse/axe pass | turns "coded" into "proven" | not started |
@@ -245,6 +245,7 @@ What has since been fixed locally — and how it was proved — is tracked in §
 | L-2 | `normalizeBaseUrl()` strips a pasted `/api/chat` | `tests/ai-adapter.test.ts` |
 | L-4 | The three dead `STORAGE_KEYS` entries were deleted (`researchRecent`, `conversations`, `securityLab`); `grep` shows no remaining reference | LOCAL grep + suite green |
 | M-10 | The command palette searches all 45 knowledge articles instead of the first 30 | LOCAL count of `slug:` across `src/data/knowledge*.ts`; no palette test exists yet (W5) |
+| H-4 | Every AI call now runs inside one `Deadline` (`PLATFORM_BUDGET_MS = 50_000`): each attempt's timeout is clamped to what is left, a spent budget throws a structured `504 timeout` before the platform kills the function, retries stop when the budget cannot fit another attempt, the model fallback shares the primary model's budget, and `/api/ai/test` shares one budget across verification + catalog | `tests/ai-adapter.test.ts` → `describe('request budget')` (6 cases, incl. the abort timer actually receiving the clamped value) |
 
 Still open from W1: **M-9** (the export/clear list omits keys the app writes — and the inventory is
 worse than the register said: `nexora.ioc.v1`, `nexora.vulns.v1`, `nexora.cidr-plan.v1`,

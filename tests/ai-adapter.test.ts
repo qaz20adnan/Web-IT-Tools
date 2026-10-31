@@ -8,10 +8,13 @@ import {
   chatComplete,
   completeWithFallback,
   listModels,
+  newDeadline,
   normalizeBaseUrl,
+  PLATFORM_BUDGET_MS,
   resolveAiConfig,
   verifyProviderAuth,
   type AiConfig,
+  type Deadline,
 } from '../netlify/lib/ai'
 import { HttpError, type NetlifyEvent } from '../netlify/lib/http'
 
@@ -278,6 +281,97 @@ describe('completeWithFallback', () => {
     expect(calls).toHaveLength(1)
   })
 })
+
+/**
+ * Netlify standard functions and `vercel.json`'s `maxDuration` both die at 60 s.
+ * A kill there returns a platform error page, so the AI layer must stop itself.
+ * These fakes repeat the library's 1.5 s floor on purpose: the point is what the
+ * callers do with a deadline, not the arithmetic inside `newDeadline`.
+ */
+describe('request budget', () => {
+  it('stays below the platform ceiling', () => {
+    expect(PLATFORM_BUDGET_MS).toBeLessThan(60_000)
+  })
+
+  it('shrinks each attempt to the budget that is left', () => {
+    const fresh = newDeadline(30_000, Date.now())
+    expect(fresh.nextAttemptMs(60_000)).toBeLessThanOrEqual(30_000)
+
+    const nearlySpent = newDeadline(30_000, Date.now() - 29_000)
+    expect(nearlySpent.remainingMs()).toBeLessThan(1_500)
+    expect(nearlySpent.nextAttemptMs(60_000)).toBeNull()
+    expect(nearlySpent.canAttempt()).toBe(false)
+  })
+
+  it('hands the clamped timeout to the upstream fetch instead of AI_TIMEOUT_MS', async () => {
+    const timeouts: number[] = []
+    const realSetTimeout = globalThis.setTimeout
+    globalThis.setTimeout = ((handler: TimerHandler, ms?: number, ...args: unknown[]) => {
+      if (typeof ms === 'number' && ms > 0) timeouts.push(ms)
+      return realSetTimeout(handler as () => void, ms, ...args)
+    }) as typeof setTimeout
+    try {
+      stubFetch(() => fakeResponse(200, JSON.stringify({ choices: [{ message: { content: 'ok' } }] })))
+      const reply = await chatComplete(config(), [{ role: 'user', content: 'hi' }], { deadline: slowProvider(40_000, 8_000) })
+      expect(reply).toBe('ok')
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+    }
+    expect(timeouts).toContain(8_000)
+    expect(timeouts).not.toContain(60_000)
+  })
+
+  it('refuses to send a request once the budget is spent', async () => {
+    stubFetch(() => fakeResponse(200, JSON.stringify({ choices: [{ message: { content: 'ok' } }] })))
+    await expect(chatComplete(config(), [{ role: 'user', content: 'hi' }], { deadline: spentDeadline() })).rejects.toMatchObject({
+      statusCode: 504,
+      code: 'timeout',
+    })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('reports the real upstream cause instead of retrying past the budget', async () => {
+    stubFetch(() => fakeResponse(429, JSON.stringify({ error: { message: 'slow down' } })))
+    const deadline = slowProvider(60_000, 20_000, () => false)
+    await expect(chatComplete(config(), [{ role: 'user', content: 'hi' }], { deadline })).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'rate_limited',
+    })
+    expect(calls).toHaveLength(1)
+  })
+
+  it('shares one budget between the primary model and the fallback', async () => {
+    stubFetch((call) =>
+      JSON.parse(call.body ?? '{}').model === 'missing/model'
+        ? fakeResponse(404, JSON.stringify({ error: { message: 'No endpoints found' } }))
+        : fakeResponse(200, JSON.stringify({ choices: [{ message: { content: 'fallback answer' } }] })),
+    )
+    // Each attempt burns 30 s of a 40 s budget, so only the first fits.
+    let used = 0
+    const deadline: Deadline = {
+      budgetMs: 40_000,
+      remainingMs: () => Math.max(0, 40_000 - used),
+      nextAttemptMs: (desiredMs) => {
+        used += 30_000
+        const timeout = Math.min(desiredMs, Math.max(0, 40_000 - used))
+        return timeout >= 1_500 ? timeout : null
+      },
+      canAttempt: () => 40_000 - used >= 1_500,
+    }
+    await expect(
+      completeWithFallback(config({ model: 'missing/model', fallbackModel: 'openai/gpt-4.1-mini' }), [{ role: 'user', content: 'hi' }], { deadline }),
+    ).rejects.toMatchObject({ statusCode: 504, code: 'timeout' })
+    expect(calls).toHaveLength(1)
+  })
+})
+
+function spentDeadline(): Deadline {
+  return { budgetMs: 50_000, remainingMs: () => 0, nextAttemptMs: () => null, canAttempt: () => false }
+}
+
+function slowProvider(budgetMs: number, attemptMs: number, canAttempt = () => true): Deadline {
+  return { budgetMs, remainingMs: () => budgetMs, nextAttemptMs: (desiredMs) => Math.min(desiredMs, attemptMs), canAttempt }
+}
 
 describe('resolveAiConfig', () => {
   it('allows anonymous model discovery without an API key', () => {

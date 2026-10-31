@@ -34,7 +34,7 @@ anywhere, so a Vercel variable named that way would be silently ignored.
 | `AI_BASE_URL` | no | `env.ts:77` → `defaultBaseUrl()` | provider root | public |
 | `AI_FALLBACK_MODEL` | no | `env.ts:78`, `ai.ts:110` | retried only on `not_found\|invalid_input\|forbidden\|upstream_error` | public |
 | `AI_VISION_PROVIDER/BASE_URL/MODEL/API_KEY` | no | `env.ts:130-136`, `ai.ts:86-103` | image analysis; each falls back to the matching `AI_*` | one is secret |
-| `AI_TIMEOUT_MS` | no (**60000**) | `env.ts:56`, `ai.ts:203,301` | per-attempt fetch timeout — see pitfall P-2 | public |
+| `AI_TIMEOUT_MS` | no (**60000**) | `env.ts:56`, `ai.ts:258,362` | desired per-attempt fetch timeout; clamped to the 50 s shared request budget (`ai.ts:157`) — see pitfall P-2 | public |
 | `AI_MAX_OUTPUT_TOKENS` | no (2500) | `env.ts:57` | completion cap | public |
 | `AI_ALLOWED_HOSTS` | no | `env.ts:67-70`, `netlify/lib/host.ts:94-113` | **security allowlist** for custom/Ollama base URLs | public |
 | `AI_APP_REFERER`, `AI_APP_TITLE` | no | `env.ts:61-63` | OpenRouter attribution | public |
@@ -89,7 +89,7 @@ into the browser bundle by accident, and none was found in `dist/`.
 | ID | Pitfall |
 | --- | --- |
 | P-1 | Empty `NEXORA_HASH_PEPPER` silently degrades to `SUPABASE_URL`, then to the literal `'nexora-local-pepper'`, making trial-claim HMACs guessable (`netlify/lib/auth.ts:113`). Fix in flight: fail closed in production |
-| P-2 | `AI_TIMEOUT_MS=60000` is **per attempt** and retries double it; Netlify standard functions die at 60 s and `vercel.json` sets `maxDuration: 60` → the user gets a platform error page, not the app's JSON error (H-4) |
+| P-2 | `AI_TIMEOUT_MS=60000` is **per attempt** and retries double it; Netlify standard functions die at 60 s and `vercel.json` sets `maxDuration: 60` → the user gets a platform error page, not the app's JSON error (H-4). **Fixed in code**: every AI request now runs inside one 50 s `Deadline` (`ai.ts:157`), so the value is a wish, not a guarantee — it is clamped to the budget left, and a spent budget returns `504 timeout` instead of a platform kill. Not deployed |
 | P-3 | `PRINTER_ALLOW_PUBLIC` unset ≠ off (M-2) |
 | P-4 | On Vercel, `NEXORA_SITE_URL ?? URL` resolves to the `localhost:5173` default because Vercel does not inject `URL` |
 | P-5 | `gemini-flash-latest` is a moving alias: good for staying current, bad for reproducing an answer during an audit |

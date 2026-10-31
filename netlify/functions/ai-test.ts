@@ -1,5 +1,5 @@
 import { recordAiUsage, requireMember, usesClientProviderKey } from '../lib/auth'
-import { chatComplete, listModels, resolveAiConfig, verifyProviderAuth, type LiveModelInfo } from '../lib/ai'
+import { chatComplete, listModels, newDeadline, resolveAiConfig, verifyProviderAuth, type LiveModelInfo } from '../lib/ai'
 import { clientIp, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
 import { enforceRateLimit } from '../lib/rate'
 
@@ -25,13 +25,15 @@ export const handler: Handler = wrap(async (event, context) => {
   if (mode === 'connectivity') {
     const config = resolveAiConfig(event, { requireModel: false })
     const started = Date.now()
-    const verification = await verifyProviderAuth(config)
+    // One budget for the verification and the catalog read that follows it.
+    const deadline = newDeadline()
+    const verification = await verifyProviderAuth(config, { deadline })
     if (!usesClientProviderKey(event)) {
       await recordAiUsage(account, 'ai.test', config.provider, config.model || 'connectivity')
     }
     let models: LiveModelInfo[]
     try {
-      models = await listModels(config)
+      models = await listModels(config, { deadline })
     } catch {
       models = []
     }

@@ -149,8 +149,56 @@ function isRetryable(status: number): boolean {
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504
 }
 
+/**
+ * Netlify standard functions are killed at 60 s and `vercel.json` sets
+ * `maxDuration: 60`. A kill at that ceiling reaches the user as an opaque
+ * platform error page, so every AI call shares a budget that stops short of it.
+ */
+export const PLATFORM_BUDGET_MS = 50_000
+
+/** Below this an attempt cannot realistically be answered, so it is not started. */
+const MIN_ATTEMPT_MS = 1_500
+
+export interface Deadline {
+  readonly budgetMs: number
+  remainingMs(): number
+  /** Per-attempt timeout to use, or null when the budget is too spent to try. */
+  nextAttemptMs(desiredMs: number): number | null
+  /** Whether enough budget remains to start another attempt at all. */
+  canAttempt(): boolean
+}
+
+export function newDeadline(budgetMs = PLATFORM_BUDGET_MS, startedAt = Date.now()): Deadline {
+  const remainingMs = () => Math.max(0, budgetMs - (Date.now() - startedAt))
+  return {
+    budgetMs,
+    remainingMs,
+    nextAttemptMs: (desiredMs) => {
+      const timeout = Math.min(desiredMs, remainingMs())
+      return timeout >= MIN_ATTEMPT_MS ? timeout : null
+    },
+    canAttempt: () => remainingMs() >= MIN_ATTEMPT_MS,
+  }
+}
+
+function budgetExhausted(deadline: Deadline): HttpError {
+  return new HttpError(
+    504,
+    'timeout',
+    `The AI provider did not answer within the ${Math.round(deadline.budgetMs / 1000)} second request budget. No reply is shown rather than a partial one — try again or choose a faster model.`,
+  )
+}
+
+/** Per-attempt timeout, or a structured 504 when the shared budget is already spent. */
+function attemptTimeout(deadline: Deadline | undefined, desiredMs: number): number {
+  if (!deadline) return desiredMs
+  const timeout = deadline.nextAttemptMs(desiredMs)
+  if (timeout === null) throw budgetExhausted(deadline)
+  return timeout
+}
+
 /** Retries transient failures only. Never retries auth or invalid-request errors. */
-async function withRetry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
+async function withRetry<T>(operation: () => Promise<T>, attempts = 2, deadline?: Deadline): Promise<T> {
   let lastError: unknown
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -160,24 +208,27 @@ async function withRetry<T>(operation: () => Promise<T>, attempts = 2): Promise<
       const status = error instanceof HttpError ? error.statusCode : 0
       const retryable = status === 0 || status === 408 || isRetryable(status)
       if (!retryable || attempt === attempts - 1) throw error
+      // Returning the real upstream cause beats spending the remaining seconds on
+      // a retry the platform would kill anyway.
+      if (deadline && !deadline.canAttempt()) throw error
       await delay(200 * (attempt + 1))
     }
   }
   throw lastError
 }
 
-async function postJson(url: string, config: AiConfig, body: unknown, timeoutMs: number): Promise<{ status: number; text: string }> {
+async function postJson(url: string, config: AiConfig, body: unknown, timeoutMs: number, deadline?: Deadline): Promise<{ status: number; text: string }> {
   return withRetry(async () => {
     const response = await fetchText(url, {
       method: 'POST',
       headers: authHeaders(config),
       body: JSON.stringify(body),
-      timeoutMs,
+      timeoutMs: attemptTimeout(deadline, timeoutMs),
       maxBytes: 12 * 1024 * 1024,
     })
     if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return { status: response.status, text: response.text }
-  })
+  }, 2, deadline)
 }
 
 function parseJson(text: string): Record<string, unknown> {
@@ -197,10 +248,15 @@ function readPath(record: unknown, path: Array<string | number>): unknown {
   return current
 }
 
-export async function chatComplete(config: AiConfig, messages: AiMessage[], options: { maxTokens?: number; temperature?: number } = {}): Promise<string> {
+export async function chatComplete(
+  config: AiConfig,
+  messages: AiMessage[],
+  options: { maxTokens?: number; temperature?: number; deadline?: Deadline } = {},
+): Promise<string> {
   await validateAiEndpoint(config.baseUrl)
   const maxTokens = Math.min(options.maxTokens ?? serverConfig.maxOutputTokens, 8000)
   const timeoutMs = serverConfig.timeoutMs
+  const deadline = options.deadline ?? newDeadline()
   const temperature = options.temperature ?? 0.3
 
   if (config.provider === 'anthropic') {
@@ -212,7 +268,7 @@ export async function chatComplete(config: AiConfig, messages: AiMessage[], opti
       temperature,
       ...(system ? { system } : {}),
       messages: conversation,
-    }, timeoutMs)
+    }, timeoutMs, deadline)
     const data = parseJson(text)
     const content = readPath(data, ['content'])
     if (Array.isArray(content)) {
@@ -226,7 +282,7 @@ export async function chatComplete(config: AiConfig, messages: AiMessage[], opti
   }
 
   if (config.provider === 'gemini') {
-    return geminiChat(config, messages, maxTokens, temperature, timeoutMs)
+    return geminiChat(config, messages, maxTokens, temperature, timeoutMs, deadline)
   }
 
   if (config.provider === 'ollama') {
@@ -235,7 +291,7 @@ export async function chatComplete(config: AiConfig, messages: AiMessage[], opti
       messages,
       stream: false,
       options: { temperature, num_predict: maxTokens },
-    }, timeoutMs)
+    }, timeoutMs, deadline)
     const data = parseJson(text)
     const content = readPath(data, ['message', 'content'])
     if (typeof content === 'string' && content.trim()) return content
@@ -247,7 +303,7 @@ export async function chatComplete(config: AiConfig, messages: AiMessage[], opti
     messages,
     max_tokens: maxTokens,
     temperature,
-  }, timeoutMs)
+  }, timeoutMs, deadline)
   const data = parseJson(text)
   const content = readPath(data, ['choices', 0, 'message', 'content'])
   if (typeof content === 'string' && content.trim()) return content
@@ -262,14 +318,14 @@ function geminiContents(messages: AiMessage[]): { system: string; contents: Arra
   return { system, contents }
 }
 
-async function geminiChat(config: AiConfig, messages: AiMessage[], maxTokens: number, temperature: number, timeoutMs: number): Promise<string> {
+async function geminiChat(config: AiConfig, messages: AiMessage[], maxTokens: number, temperature: number, timeoutMs: number, deadline?: Deadline): Promise<string> {
   const { system, contents } = geminiContents(messages)
   const model = encodeURIComponent(config.model.replace(/^models\//, ''))
   const { text } = await postJson(endpoint(config.baseUrl, `models/${model}:generateContent`), config, {
     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
     contents,
     generationConfig: { maxOutputTokens: maxTokens, temperature },
-  }, timeoutMs)
+  }, timeoutMs, deadline)
   const data = parseJson(text)
   const parts = readPath(data, ['candidates', 0, 'content', 'parts'])
   if (Array.isArray(parts)) {
@@ -294,18 +350,24 @@ function parseImageDataUrl(dataUrl: string): ImagePayload {
   return { mediaType: match[1], base64: match[2] }
 }
 
-export async function visionComplete(config: AiConfig, prompt: string, dataUrl: string, options: { maxTokens?: number } = {}): Promise<string> {
+export async function visionComplete(
+  config: AiConfig,
+  prompt: string,
+  dataUrl: string,
+  options: { maxTokens?: number; deadline?: Deadline } = {},
+): Promise<string> {
   await validateAiEndpoint(config.baseUrl)
   const image = parseImageDataUrl(dataUrl)
   const maxTokens = Math.min(options.maxTokens ?? serverConfig.maxOutputTokens, 8000)
   const timeoutMs = serverConfig.timeoutMs
+  const deadline = options.deadline ?? newDeadline()
 
   if (config.provider === 'gemini') {
     const model = encodeURIComponent(config.model.replace(/^models\//, ''))
     const { text } = await postJson(endpoint(config.baseUrl, `models/${model}:generateContent`), config, {
       contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: image.mediaType, data: image.base64 } }] }],
       generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2 },
-    }, timeoutMs)
+    }, timeoutMs, deadline)
     const data = parseJson(text)
     const parts = readPath(data, ['candidates', 0, 'content', 'parts'])
     if (Array.isArray(parts)) {
@@ -327,7 +389,7 @@ export async function visionComplete(config: AiConfig, prompt: string, dataUrl: 
           { type: 'text', text: prompt },
         ],
       }],
-    }, timeoutMs)
+    }, timeoutMs, deadline)
     const data = parseJson(text)
     const content = readPath(data, ['content'])
     if (Array.isArray(content)) {
@@ -343,7 +405,7 @@ export async function visionComplete(config: AiConfig, prompt: string, dataUrl: 
       messages: [{ role: 'user', content: prompt, images: [image.base64] }],
       stream: false,
       options: { temperature: 0.2, num_predict: maxTokens },
-    }, timeoutMs)
+    }, timeoutMs, deadline)
     const data = parseJson(text)
     const content = readPath(data, ['message', 'content'])
     if (typeof content === 'string' && content.trim()) return content
@@ -361,7 +423,7 @@ export async function visionComplete(config: AiConfig, prompt: string, dataUrl: 
         { type: 'image_url', image_url: { url: dataUrl } },
       ],
     }],
-  }, timeoutMs)
+  }, timeoutMs, deadline)
   const data = parseJson(text)
   const content = readPath(data, ['choices', 0, 'message', 'content'])
   if (typeof content === 'string' && content.trim()) return content
@@ -379,12 +441,15 @@ const FALLBACK_CODES = new Set(['not_found', 'invalid_input', 'forbidden', 'upst
 export async function completeWithFallback(
   config: AiConfig,
   messages: AiMessage[],
-  options: { maxTokens?: number; temperature?: number; imageDataUrl?: string } = {},
+  options: { maxTokens?: number; temperature?: number; imageDataUrl?: string; deadline?: Deadline } = {},
 ): Promise<{ content: string; model: string; fallbackUsed: boolean }> {
+  // One budget for the primary model *and* the fallback retry, so the two runs
+  // together stay inside the platform's function ceiling.
+  const deadline = options.deadline ?? newDeadline()
   const run = (model: string) =>
     options.imageDataUrl
-      ? visionComplete({ ...config, model }, messages.map((message) => message.content).join('\n\n'), options.imageDataUrl, { maxTokens: options.maxTokens })
-      : chatComplete({ ...config, model }, messages, { maxTokens: options.maxTokens, temperature: options.temperature })
+      ? visionComplete({ ...config, model }, messages.map((message) => message.content).join('\n\n'), options.imageDataUrl, { maxTokens: options.maxTokens, deadline })
+      : chatComplete({ ...config, model }, messages, { maxTokens: options.maxTokens, temperature: options.temperature, deadline })
 
   try {
     return { content: await run(config.model), model: config.model, fallbackUsed: false }
@@ -415,20 +480,23 @@ export interface ProviderVerification {
   note?: string
 }
 
-export async function verifyProviderAuth(config: AiConfig): Promise<ProviderVerification> {
+export async function verifyProviderAuth(config: AiConfig, options: { deadline?: Deadline } = {}): Promise<ProviderVerification> {
   await validateAiEndpoint(config.baseUrl)
   const started = Date.now()
+  // The keyed and keyless catalog reads below share one budget, so the whole
+  // verification can never outlive the platform's function ceiling.
+  const deadline = options.deadline ?? newDeadline()
   if (config.provider === 'openrouter') {
     const response = await fetchText(endpoint(config.baseUrl, 'key'), {
       headers: authHeaders(config),
-      timeoutMs: 15000,
+      timeoutMs: attemptTimeout(deadline, 15000),
       maxBytes: 512 * 1024,
     })
     if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return { latencyMs: Date.now() - started, keyVerified: true }
   }
   if (config.provider === 'ollama') {
-    const response = await fetchText(endpoint(config.baseUrl, 'api/tags'), { timeoutMs: 10000, maxBytes: 2 * 1024 * 1024 })
+    const response = await fetchText(endpoint(config.baseUrl, 'api/tags'), { timeoutMs: attemptTimeout(deadline, 10000), maxBytes: 2 * 1024 * 1024 })
     if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return {
       latencyMs: Date.now() - started,
@@ -438,13 +506,13 @@ export async function verifyProviderAuth(config: AiConfig): Promise<ProviderVeri
     }
   }
   // OpenAI-compatible, Anthropic and Gemini all require auth on their model list.
-  const models = await listModels(config)
+  const models = await listModels(config, { deadline })
   if (models.length === 0 && config.model) {
     throw new HttpError(422, 'not_found', 'Authentication succeeded but the model catalog is empty or unreadable.')
   }
   // A second fetch with no credential distinguishes a real authentication from
   // an open catalog; a failure here simply means the catalog is not public.
-  const publicCatalog = await listModels({ ...config, apiKey: '' })
+  const publicCatalog = await listModels({ ...config, apiKey: '' }, { deadline })
     .then((entries) => entries.length > 0)
     .catch(() => false)
   if (publicCatalog) {
@@ -477,16 +545,17 @@ function formatPricing(record: Record<string, unknown>): string | undefined {
   return parts.length ? parts.join(' · ') : undefined
 }
 
-export async function listModels(config: AiConfig): Promise<LiveModelInfo[]> {
+export async function listModels(config: AiConfig, options: { deadline?: Deadline } = {}): Promise<LiveModelInfo[]> {
   await validateAiEndpoint(config.baseUrl)
   const headers = authHeaders(config)
   const url = endpoint(config.baseUrl, config.provider === 'ollama' ? 'api/tags' : 'models')
+  const deadline = options.deadline
 
   const data = await withRetry(async () => {
-    const response = await fetchText(url, { headers, timeoutMs: 20000, maxBytes: 4 * 1024 * 1024 })
+    const response = await fetchText(url, { headers, timeoutMs: attemptTimeout(deadline, 20000), maxBytes: 4 * 1024 * 1024 })
     if (!response.ok) throw mapUpstreamStatus(response.status, response.text.slice(0, 300), config.apiKey)
     return parseJson(response.text)
-  })
+  }, 2, deadline)
 
   if (config.provider === 'ollama') {
     const models = readPath(data, ['models'])

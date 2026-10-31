@@ -38,6 +38,21 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   `/api/net/path`, so Vercel would have served a 404 for both while Netlify and dev worked.
   Regenerated with `npm run build:vercel-api` (~1.17 MB, 22 routes). **Verified** by grep of the
   regenerated bundle. (Finding H-5.)
+- **W2 · H-4 request budget** (first item of the platform wave): the AI layer no longer lets the
+  platform kill it. One `Deadline` (`PLATFORM_BUDGET_MS = 50_000`, `netlify/lib/ai.ts:157`) now wraps
+  every completion: each upstream attempt gets `min(AI_TIMEOUT_MS, budget left)`, a budget too spent
+  to answer returns a structured `504 timeout` **before** any request goes out, a transient failure
+  stops retrying once another attempt cannot fit (and reports the real cause — 429 stays 429, it is
+  not disguised as a timeout), and the model fallback runs inside the primary model's budget instead
+  of starting a fresh 60 s. `/api/ai/test` shares one budget across credential verification and the
+  catalog read, which could previously reach ~90 s. `.env.example` documents the clamp.
+  **Verified**: `npm run typecheck` 0 errors; `npm run lint` 0 errors / 19 warnings; `npm test`
+  50 files / 490 tests in 10.53 s (new: `describe('request budget')` 6 cases in
+  `tests/ai-adapter.test.ts` 20 → 26 — the abort-timer clamp is asserted by capturing the real
+  `setTimeout` call, not by reading the code); `npm run build` 464 ms.
+  **Not verified**: no live provider was made to hang for 50 s, so the budget has only been proven
+  against mocked fetches. Nothing here is deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -116,7 +131,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | H-3 three conflicting upload caps, H-4 per-attempt timeout exceeds the 60 s platform ceiling, H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
+| W2 platform | **H-4 fixed locally** (shared 50 s request budget, 6 tests — see the batch above; not deployed). Open: H-3 three conflicting upload caps, H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
