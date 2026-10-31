@@ -206,7 +206,7 @@ export const en = {
   'experience.expert': 'Expert',
   'lab.priority': 'Priority',
   'lab.image': 'Screenshot',
-  'lab.imageHint': 'PNG, JPG or WEBP up to 4 MB. Screenshots are sent to your AI provider only when you analyze.',
+  'lab.imageHint': 'PNG, JPG or WEBP up to 3 MB. Screenshots are sent to your AI provider only when you analyze.',
   'lab.imagePrivacy': 'The image is held in this browser tab and discarded when you remove it or close the tab.',
   'lab.removeImage': 'Remove image',
   'lab.analyze': 'Analyze problem',

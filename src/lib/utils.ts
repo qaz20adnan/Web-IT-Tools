@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { MAX_IMAGE_BYTES } from '../../shared/upload-limits'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
@@ -67,7 +68,8 @@ export function downloadTextFile(filename: string, content: string, mime = 'text
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+export { MAX_IMAGE_BYTES }
+
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const SIGNATURES: Array<{ type: string; bytes: number[] }> = [
   { type: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },

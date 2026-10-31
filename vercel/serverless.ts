@@ -9,6 +9,9 @@ import {
   type NetlifyEvent,
   type NetlifyResponse,
 } from '../netlify/lib/http'
+// Vercel rejects larger payloads at the edge with 413 FUNCTION_PAYLOAD_TOO_LARGE before the
+// function runs; the same cap is what every handler may assume, so it lives in one file.
+import { MAX_BODY_BYTES } from '../shared/upload-limits'
 
 /**
  * Vercel Functions receive a Node (req, res) pair while every handler in
@@ -19,10 +22,6 @@ import {
  * One function serves the whole /api tree: Vercel's Hobby plan allows at most
  * 12 functions per deployment and the platform has 22 routes.
  */
-
-// Vercel rejects larger payloads at the edge with 413 FUNCTION_PAYLOAD_TOO_LARGE
-// before the function runs; the guard keeps local builds behaving the same way.
-const MAX_BODY_BYTES = 4.5 * 1024 * 1024
 
 /** Public path after `/api/`, as declared in api/index.ts. */
 export type RouteTable = Record<string, Handler>

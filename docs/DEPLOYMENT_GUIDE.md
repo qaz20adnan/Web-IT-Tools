@@ -151,7 +151,7 @@ curl -sI $B/ | grep -iE "content-security|strict-transport|x-frame|x-content-typ
 | 6 | `/api/news` | items present, real publisher URLs | PASS (7.16 s cold) |
 | 7 | register → verify email → login | session issued, profile row created, trial started | **BLOCKED** (D5: no mailbox walked; SMTP not configured) |
 | 8 | real AI chat + analyze with a key | a completion, sources labelled as model-asserted vs searched | **BLOCKED** (D4/D6) |
-| 9 | upload at 4 MB and at 6 MB | one accepted, one structured "too large" (not a raw 413) | **NOT TESTED**; H-3 says the friendly message cannot fire on Vercel |
+| 9 | upload at 3 MB and above 3 MB | one accepted, one structured "exceeds the 3 MB limit" (not a raw 413) | **NOT TESTED in a browser**; H-3 is now single-sourced in `shared/upload-limits.ts` and covered by `tests/upload-limits.test.ts` — a real upload on both hosts is still owed (W5) |
 | 10 | second account cannot read the first one's workspace case | 404/403, empty list | **BLOCKED** (needs 2 sessions + D7) |
 | 11 | `/admin` invisible to member, tabs correct for staff | server rejects the API call too, not just the UI | **BLOCKED** (needs sessions) |
 | 12 | `/toolkit`, `/copilot`, `/diagnostics` load on a phone width | no clipped tables, no blank shell | **NOT TESTED** (M-17, H-9) |
@@ -164,7 +164,7 @@ Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Current measured state: all four PASS (0 lint errors / 19 warnings; 490 tests in 50 files; 464 ms
+Current measured state: all four PASS (0 lint errors / 19 warnings; 496 tests in 51 files; 524 ms
 build). If `npm run build` fails, nothing downstream is deployable — that is how the site sat broken
 for four days before 2026-10-31.
 

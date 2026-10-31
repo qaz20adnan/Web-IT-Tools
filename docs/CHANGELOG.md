@@ -38,6 +38,23 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   `/api/net/path`, so Vercel would have served a 404 for both while Netlify and dev worked.
   Regenerated with `npm run build:vercel-api` (~1.17 MB, 22 routes). **Verified** by grep of the
   regenerated bundle. (Finding H-5.)
+- **W2 · H-3 upload caps** (same wave): the screenshot path no longer has four different opinions
+  about size. `shared/upload-limits.ts` is now the single owner — a **3 MB** image, which becomes
+  ≈4 MB of base64 and ≈4.1 MB of JSON body, under the 4.5 MB ceiling the Vercel bridge enforces
+  before any handler runs. `src/lib/utils.ts`, `netlify/lib/schema.ts`, `parseImageDataUrl()`,
+  `ai-analyze`, `content-admin` and `vercel/serverless.ts` all import those constants instead of
+  writing their own number (the server previously allowed an 8 MB body the platform would never
+  deliver, and content-admin a 5 MB body the bridge rejected first). The EN and AR upload hints now
+  state 3 MB, matching what the code enforces — the promise and the limit can no longer disagree,
+  because a test reads both.
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npm test` 51 files / 496 tests in
+  12.46 s (new `tests/upload-limits.test.ts` 6 tests; `ai-adapter` 20 → 26 from the H-4 batch);
+  `npm run build` 524 ms; `npm run build:vercel-api` regenerated and the bundle contains
+  `3 * 1024 * 1024` + `4.5 * 1024 * 1024`. **Mutation-checked**: setting the cap back to 4 MB fails
+  2 of the 6 new tests, so they are not vacuous.
+  **Not verified**: no real browser upload against a live provider — that stays on the W5 checklist.
+  Not deployed.
+
 - **W2 · H-4 request budget** (first item of the platform wave): the AI layer no longer lets the
   platform kill it. One `Deadline` (`PLATFORM_BUDGET_MS = 50_000`, `netlify/lib/ai.ts:157`) now wraps
   every completion: each upstream attempt gets `min(AI_TIMEOUT_MS, budget left)`, a budget too spent
@@ -131,7 +148,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **H-4 fixed locally** (shared 50 s request budget, 6 tests — see the batch above; not deployed). Open: H-3 three conflicting upload caps, H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
+| W2 platform | **H-4 and H-3 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap — see the two batches above; neither deployed). Open: H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

@@ -144,7 +144,7 @@ The current design is sound. Four items are worth real engineering; everything e
 | # | Change | Why | Cost / risk |
 | --- | --- | --- | --- |
 | W-1 | Single error/response map shared by all handlers (fold `netlify/lib/net-errors.ts` + the ad-hoc `jsonError` calls into one module) | 6 handlers invent their own shapes; clients can't branch reliably (H-10) | low; contained in `netlify/lib` |
-| W-2 | One body-reading + timeout utility used by dev, Netlify and Vercel adapters | the 4.5 MB Vercel cap and the 60 s budget are currently expressed three times (H-3, H-4) | low |
+| W-2 | One body-reading + timeout utility used by dev, Netlify and Vercel adapters | the 4.5 MB Vercel cap and the 60 s budget were expressed three times (H-3, H-4). **Partly landed**: `shared/upload-limits.ts` is now the single body/image ceiling and `netlify/lib/ai.ts` owns one 50 s `Deadline` per request; what remains is folding the dev adapter's own reading of those values into the same utility | low |
 | W-3 | Rate limiting moved out of process memory (Supabase RPC table + a `usage_events`-backed window) | an in-memory bucket resets on every cold start and is spoofable through `x-forwarded-for` (H-8, M-1) | medium; needs a migration + backfill plan → owner approval |
 | W-4 | Split `src/services/api.ts` (650 lines) by domain and add tests around it | it is the only module with zero test coverage and every page depends on it | low; mechanical |
 

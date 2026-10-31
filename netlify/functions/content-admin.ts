@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { serverConfig } from '../lib/env'
 import { HttpError, json, readJsonBody, requireMethod, wrap, header, type Handler } from '../lib/http'
 import { supabaseAdminConfigured, supabaseDelete, supabaseSelect, supabaseUpsert } from '../lib/supabase'
+import { MAX_BODY_BYTES } from '../../shared/upload-limits'
 
 const articleSchema = z.object({
   id: z.string().trim().min(1).max(120),
@@ -56,7 +57,7 @@ export const handler: Handler = wrap(async (event) => {
     return json(200, { ok: true, id })
   }
 
-  const parsed = payloadSchema.safeParse(readJsonBody(event, 5 * 1024 * 1024))
+  const parsed = payloadSchema.safeParse(readJsonBody(event, MAX_BODY_BYTES))
   if (!parsed.success) {
     throw new HttpError(400, 'invalid_input', parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '))
   }

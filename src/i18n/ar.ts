@@ -208,7 +208,7 @@ export const ar: Record<TranslationKey, string> = {
   'experience.expert': 'خبير',
   'lab.priority': 'الأولوية',
   'lab.image': 'لقطة شاشة',
-  'lab.imageHint': 'PNG أو JPG أو WEBP بحجم أقصى 4 ميجابايت. تُرسل الصورة إلى مزود الذكاء الاصطناعي عند التحليل فقط.',
+  'lab.imageHint': 'PNG أو JPG أو WEBP بحجم أقصى 3 ميجابايت. تُرسل الصورة إلى مزود الذكاء الاصطناعي عند التحليل فقط.',
   'lab.imagePrivacy': 'تبقى الصورة في هذه النافذة وتُحذف عند إزالتها أو إغلاق التبويب.',
   'lab.removeImage': 'إزالة الصورة',
   'lab.analyze': 'تحليل المشكلة',

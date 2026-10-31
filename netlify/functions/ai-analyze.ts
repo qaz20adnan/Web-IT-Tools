@@ -5,11 +5,12 @@ import { extractJsonObject } from '../lib/json'
 import { analysisPrompt } from '../lib/prompts'
 import { enforceRateLimit } from '../lib/rate'
 import { analysisSchema, analyzeRequestSchema, flattenZod } from '../lib/schema'
+import { MAX_BODY_BYTES } from '../../shared/upload-limits'
 
 export const handler: Handler = wrap(async (event, context) => {
   requireMethod(event, ['POST'])
   enforceRateLimit(`analyze:${clientIp(event, context)}`, 10)
-  const parsed = analyzeRequestSchema.safeParse(readJsonBody(event, 8 * 1024 * 1024))
+  const parsed = analyzeRequestSchema.safeParse(readJsonBody(event, MAX_BODY_BYTES))
   if (!parsed.success) throw new HttpError(400, 'invalid_input', flattenZod(parsed.error))
 
   const input = parsed.data.input

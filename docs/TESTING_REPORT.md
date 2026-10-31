@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 50 files, 490 tests, 0 failed, 10.53 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 464 ms (entry chunk 745.57 kB min / 231.86 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 51 files, 496 tests, 0 failed, 12.46 s wall |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 524 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
 | Vercel API bundle | `npm run build:vercel-api` | LOCAL | **PASS** | `api/index.js` ≈1.17 MB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,7 +24,7 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 490 tests actually cover
+## 2. What the 496 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 26 · permissions 19 ·
@@ -51,6 +51,10 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
 - `tests/gemini-research.test.ts` (23) — grounding citation parsing and `redact()`.
+- `tests/upload-limits.test.ts` (6) — one image cap across browser, schema, handlers and the Vercel
+  bridge: it checks the base64 inflation really fits the body cap, runs a too-large file through
+  `validateImageFile`, and reads the EN/AR upload hint so the promised number cannot drift from the
+  enforced one. **Mutation-checked**: restoring the old 4 MB cap fails 2 of the 6.
 - `tests/ai-adapter.test.ts` → `describe('request budget')` (6) — the 50 s shared AI deadline: the
   clamped value really reaches the upstream abort timer, a spent budget returns a structured
   `504 timeout` without sending a request, retries stop instead of overrunning, and the model
@@ -106,7 +110,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Metric | Environment | Value | Verdict |
 | --- | --- | --- | --- |
 | Vite production build time | LOCAL | 573 ms | PASS |
-| Entry chunk | LOCAL | 745.57 kB min / **231.86 kB gzip** (`index-go51urGm.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18 |
+| Entry chunk | LOCAL | 745.57 kB min / **231.85 kB gzip** (`index-go51urGm.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18 |
 | Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.12 kB gzip | WARN — 43 tools statically imported |
 | `utils` shared chunk | LOCAL | 171.66 kB / 53.68 kB gzip | INFO |
 | Total JS emitted | LOCAL | 61 chunks, ≈1.9 MB minified (2.1 MB in `dist/assets`) | PASS (splitting works; the problem is only the entry) |

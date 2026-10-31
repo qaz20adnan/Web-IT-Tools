@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_IMAGE_DATA_URL_CHARS } from '../../shared/upload-limits'
 
 export const CATEGORIES = [
   'windows-client',
@@ -43,7 +44,7 @@ export const problemInputSchema = z.object({
   recentChange: z.string().max(2000).default(''),
   experience: z.enum(['beginner', 'professional', 'expert']).default('professional'),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
-  imageDataUrl: z.string().max(6 * 1024 * 1024).optional(),
+  imageDataUrl: z.string().max(MAX_IMAGE_DATA_URL_CHARS).optional(),
   imageName: z.string().max(200).optional(),
 })
 

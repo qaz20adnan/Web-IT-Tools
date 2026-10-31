@@ -2,6 +2,7 @@ import { defaultBaseUrl, providerKind, serverConfig, type ProviderKind } from '.
 import { fetchText, mapUpstreamStatus } from './fetch'
 import { header, HttpError, type NetlifyEvent } from './http'
 import { validateAiEndpoint } from './host'
+import { MAX_IMAGE_BYTES, MAX_IMAGE_MB_LABEL } from '../../shared/upload-limits'
 
 export interface AiConfig {
   provider: ProviderKind
@@ -346,7 +347,7 @@ function parseImageDataUrl(dataUrl: string): ImagePayload {
   const match = dataUrl.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/)
   if (!match) throw new HttpError(400, 'invalid_input', 'The image must be a PNG, JPEG, WebP or GIF data URL.')
   const bytes = Math.floor((match[2].length * 3) / 4)
-  if (bytes > 4 * 1024 * 1024) throw new HttpError(413, 'payload_too_large', 'The image exceeds the 4 MB limit.')
+  if (bytes > MAX_IMAGE_BYTES) throw new HttpError(413, 'payload_too_large', `The image exceeds the ${MAX_IMAGE_MB_LABEL} limit.`)
   return { mediaType: match[1], base64: match[2] }
 }
 
