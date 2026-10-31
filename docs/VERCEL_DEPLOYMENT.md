@@ -101,7 +101,7 @@ auth on Vercel goes through Supabase exactly as it does on Netlify.
 ## Deploy
 
 ```bash
-npm run build && npm run build:vercel-api    # what CI/CD runs, via vercel.json
+npm run build                              # includes build:vercel-api, via package.json
 npx vercel deploy --yes                      # preview deployment (remote build)
 npm run deploy:vercel                        # production, only when decided
 ```

@@ -185,8 +185,11 @@ describe('Vercel route table', () => {
     const apiRewrite = config.rewrites[0]
     expect(apiRewrite.source).toBe('/api/:match*')
     expect(apiRewrite.destination).toBe('/api/index?_fn=/:match*')
-    // The bundle step must run in the same build so Vercel finds api/index.js.
-    expect(config.buildCommand).toContain('build:vercel-api')
+    // The bundle step must run inside `npm run build` so Vercel finds api/index.js
+    // and a local build can never leave a stale bundle behind.
+    expect(config.buildCommand).toBe('npm run build')
+    const scripts = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts
+    expect(scripts.build).toContain('build:vercel-api')
     expect(readFileSync(join(ROOT, '.gitignore'), 'utf8').split('\n')).toContain('/api')
     expect(config.functions['api/index.js'].maxDuration).toBe(60)
     // Vercel rejects the whole config with "should NOT have additional property

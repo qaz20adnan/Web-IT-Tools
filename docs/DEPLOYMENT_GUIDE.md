@@ -50,8 +50,8 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Setting | Value | File |
 | --- | --- | --- |
 | Framework | Vite (SPA) — **not Next.js** | `vercel.json:3`, `vite.config.ts` |
-| Build command (Netlify) | `npm run build` (= `tsc --noEmit && vite build`) | `netlify.toml:2` |
-| Build command (Vercel) | `npm run build && npm run build:vercel-api` | `vercel.json:4` |
+| Build command (Netlify) | `npm run build` (= `tsc --noEmit && vite build && npm run build:vercel-api`) | `netlify.toml:2`, `package.json:14` |
+| Build command (Vercel) | `npm run build` (same script; the API bundle is part of it) | `vercel.json:4` |
 | Output directory | `dist` | `netlify.toml:3`, `vercel.json:5` |
 | Install | `npm ci --no-audit --no-fund` | `vercel.json:6` |
 | Functions | `netlify/functions` (22 flat files, esbuild bundler) | `netlify.toml:4,11-14` |
@@ -61,8 +61,11 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 **Two structural traps, both already bitten once:**
 - Nested function folders do not work on Netlify. Handlers stay flat and `/api/*` redirects stay
   explicit, with the specific rules above the `/api/*` wildcard (`netlify.toml:19-118`).
-- `api/index.js` is generated. Vercel's build command regenerates it; if you ever build Vercel by
-  hand or add a route and forget the second command, Vercel silently serves a stale API (H-5).
+- `api/index.js` is generated. It is no longer a second command to remember: `npm run build`
+  ends with `build:vercel-api`, so every build — local or on Vercel — regenerates it (H-5). Before
+  this, building by hand or forgetting the second command left Vercel silently serving a stale API.
+  `tests/route-parity.test.ts` additionally fails `npm test` if a route exists on one host but not
+  another; there is no CI here, so that check only runs when the suite is run locally.
 
 ## 4. Deploy path A — Netlify (the working host)
 
@@ -164,9 +167,9 @@ Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Current measured state: all four PASS (0 lint errors / 19 warnings; 496 tests in 51 files; 524 ms
-build). If `npm run build` fails, nothing downstream is deployable — that is how the site sat broken
-for four days before 2026-10-31.
+Current measured state: all four PASS (0 lint errors / 19 warnings; 500 tests in 52 files; 467 ms
+build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
+deployable — that is how the site sat broken for four days before 2026-10-31.
 
 ## 9. Rollback
 

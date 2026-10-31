@@ -70,6 +70,31 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Not verified**: no live provider was made to hang for 50 s, so the budget has only been proven
   against mocked fetches. Nothing here is deployed.
 
+- **W2 · H-5 stale-bundle guard** (closes the earlier "Stale Vercel API bundle" fix above so it
+  cannot happen again). Two independent holes were involved, not one:
+  1. the bundle itself — `npm run build` was `tsc --noEmit && vite build` and the `api/index.js`
+     rebuild lived only in `vercel.json`. Any local build, Netlify build or hand-run deploy left a
+     bundle behind that no longer matched source (measured again during this work: `api/index.js`
+     built 04:17, `vercel/dispatcher.ts` changed 04:34). Now `package.json:14` ends with
+     `build:vercel-api` and `vercel.json:4` is just `npm run build`, so there is one definition of
+     "a build" and forgetting a step is no longer possible.
+  2. the route list — the only tests that knew the 22 API paths carried a hand-copied array, so a
+     route added to `netlify/functions/` but missed in the dispatcher could pass anyway.
+     `tests/route-parity.test.ts` (new, 4 tests) derives the expected tree from
+     `netlify/functions/*.ts` + the explicit `netlify.toml` redirects and checks it against
+     `vercel/dispatcher.ts`, against the dev plugin's `<path>.ts` / `<path with / → ->.ts` lookup,
+     against the wildcard ordering in `netlify.toml`, and against every `'/api/…'` literal under
+     `src/` (walked recursively, so a `fetch` added to a page is caught, not just the service module).
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npm test` 52 files / 500 tests in
+  12.74 s; `npm run build` 467 ms + `api/index.js` 1179 kB. **Mutation-checked**: removing
+  `'net/path'` from the dispatcher fails 2 of the 4 parity tests, a fake
+  `'/api/net/nonexistent'` added to `SettingsPage.tsx` fails the frontend scan, and `npm run build`
+  without the bundle step fails the `vercel-bridge` pipeline test — all three restored afterwards.
+  **Not verified / limitation**: this repository has **no CI** (`.github/`, `.gitlab-ci.yml`,
+  `.circleci` all absent), so the parity guard only runs when someone runs `npm test` by hand; and
+  `vercel dev` against a bundle built before the last source edit still needs the rebuild that now
+  happens in `npm run build`. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -148,7 +173,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **H-4 and H-3 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap — see the two batches above; neither deployed). Open: H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
+| W2 platform | **H-4, H-3 and H-5 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test — see the three batches above; none deployed). Open: M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

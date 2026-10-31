@@ -15,16 +15,16 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 51 files, 496 tests, 0 failed, 12.46 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 524 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
-| Vercel API bundle | `npm run build:vercel-api` | LOCAL | **PASS** | `api/index.js` ≈1.17 MB, 22 routes |
+| Tests | `npm test` | LOCAL | **PASS** | 52 files, 500 tests, 0 failed, 12.74 s wall |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 467 ms (entry chunk 745.57 kB min / 231.85 kB gzip) |
+| Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
 
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 496 tests actually cover
+## 2. What the 500 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 26 · permissions 19 ·
@@ -46,7 +46,13 @@ Frontend: 27 `src/lib/*` pure modules and 5 tool/UI files render under test (`to
 the only reference to it is `vi.mock('@/services/api')` in `tests/copilot-research.test.tsx:42`.
 
 Notable behavioural tests that exist and pass (these are the ones worth keeping honest):
-- `tests/vercel-bridge.test.ts` (16) — the req/res→Lambda adapter, body cap, header mapping.
+- `tests/vercel-bridge.test.ts` (16) — the req/res→Lambda adapter, body cap, header mapping, and
+  that `npm run build` itself contains the bundle step (so Vercel cannot be handed a stale `api/`).
+- `tests/route-parity.test.ts` (4) — the same `/api` tree on all three hosts: the route list is
+  derived from `netlify/functions/*.ts` + `netlify.toml`, then compared with `vercel/dispatcher.ts`,
+  the dev plugin's file lookup, and every `'/api/…'` literal under `src/` (scanned recursively).
+  **Mutation-checked**: dropping `net/path` from the dispatcher fails 2 of the 4, and a fake
+  `'/api/net/nonexistent'` added to a page fails the frontend scan.
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
@@ -83,7 +89,7 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
 | `https://adnan-tech.vercel.app` | VPROD | **FAIL** — `DEPLOYMENT_NOT_FOUND`; the hostname has never been assigned to this project (C-2) |
 | `/api/health` | VPREV | **PARTIAL PASS** — 200 but `database.configured=false`, `contentAdmin.configured=false` → zero Supabase env vars on the Vercel project (C-3) |
 | Anonymous `GET /` | VPREV | **PASS as configured** — 302 to `vercel.com/sso-api`; Deployment Protection is ON. Left ON deliberately: it is the owner's stated preference not to make previews public |
-| Stale bundle check | LOCAL | **FIXED + PASS** — `api/index.js` was missing `/api/net/latency` and `/api/net/path`; regenerated, both now resolve (H-5) |
+| Stale bundle check | LOCAL | **FIXED + PASS** — `api/index.js` was missing `/api/net/latency` and `/api/net/path`; regenerated, both now resolve. The recurrence path is closed: `npm run build` regenerates the bundle, and `tests/route-parity.test.ts` fails if a route exists on one host and not another (H-5). **No CI exists**, so that guard only runs when the suite is run by hand |
 | Dev API plugin, `/api/*` in-process | LOCAL | **PASS** — handlers run inside Vite via `scripts/dev-api-plugin.ts`; auth uses the file store, not Supabase (`.env.local` has no Supabase vars) |
 | Supabase-backed flows from LOCAL | LOCAL | **BLOCKED** — no `SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY` locally, so every RLS/admin/email test needs either the owner's env pull or a seeded test project (owner action D1/D2) |
 | Any AI answer end-to-end (chat, analyze, script, grounded search) | NETLIVE, VPREV | **BLOCKED** — `ai.configured=false`; no provider key on either host (owner action D6) |

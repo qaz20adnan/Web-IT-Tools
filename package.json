@@ -11,7 +11,7 @@
     "dev": "vite",
     "dev:netlify": "netlify dev",
     "dev:vercel": "vercel dev",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:vercel-api",
     "build:vercel-api": "node scripts/build-vercel-api.mjs",
     "preview": "vite preview",
     "env:vercel": "vercel env pull .env.local",

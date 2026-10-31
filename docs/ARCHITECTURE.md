@@ -73,8 +73,12 @@ documented on 2026-10-28 — NOT RE-TESTED from this account), and `vercel.json`
 
 **Consequence to remember:** `api/index.js` is generated. If it is not rebuilt, Vercel silently
 serves an older API (finding H-5: the bundle was stale and missing `/api/net/latency` and
-`/api/net/path`). `vercel.json` does chain `build:vercel-api`, so the fix is to never build Vercel
-by hand.
+`/api/net/path`). As of H-5 the rebuild is structural, not a habit to remember: `npm run build`
+itself ends with `build:vercel-api`, so any build — local or on Vercel — regenerates the bundle,
+and `vercel.json` is only `npm run build`. `tests/route-parity.test.ts` derives the route list from
+`netlify/functions/*.ts` + `netlify.toml` and compares it with `vercel/dispatcher.ts`, so a route
+that exists on one host and not another fails `npm test`. There is no CI in this repository, so
+that guard only runs when someone runs the suite locally.
 
 ### 3.2 Library layer (the parts that matter)
 
