@@ -42,13 +42,16 @@ export class HttpError extends Error {
   statusCode: number
   code: HttpCode
   detail?: string
+  /** Sent as `Retry-After` so the browser can count down instead of guessing. */
+  retryAfterSeconds?: number
 
-  constructor(statusCode: number, code: HttpCode, message: string, detail?: string) {
+  constructor(statusCode: number, code: HttpCode, message: string, detail?: string, retryAfterSeconds?: number) {
     super(message)
     this.name = 'HttpError'
     this.statusCode = statusCode
     this.code = code
     this.detail = detail
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -69,13 +72,18 @@ export function json(statusCode: number, payload: unknown): NetlifyResponse {
 
 export function errorResponse(error: unknown): NetlifyResponse {
   if (error instanceof HttpError) {
-    return json(error.statusCode, {
+    const response = json(error.statusCode, {
       error: {
         code: error.code,
         message: error.message,
         ...(error.detail ? { detail: error.detail.slice(0, 500) } : {}),
       },
     })
+    // Spread, never assign: json() hands back the shared BASE_HEADERS object.
+    if (error.retryAfterSeconds !== undefined) {
+      response.headers = { ...response.headers, 'Retry-After': String(error.retryAfterSeconds) }
+    }
+    return response
   }
   // An unexpected throw can carry an internal message (paths, keys, upstream bodies).
   // It is logged by wrap(); it never travels to the browser.

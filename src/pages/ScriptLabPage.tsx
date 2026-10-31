@@ -43,7 +43,8 @@ import { useHealth } from '@/hooks/useHealth'
 import { useToast } from '@/context/ToastContext'
 import { SCRIPT_TEMPLATES } from '@/data/scripts'
 import { getDomain } from '@/data/domains'
-import { ApiError, generateScript, reviewScript } from '@/services/api'
+import { generateScript, reviewScript } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { scanScript, highestRisk, type ScanFinding } from '@/lib/scriptScan'
 import { buildScriptExport, duplicateScript, filterScripts, parseScriptImport } from '@/lib/scriptLibrary'
 import { downloadTextFile, uid } from '@/lib/utils'
@@ -220,8 +221,7 @@ export function ScriptLabPage() {
       const response = await generateScript(prompt.trim(), genLanguage, credentials)
       setGenerated(response)
     } catch (caught) {
-      const apiError = caught instanceof ApiError ? caught : null
-      setGenError(apiError?.message ?? (caught instanceof Error ? caught.message : t('errors.generic')))
+      setGenError(describeError(caught, settings.language, t('errors.generic')))
     } finally {
       setGenerating(false)
     }
@@ -236,8 +236,7 @@ export function ScriptLabPage() {
       const response = await reviewScript(reviewCode, genLanguage, credentials)
       setAiReview(response.feedback)
     } catch (caught) {
-      const apiError = caught instanceof ApiError ? caught : null
-      setReviewError(apiError?.message ?? (caught instanceof Error ? caught.message : t('errors.generic')))
+      setReviewError(describeError(caught, settings.language, t('errors.generic')))
     } finally {
       setReviewing(false)
     }

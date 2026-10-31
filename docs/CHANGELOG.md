@@ -236,6 +236,83 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Not verified**: no page was made to throw in a running browser, so "the sidebar stays usable after
   a crash" is proven in jsdom, not on a screen. Not deployed.
 
+- **W4 · H-10a `Retry-After` end to end + one 401 refresh-and-replay**: the rate limiter already
+  computed the exact window and then threw it away into a sentence. `enforceRateLimit`
+  (`netlify/lib/rate.ts:25`) now passes the seconds to `HttpError`, which carries them as an optional
+  `retryAfterSeconds`, and `errorResponse` emits `Retry-After`. The emission **spreads** rather than
+  assigns: `json()` returns the shared module-level `BASE_HEADERS` object by reference, so writing
+  `response.headers['Retry-After'] = …` would have stuck the header on every later response served by
+  that warm instance — a test asserts the base object is still clean afterwards.
+  On the client, `ApiError` gained `retryAfterSeconds` and `parseRetryAfter()` reads both RFC 9110
+  §10.2.3 forms (delta-seconds and HTTP-date), ignores what it cannot parse and clamps to 24 h.
+  `src/services/api.ts` also gained `setUnauthorizedHandler()`, registered by `AuthProvider`: a 401 on
+  the **ambient** session token now refreshes once and replays, because the scheduled refresh only
+  fires while the tab is awake and a laptop that sleeps past the expiry leaves every later call dead
+  until a reload. Replaying is safe here rather than merely convenient — every handler calls
+  `authenticate(event)` before `readJsonBody` and before any mutation, so a 401 applied nothing. Four
+  guards keep it that way: one retry only (`replayed`), never `/api/auth/*` (there a 401 *is* the
+  answer), never a caller-supplied `adminToken`/`accessToken` (that caller refreshed on purpose, and
+  replaying a hand-driven mutation is not this layer's decision), never a guest who had no token to
+  lapse, and never a 403 (refreshing cannot widen a role). A burst of parallel 401s costs one refresh
+  call, not one per request, because `refreshTokens` already dedupes through `refreshRef`. The
+  bootstrap's own 401 retry in `AuthContext` was deliberately left alone: it passes an explicit token
+  and runs before any handler exists.
+  **Not verified**: no browser was left idle past an expiry, so the lapse-and-recover path is proven
+  against a stubbed `fetch`, not against a live Supabase session.
+
+- **W4 · H-10b one error mapping**: the audit called this "three divergent `errorMessage()`
+  implementations". It was worse — ~45 catch sites in 20 files using at least 8 different shapes, and
+  a complete bilingual `errors.<code>` dictionary in `src/i18n` that **nothing consumed**, which is
+  exactly why a visitor saw `Authentication is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY
+  on the server.`
+  `src/services/apiError.ts` is now the single `describeError(error, lang, fallback)`, adopted at 43
+  call sites across 22 files (the two local `errorMessage()` helpers in `NetworkDiagnosticsPage` and
+  `SecurityLabPage` are deleted; a recursive scan in the test suite fails if another one appears under
+  `src/`, with `src/lib/speedtest.ts` the one documented exception — it maps third-party test-endpoint
+  failures and returns `''` so callers supply a phase-specific default). It lives in `services/`, not
+  `lib/`, because it has to `instanceof` the `ApiError` that `services/api.ts` defines and `lib →
+  services` would invert the one-way dependency rule in `docs/ARCHITECTURE.md` §2 — a rule that held
+  for every other `lib` module but was enforced by nothing, so two structural guards in the same test
+  file now check it (no upward import from `lib`, no React in `services`). Three duplicated
+  `not_configured` branches that named Netlify functions to the visitor were removed
+  (`NetworkLookup` ×2, `PortCheckTool`). `DdnsPortAnalyzer` and `PrinterDiagnostics` keep their
+  `blocked_host` specialisation, because that code covers both "this target is on a LAN" and "probing
+  is switched off here" and only the UI can say which one the person in front of it can act on;
+  `ProviderHubPage`'s `runTest`/`testCard` keep the `message`/`detail` split because the card renders
+  them as two separate fields.
+  **A deliberate limit, not an oversight**: the i18n dictionary is *not* the general source of error
+  text. The server's own `message` wins over a per-code translation, because it is written where the
+  failure is actually understood and is nearly always the more precise of the two — `auth.ts:512`'s
+  "Your daily AI quota is exhausted. Try again tomorrow or use your own provider key." beats any
+  generic "too many requests". Only three cases override it, and each is a message addressed to the
+  wrong reader: `not_configured` names environment variables, a status of `0` never reached a server
+  that could describe it, and a `Retry-After` window is a number to count down from rather than a
+  sentence to re-read. The 429 override is gated on `status === 429` **and** a parsed window, so the
+  quota message above keeps its wording. `detail` is appended after one `—` except for four codes
+  (`invalid_credentials`, `email_not_verified`, `already_exists`, `unauthorized`) where it is the
+  identity provider restating the message in jargon ("invalid_grant", "Email not confirmed") — noise,
+  not secrecy, since the server already decided every `detail` it sends is browser-safe.
+  Three i18n keys were touched in EN and AR: `errors.network` and `errors.not_configured` generalised,
+  `errors.retryAfter` added with a `{seconds}` placeholder.
+  Four `useCallback`/`useEffect` dependency arrays gained `settings.language` to satisfy
+  `react-hooks/exhaustive-deps` without a suppression. Each was checked rather than assumed: all four
+  already depended on `t`, itself a `useCallback` on `[settings.language]`, and both affected effects
+  open with `if (started.current) return` — so the addition is behaviourally neutral and lint returned
+  to its 16-warning baseline. `useNews` is the counter-example and got a ref instead: its `load` had
+  deps `[]` and no `t`, so a language dependency there would have re-fetched the news on every switch.
+  **Verified**: typecheck 0 errors; lint 0 errors / 16 warnings; `npx vitest run` 56 files / **541**
+  tests in 13.9–19.8 s (`tests/api-error.test.ts` 24 new); `npm run build` 529–663 ms, entry chunk
+  746.76 kB min / 232.20 kB gzip (was 745.57 / 231.85 — the fix costs 1.19 kB min, 0.35 kB gzip).
+  **Mutation-checked** six ways, each reverted and restored from a copy rather than from git:
+  a direct header assignment instead of the spread; dropping the `replayed` flag so a 401 loops;
+  replacing `describeError` with a naive `error.message` (fails 4 of the 8 mapping tests — the fifth
+  needed a second, narrower mutation); removing only the `error.status === 429 &&` gate, which
+  makes a 503 carrying `Retry-After` claim "too many requests"; copying the mapper back to
+  `src/lib/apiError.ts`; and adding a React import to `src/services/localTriage.ts`.
+  **Not verified**: no failure was seen on a screen — no 429 countdown, no `not_configured` surface, no
+  lapse-and-replay. And Arabic copy for the *other* codes still needs the server to emit message keys
+  instead of English prose; the dictionary cannot fix that from the client. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -327,7 +404,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
-| W4 resilience/UX | **H-9 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); still open: H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk. Not deployed |
+| W4 resilience/UX | **H-9 and H-10 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); and one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 22, mutation-checked four ways). Still open: M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232.20 kB gzip entry chunk. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 
 ### Blocked on the owner (no code change will move these)

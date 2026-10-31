@@ -28,6 +28,7 @@ import {
 import { useApp } from '@/context/AppContext'
 import { useToast } from '@/context/ToastContext'
 import { ApiError, probeNetworkPrinter, type PrinterProbeResponse } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { buildPrinterAgentScript } from '@/lib/printer-agent'
 import { downloadTextFile } from '@/lib/utils'
 import { formatDateTime } from '@/i18n'
@@ -78,18 +79,17 @@ export function PrinterDiagnostics() {
     try {
       setResult(await probeNetworkPrinter(target, settings.language))
     } catch (caught) {
-      if (caught instanceof ApiError) {
-        setError(
-          caught.code === 'blocked_host'
-            ? L(
-                'This deployment cannot reach private printers. Run Adnan Tech locally, or enable PRINTER_ALLOW_PRIVATE on a trusted self-hosted server.',
-                'هذا النشر لا يستطيع الوصول إلى الطابعات الخاصة. شغّل منصة عدنان تك محلياً أو فعّل PRINTER_ALLOW_PRIVATE على خادم مستضاف موثوق.',
-              )
-            : caught.message,
-        )
-      } else {
-        setError(L('The printer probe failed.', 'فشل فحص الطابعة.'))
-      }
+      // blocked_host keeps its own wording: it covers both "this target is on a
+      // LAN" and "probing is switched off here", and only the UI can say which
+      // of those the person in front of it can do something about.
+      setError(
+        caught instanceof ApiError && caught.code === 'blocked_host'
+          ? L(
+              'This deployment cannot reach private printers. Run Adnan Tech locally, or enable PRINTER_ALLOW_PRIVATE on a trusted self-hosted server.',
+              'هذا النشر لا يستطيع الوصول إلى الطابعات الخاصة. شغّل منصة عدنان تك محلياً أو فعّل PRINTER_ALLOW_PRIVATE على خادم مستضاف موثوق.',
+            )
+          : describeError(caught, settings.language, L('The printer probe failed.', 'فشل فحص الطابعة.')),
+      )
     } finally {
       setLoading(false)
     }

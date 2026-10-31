@@ -17,7 +17,7 @@ import {
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { downloadTextFile } from '@/lib/utils'
 import { isValidPassword, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/authValidation'
 import { formatDate } from '@/i18n'
@@ -78,7 +78,7 @@ export function AccountPage() {
       await updateProfile(fullName.trim())
       notify('success', t('common.saved'))
     } catch (caught) {
-      setProfileError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setProfileError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setProfileBusy(false)
     }
@@ -107,7 +107,7 @@ export function AccountPage() {
       setConfirmPassword('')
       notify('success', t('auth.passwordUpdated'))
     } catch (caught) {
-      setPasswordError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setPasswordError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setPasswordBusy(false)
     }
@@ -120,7 +120,7 @@ export function AccountPage() {
       downloadTextFile(`adnan-tech-account-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')
       notify('success', t('auth.exportReady'))
     } catch (caught) {
-      notify('error', caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      notify('error', describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setExportBusy(false)
     }
@@ -141,7 +141,7 @@ export function AccountPage() {
       await deleteAccount(deletePassword)
       navigate('/', { replace: true })
     } catch (caught) {
-      setDeleteError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setDeleteError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setDeleteBusy(false)
     }

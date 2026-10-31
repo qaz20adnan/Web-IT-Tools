@@ -5,10 +5,10 @@ import { Alert, Button } from '@/components/ui'
 import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 
 export function CheckEmailPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { resendVerification, configured } = useAuth()
   const [params] = useSearchParams()
   const email = params.get('email') ?? ''
@@ -24,7 +24,7 @@ export function CheckEmailPage() {
       setStatus('sent')
     } catch (caught) {
       setStatus('error')
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 

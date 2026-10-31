@@ -23,6 +23,7 @@ import { useHealth } from '@/hooks/useHealth'
 import { useProviders } from '@/context/ProvidersContext'
 import { useToast } from '@/context/ToastContext'
 import { ApiError, sendChat } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { extractCommands } from '@/lib/answerParts'
 import { copyToClipboard, formatBytes, uid } from '@/lib/utils'
 import type { ApiErrorCode, ChatMessage, CopilotMode, WebSearchMode } from '@/types'
@@ -152,7 +153,7 @@ function AnswerActions({ message, onCopy, onCopyCommands, onResearchAgain, onCon
 }
 
 export function CopilotPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { credentials, hasClientProvider } = useProviders()
   const { data: health } = useHealth()
   const { notify } = useToast()
@@ -237,7 +238,7 @@ export function CopilotPage() {
       setError(
         localized
           ? t(localized as Parameters<typeof t>[0])
-          : (apiError?.message ?? (caught instanceof Error ? caught.message : t('copilot.error'))),
+          : describeError(caught, settings.language, t('copilot.error')),
       )
       setMessages((current) => current.slice(0, -1))
       setInput(content)

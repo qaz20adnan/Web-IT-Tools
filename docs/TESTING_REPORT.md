@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 55 files, 517 tests, 0 failed, 11.78 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 83 s of environment time across workers) |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.39–1.38 s depending on cache (entry chunk 745.57 kB min / 231.85 kB gzip — those do not move) |
+| Tests | `npm test` | LOCAL | **PASS** | 56 files, 541 tests, 0 failed, 13.9–19.8 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 88–124 s of environment time across workers) |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.53–0.66 s depending on cache (entry chunk 746.76 kB min / 232.20 kB gzip) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,26 +24,31 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 517 tests actually cover
+## 2. What the 541 tests actually cover
 
 Top of the suite by test count:
-`x509 37 · ai-adapter 26 · csv 25 · gemini-research 23 · cidr-overlap 21 · vercel-bridge 20 ·
-permissions 19 · incidents 17 · diff 16 · operations 15 · mtu 14 · trial 14 · calculators 13 ·
-net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
+`x509 37 · ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 ·
+vercel-bridge 20 · permissions 19 · incidents 17 · diff 16 · operations 15 · mtu 14 · trial 14 ·
+calculators 13 · net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 8 of 22
+Server-side (the part that holds secrets and money) — 18 of 23 `netlify/lib/*` files and 8 of 22
 `netlify/functions/*` files are imported by at least one test:
 
 | Covered | Not covered by any test |
 | --- | --- |
-| `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`rate.ts`**, **`supabase.ts`**, `tls.ts` |
+| `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`supabase.ts`**, `tls.ts` |
 | functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
 
-Frontend: 27 `src/lib/*` pure modules and 5 tool/UI files render under test (`tool-ui`,
+Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
+`src/services/api.ts` (see below), and 5 tool/UI files render under test (`tool-ui`,
 `toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`).
 **26 of 33 pages and 5 of 18 tool modules have no test.**
-`src/services/api.ts` — the 650-line module every page depends on — **is never executed by a test**;
-the only reference to it is `vi.mock('@/services/api')` in `tests/copilot-research.test.tsx:42`.
+`src/services/api.ts` — the 650-line module every page depends on — **was never executed by a test
+before H-10**; the only reference to it was `vi.mock('@/services/api')` in
+`tests/copilot-research.test.tsx:42`. `tests/api-error.test.ts` now imports it for real and drives
+`getHealth`, `workspaceRequest` and `authMe` against a stubbed `fetch`, which proves the 401
+refresh-and-replay, the `Retry-After` parse and the error envelope. Still unexercised in it: every
+upload path, every admin call and the non-JSON branch.
 
 Notable behavioural tests that exist and pass (these are the ones worth keeping honest):
 - `tests/vercel-bridge.test.ts` (20) — the req/res→Lambda adapter, header mapping, and that
@@ -74,6 +79,25 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   the root boundary is still mounted above `BrowserRouter`, and `ErrorBoundary.tsx` imports no router
   module (a `Link` in the root fallback would throw a second error, outside any Router context).
   **Mutation-checked**: removing `key={pathname}` fails the structural guard.
+- `tests/api-error.test.ts` (24) — H-10's transport contract, the first suite that executes
+  `src/services/api.ts` for real. Four behavioural groups: the server emits `Retry-After` from the limiter's own
+  window and — the bug the fix had to avoid — does **not** leak it onto the shared `BASE_HEADERS`
+  object that every later response reuses; `ApiError` parses both RFC 9110 §10.2.3 forms, ignores an
+  unparsable one and clamps an absurd one; a 401 on the ambient session token refreshes once and
+  replays, with the positive case and the six guards that bound it asserted individually (one retry
+  only, never `/api/auth`, never a caller-supplied token, never a guest with no token to lapse, never
+  a 403, no replay when the refresh yields nothing); and one mapping from a caught value to readable
+  text, closed by a recursive scan proving no second `errorMessage()` survives under `src/`. Two
+  structural guards follow, on the layering that decided where the mapper may live: nothing under
+  `src/lib` imports `services`/`pages`/`components`/`context`/`hooks`, and nothing under
+  `src/services` imports React — `describeError` has to `instanceof` the `ApiError` that
+  `services/api.ts` defines, so in `lib` it would have pointed upward.
+  **Mutation-checked** six ways: reverting the header to a direct assignment, dropping the `replayed`
+  flag so the 401 loops, replacing `describeError` with a naive `error.message` (fails 4 of the
+  mapping tests), removing only the `error.status === 429 &&` gate so a 503 that happens to carry the
+  header gets called "too many requests", copying the mapper back into `src/lib/apiError.ts`, and
+  adding `import { useState } from 'react'` to `src/services/localTriage.ts` (each reverted from a
+  copy, never from git).
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
@@ -142,14 +166,14 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 
 | Metric | Environment | Value | Verdict |
 | --- | --- | --- | --- |
-| Vite production build time | LOCAL | 573 ms | PASS |
-| Entry chunk | LOCAL | 745.57 kB min / **231.85 kB gzip** (`index-go51urGm.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18 |
-| Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.12 kB gzip | WARN — 43 tools statically imported |
+| Vite production build time | LOCAL | 529–663 ms | PASS |
+| Entry chunk | LOCAL | 746.76 kB min / **232.20 kB gzip** (`index-iyN_9mkG.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18 |
+| Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.21 kB gzip | WARN — 43 tools statically imported |
 | `utils` shared chunk | LOCAL | 171.66 kB / 53.68 kB gzip | INFO |
 | Total JS emitted | LOCAL | 61 chunks, ≈1.9 MB minified (2.1 MB in `dist/assets`) | PASS (splitting works; the problem is only the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
-| Test suite wall time | LOCAL | 11.40 s, 70 % of tracked time spent creating 46 jsdom environments | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |
+| Test suite wall time | LOCAL | 13.9–19.8 s, 65–72 % of tracked time spent creating 56 jsdom environments (88–124 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |
 | Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
 | Real-device / mid-tier network | — | **NOT TESTED** |
 

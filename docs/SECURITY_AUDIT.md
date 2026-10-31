@@ -37,6 +37,14 @@ Correct:
   (`local-auth.ts:LOCAL_PASSWORD_MAX_LENGTH` for the dev path).
 - Open redirect closed by `safeRedirect()` and by using env `authSiteUrl` for email links
   (`src/lib/redirect.ts:7-16`, `netlify/functions/auth.ts:365,383`).
+- Since H-10 a 401 on the **ambient** session token refreshes once and replays
+  (`src/services/api.ts` → `setUnauthorizedHandler`, registered by `AuthProvider`). This widens
+  nothing: every handler calls `authenticate(event)` before `readJsonBody` and before any mutation,
+  so the rejected request applied nothing and the replay is not a second side effect. It is capped at
+  one attempt, skips `/api/auth/*` (where a 401 is the answer rather than a lapse), skips any request
+  carrying a caller-supplied `adminToken`/`accessToken`, never fires for a guest who had no token, and
+  never treats a 403 as retryable — refreshing cannot widen a role. No new secret, no new storage, no
+  policy relaxed; H-2 above is unchanged by it.
 
 Findings:
 
@@ -45,7 +53,7 @@ Findings:
 | H-2 | HIGH | Access **and refresh** tokens in `localStorage` (`src/services/authSession.ts:3,7,23`) — one XSS = durable takeover; the README already concedes this | httpOnly `SameSite=Lax` cookie + `/api/auth` refresh, which then *does* require CSRF protection. Large change — schedule deliberately, do not half-do it |
 | M-4 | MEDIUM | Verification/recovery hands tokens through the URL fragment (implicit flow) before persisting them (`src/services/authSession.ts:48-63`, `VerifyEmailPage.tsx:31-33`, `ResetPasswordPage.tsx:27-29`) | PKCE `?code=` exchange; the app already clears the hash after reading |
 | M-1 | MEDIUM | Weak/absent `NEXORA_HASH_PEPPER` makes trial-claim HMACs predictable (`netlify/lib/auth.ts:113`) | fail closed in production |
-| F-3 | MEDIUM | Rate limiting is per-warm-instance in memory and keyed on spoofable `x-forwarded-for[0]` (`netlify/lib/rate.ts:9`, `vercel/serverless.ts:56-59`) | trust the platform's verified client IP, or move to a shared store; until then, never present quotas as hard |
+| F-3 | MEDIUM | Rate limiting is per-warm-instance in memory and keyed on spoofable `x-forwarded-for[0]` (`netlify/lib/rate.ts:9`, `vercel/serverless.ts:56-59`) | trust the platform's verified client IP, or move to a shared store; until then, never present quotas as hard. Same caveat now applies to the `Retry-After` header H-10 added: the seconds come from that per-instance bucket, so the countdown the UI shows is a hint for *this* serverless instance and a second request may land on a cold one. It is honest about the window it was given; it is not a global guarantee, and must not be described as one |
 | M-11 | MEDIUM | `CONTENT_ADMIN_TOKEN` is one static shared bearer with no rate limit and no user binding (`netlify/functions/content-admin.ts:28-41`) | rotate, scope per operator, rate limit |
 | S-1 | INFO | `emailHash` normalizes case/trim before HMAC — correct; no enumeration oracle found in the register/recover responses (they return generic copy) | keep |
 

@@ -35,6 +35,7 @@ import { useProviders } from '@/context/ProvidersContext'
 import { useHealth } from '@/hooks/useHealth'
 import { useToast } from '@/context/ToastContext'
 import { ApiError, fetchLiveModels, testProvider, type AiCredentials, type LiveModel } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { formatDateTime } from '@/i18n'
 import { cn, safeExternalUrl } from '@/lib/utils'
 import type { ProviderConfig, ProviderDraft, ProviderKind } from '@/types'
@@ -203,7 +204,7 @@ export function ProviderHubPage() {
       if (response.models.length === 0) setModelsError(t('providers.modelsEmpty'))
     } catch (caught) {
       setModels([])
-      setModelsError(caught instanceof ApiError ? `${caught.message}${caught.detail ? ` — ${caught.detail}` : ''}` : t('providers.modelsFailed'))
+      setModelsError(describeError(caught, settings.language, t('providers.modelsFailed')))
     } finally {
       setModelsLoading(false)
     }

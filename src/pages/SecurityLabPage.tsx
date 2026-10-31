@@ -19,7 +19,8 @@ import { useApp } from '@/context/AppContext'
 import { useDiagnostics, diagnosticToolLabel } from '@/context/DiagnosticsContext'
 import { useProviders } from '@/context/ProvidersContext'
 import { useToast } from '@/context/ToastContext'
-import { analyzeProblem, analyzeUrlSafety, ApiError, type UrlAnalysisResponse, type UrlSignalSeverity } from '@/services/api'
+import { analyzeProblem, analyzeUrlSafety, type UrlAnalysisResponse, type UrlSignalSeverity } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import type { AnalysisResult } from '@/types'
 import { scanScript, highestRisk } from '@/lib/scriptScan'
 import { setLabDraft } from '@/lib/draft'
@@ -280,11 +281,6 @@ function readTextFile(file: File): Promise<string> {
   })
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.detail ? `${error.message} ${error.detail}` : error.message
-  return error instanceof Error ? error.message : 'The request failed.'
-}
-
 function VerdictBadge({ verdict, lang }: { verdict: UrlAnalysisResponse['verdict']; lang: 'en' | 'ar' }) {
   const label = (en: string, ar: string) => (lang === 'ar' ? ar : en)
   if (verdict === 'suspicious-indicators-found') return <Badge tone="danger">{label('Suspicious indicators', 'مؤشرات مريبة')}</Badge>
@@ -374,7 +370,7 @@ function UrlInspector() {
         location: 'server',
       })
     } catch (caught) {
-      const message = errorMessage(caught)
+      const message = describeError(caught, settings.language, L('The request failed.', 'تعذر تنفيذ الطلب.'))
       setError(message)
       addRecord({ tool: 'url', target: url.trim(), status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {
@@ -796,8 +792,9 @@ function ImageReview() {
       addRecord({ tool: 'file', target: image.name, status: 'success', summary: `AI vision review · ${result.provider}/${result.model}`, durationMs: Math.round(performance.now() - started), location: 'server' })
       notify('success', L('The configured provider returned a vision review.', 'أعاد المزوّد المهيأ مراجعة بصرية.'), L('Vision review complete', 'اكتملت المراجعة البصرية'))
     } catch (caught) {
-      setAiError(errorMessage(caught))
-      addRecord({ tool: 'file', target: image.name, status: 'error', summary: errorMessage(caught), durationMs: Math.round(performance.now() - started), location: 'server' })
+      const message = describeError(caught, settings.language, L('The review failed.', 'فشلت المراجعة.'))
+      setAiError(message)
+      addRecord({ tool: 'file', target: image.name, status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {
       setAiBusy(false)
     }

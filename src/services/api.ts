@@ -24,13 +24,16 @@ export class ApiError extends Error {
   code: ApiErrorCode
   status: number
   detail?: string
+  /** Seconds from the `Retry-After` header, when the server sent one. */
+  retryAfterSeconds: number | null
 
-  constructor(code: ApiErrorCode, message: string, status = 0, detail?: string) {
+  constructor(code: ApiErrorCode, message: string, status = 0, detail?: string, retryAfterSeconds: number | null = null) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
     this.detail = detail
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -50,7 +53,27 @@ export function setAuthTokenProvider(provider: (() => string | null) | null): vo
   authTokenProvider = provider
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+let unauthorizedHandler: (() => Promise<string | null>) | null = null
+
+/**
+ * Registered by AuthProvider. Called when a request carrying the ambient session
+ * token is rejected with 401, and expected to return a fresh access token or null.
+ */
+export function setUnauthorizedHandler(handler: (() => Promise<string | null>) | null): void {
+  unauthorizedHandler = handler
+}
+
+/** Both `Retry-After` forms from RFC 9110 §10.2.3: delta-seconds or an HTTP-date. */
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.round(seconds), 86_400)
+  const at = Date.parse(value)
+  if (Number.isNaN(at)) return null
+  return Math.min(Math.max(0, Math.round((at - Date.now()) / 1000)), 86_400)
+}
+
+async function request<T>(path: string, options: RequestOptions = {}, replayed = false): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
   if (options.credentials) {
@@ -62,6 +85,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (provider.visionModel) headers['x-tn-vision-model'] = provider.visionModel
     if (apiKey) headers['x-tn-key'] = apiKey
   }
+  // An explicit token means the caller already refreshed it on purpose, so a 401
+  // there is a real rejection rather than a stale session — and replaying a
+  // mutation the caller drove by hand is not this layer's decision to make.
+  const usedSessionToken = options.adminToken === undefined && options.accessToken === undefined
   const accessToken = options.adminToken ?? options.accessToken ?? authTokenProvider?.() ?? null
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
@@ -87,10 +114,25 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     : await response.text()
 
   if (!response.ok) {
+    // The scheduled refresh only fires while the tab is awake, so an access token
+    // can lapse mid-session. Every handler authenticates before it reads the body
+    // or touches data, which means a 401 applied nothing and is safe to replay once.
+    if (
+      response.status === 401 &&
+      !replayed &&
+      usedSessionToken &&
+      accessToken !== null &&
+      unauthorizedHandler !== null &&
+      !path.startsWith('/api/auth')
+    ) {
+      const fresh = await unauthorizedHandler()
+      if (fresh) return request<T>(path, options, true)
+    }
+
     const envelope = payload as { error?: { code?: ApiErrorCode; message?: string; detail?: string } } | null
     const code = envelope?.error?.code ?? (response.status === 429 ? 'rate_limited' : 'unknown')
     const message = envelope?.error?.message ?? `Request failed with status ${response.status}.`
-    throw new ApiError(code, message, response.status, envelope?.error?.detail)
+    throw new ApiError(code, message, response.status, envelope?.error?.detail, parseRetryAfter(response.headers.get('retry-after')))
   }
 
   return payload as T

@@ -168,7 +168,7 @@ npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 Current measured state: all four PASS (0 lint errors / 16 warnings, all of them `react-refresh`
-module-layout hints rather than defects; 517 tests in 55 files; 0.39–1.38 s
+module-layout hints rather than defects; 541 tests in 56 files; 0.53–0.66 s
 build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 

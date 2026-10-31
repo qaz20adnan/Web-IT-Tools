@@ -5,6 +5,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { safeRedirect } from '@/lib/redirect'
 
 interface LocationState {
@@ -13,7 +14,7 @@ interface LocationState {
 }
 
 export function LoginPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { status, account, signIn, configured, config } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -48,7 +49,7 @@ export function LoginPage() {
         setUnverified(true)
         setError(t('auth.emailUnverified'))
       } else {
-        setError(apiError?.message ?? t('auth.genericError'))
+        setError(describeError(caught, settings.language, t('auth.genericError')))
       }
     } finally {
       setSubmitting(false)

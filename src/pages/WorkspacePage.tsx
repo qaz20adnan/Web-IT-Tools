@@ -17,7 +17,8 @@ import {
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
-import { ApiError, workspaceRequest } from '@/services/api'
+import { workspaceRequest } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'cases' | 'notes' | 'conversations'
@@ -84,7 +85,7 @@ const PRIORITIES: CaseRow['priority'][] = ['low', 'medium', 'high', 'critical']
 const STATUSES: CaseRow['status'][] = ['open', 'investigating', 'resolved', 'closed']
 
 export function WorkspacePage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { account } = useAuth()
   const { notify } = useToast()
   const [tab, setTab] = useState<Tab>('overview')
@@ -129,11 +130,11 @@ export function WorkspacePage() {
       await loadOverview()
       await loadTab(tab)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setLoading(false)
     }
-  }, [loadOverview, loadTab, tab, t])
+  }, [loadOverview, loadTab, tab, t, settings.language])
 
   useEffect(() => {
     void refresh()
@@ -168,7 +169,7 @@ export function WorkspacePage() {
       await loadOverview()
       await loadTab('cases')
     } catch (caught) {
-      setCaseError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setCaseError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setCaseBusy(false)
     }
@@ -181,7 +182,7 @@ export function WorkspacePage() {
       notify('success', t('workspace.deleted'))
       await refresh()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 
@@ -208,7 +209,7 @@ export function WorkspacePage() {
       await loadOverview()
       await loadTab('notes')
     } catch (caught) {
-      setNoteError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setNoteError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setNoteBusy(false)
     }
@@ -221,7 +222,7 @@ export function WorkspacePage() {
       notify('success', t('workspace.deleted'))
       await refresh()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 
@@ -232,7 +233,7 @@ export function WorkspacePage() {
       notify('success', t('workspace.deleted'))
       await refresh()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 

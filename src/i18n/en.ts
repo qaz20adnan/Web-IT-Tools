@@ -884,8 +884,11 @@ export const en = {
   'errors.generic': 'Something went wrong. Try again.',
   'footer.developedBy': 'Adnan Tech — Developed by Adnan Al Qadi',
   'footer.developerName': 'تم التطوير بواسطة م. عدنان القاضي',
-  'errors.network': 'Cannot reach the API. Check your connection and whether Netlify Functions are running.',
-  'errors.not_configured': 'The AI provider is not configured on the server and no key was supplied.',
+  'errors.network': 'Cannot reach the server. Check your connection and try again.',
+  'errors.retryAfter': 'Too many requests. Try again in {seconds} seconds.',
+  // The server prose for this code names environment variables, which belongs in
+  // the operator's logs rather than in front of the person using the site.
+  'errors.not_configured': 'This feature is not switched on for this deployment.',
   'errors.invalid_key': 'The provider rejected the API key.',
   'errors.rate_limited': 'Too many requests. Wait a moment and try again.',
   'errors.timeout': 'The provider did not respond before the timeout.',

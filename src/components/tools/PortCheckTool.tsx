@@ -3,7 +3,8 @@ import { Globe2, RadioTower, ShieldQuestion } from 'lucide-react'
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Spinner } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
 import { useDiagnostics } from '@/context/DiagnosticsContext'
-import { ApiError, checkPublicPorts, lookupDns, type PortCheckResponse, type PortProbeState } from '@/services/api'
+import { checkPublicPorts, lookupDns, type PortCheckResponse, type PortProbeState } from '@/services/api'
+import { describeError } from '@/services/apiError'
 
 function useLabels() {
   const { settings } = useApp()
@@ -59,6 +60,7 @@ export function parsePortList(raw: string): number[] {
 
 export function PortCheckTool() {
   const L = useLabels()
+  const { settings } = useApp()
   const { addRecord } = useDiagnostics()
   const [host, setHost] = useState('')
   const [selected, setSelected] = useState<number[]>([80, 443, 3389])
@@ -107,13 +109,7 @@ export function PortCheckTool() {
         location: 'server',
       })
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.code === 'not_configured'
-            ? L('Port probing is not available on this deployment. Deploy the Netlify functions to enable it.', 'فحص المنافذ غير متاح في هذا النشر. انشر دوال Netlify لتمكينه.')
-            : caught.message
-          : L('Port check failed.', 'فشل فحص المنافذ.'),
-      )
+      setError(describeError(caught, settings.language, L('Port check failed.', 'فشل فحص المنافذ.')))
     } finally {
       setBusy(false)
     }

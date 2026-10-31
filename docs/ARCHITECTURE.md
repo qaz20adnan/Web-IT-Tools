@@ -39,8 +39,9 @@ tooling platform on free tiers; §5 lists the two places where it starts to hurt
 | routing | `src/App.tsx` | 145 lines | 39 route entries over 33 pages; 32 `load()`-wrapped lazy, 1 eager (`DashboardPage`, `src/App.tsx:7`) |
 | guards | `src/components/auth/` | — | `ProtectedRoute` + permission gating before the page module even loads |
 | state | `src/context/*.tsx` | 6 providers | `AppContext` (settings/i18n), `AuthContext` (session+profile), `ProvidersContext` (BYOK), `LibraryContext` (saved/history/Kb), `DiagnosticsContext`, `ToastContext` |
-| transport | `src/services/api.ts` | 650 lines | the only place that builds `/api` requests; token injected through `setAuthTokenProvider` (`src/services/api.ts:49`) |
+| transport | `src/services/api.ts` | 695 lines | the only place that builds `/api` requests; token injected through `setAuthTokenProvider` (`src/services/api.ts:49`), and since H-10 a 401 on that ambient token is refreshed-and-replayed once through `setUnauthorizedHandler` |
 | session | `src/services/authSession.ts` | 55 lines | `localStorage` key `nexora.auth.session.v1` + legacy URL-hash reader |
+| error text | `src/services/apiError.ts` | 42 lines | since H-10 the **only** mapping from a caught value to something a person reads; `tests/api-error.test.ts` fails if a second `errorMessage()` appears under `src/` |
 | pure logic | `src/lib/*.ts` | 27 files | calculators, CIDR, CVSS, x509, cron, diff, csv, markdown, script scanning — all framework-free and unit-tested |
 | static knowledge | `src/data/*.ts` | 14 files | articles, scripts, models, tools, themes, domains |
 | UI kits | `src/components/{ui,layout,dashboard,charts,tools,onboarding,brand}` | — | presentational shell + 43 catalogued tools living in 18 component files (`src/data/tools.ts`, `src/components/tools/`) |
@@ -49,8 +50,18 @@ tooling platform on free tiers; §5 lists the two places where it starts to hurt
 | i18n | `src/i18n/{en,ar,index}.ts` | — | typed dictionaries, no runtime provider library |
 
 **Direction of dependency is one-way:** `pages → components/context → services → lib`. No lib
-imports a page, no service imports React. This is why 27 of the 34 test files can run pure logic
-without jsdom.
+imports a page or a service, no service imports React. That is the reason `describeError` lives in
+`src/services/apiError.ts` rather than `src/lib/`: it has to `instanceof` the `ApiError` that
+`services/api.ts` defines, and putting it in `lib` would have made it the one lib module importing
+upward. Both halves of the rule are now grep-checked by `tests/api-error.test.ts` rather than left to
+review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it maps failures from
+third-party speed-test endpoints and never sees an `ApiError`.
+
+One claim this section used to make and should not: the layering does **not** keep jsdom out of the
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 56 files pay for
+it — 88–124 s of environment creation across workers for a 13.9–19.8 s run, of which only 6 files render a
+component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
+recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied.
 
 ## 3. Server layers
 
@@ -95,9 +106,9 @@ that guard only runs when someone runs the suite locally.
 | `netlify/lib/host.ts` | 113 | `assertPublicHost` — SSRF guard: loopback/RFC1918/link-local/CGNAT/metadata always rejected, resolution re-checked at connect time | `NET_PROBE_ALLOW_PRIVATE` relaxes it in dev only |
 | `netlify/lib/net-*.ts` | 6 files | TCP-connect RTT (`net-latency`), path inference (`net-path`), DoH lookups (`net-doh`), response analysis (`net-analysis`), probes (`net-probe`), diagnostics (`net-diagnostics`) | there is no `child_process`, no `dgram`, no raw socket anywhere — see §4.4 |
 | `netlify/lib/schema.ts` | 171 | zod schemas for every request body | validation happens before any network or DB call |
-| `netlify/lib/rate.ts` | — | in-memory token bucket per identity/IP | **not** a distributed limiter; resets per container (§5, W-3) |
+| `netlify/lib/rate.ts` | — | in-memory token bucket per identity/IP | **not** a distributed limiter; resets per container (§5, W-3). Since H-10 it passes its window to `HttpError` so the browser gets `Retry-After`; that number inherits the same per-container caveat, so a UI countdown is a hint, not a guarantee |
 | `netlify/lib/prompts.ts` | 138 | system prompts for copilot / analyze / script | the answer-format contract |
-| `netlify/lib/http.ts`, `json.ts`, `fetch.ts`, `net-errors.ts` | — | response builders, JSON helpers, timeout-aware fetch, error mapping | duplicated responsibility with `vercel/serverless.ts` for body handling (§5, W-2) |
+| `netlify/lib/http.ts`, `json.ts`, `fetch.ts`, `net-errors.ts` | — | response builders, JSON helpers, timeout-aware fetch, error mapping | duplicated responsibility with `vercel/serverless.ts` for body handling (§5, W-2). **Trap:** `json()` returns the shared module-level `BASE_HEADERS` object *by reference* — mutate it and the header sticks to every later response from that warm instance. Always spread (`errorResponse()` does, since H-10) |
 
 ### 3.3 Public API surface (22 routes)
 

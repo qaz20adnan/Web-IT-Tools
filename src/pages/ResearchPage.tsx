@@ -17,6 +17,7 @@ import { useApp } from '@/context/AppContext'
 import { useLibrary } from '@/context/LibraryContext'
 import { useToast } from '@/context/ToastContext'
 import { ApiError, searchResearch, type ResearchResponse } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { REFERENCE_SITES } from '@/data/referenceSites'
 import { formatDate } from '@/i18n'
 import type { ResearchResult } from '@/types'
@@ -51,7 +52,7 @@ export function ResearchPage() {
       setData(response)
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null
-      setError(apiError?.message ?? (caught instanceof Error ? caught.message : t('research.failed')))
+      setError(describeError(caught, settings.language, t('research.failed')))
       setErrorCode(apiError?.code ?? null)
       setData(null)
     } finally {

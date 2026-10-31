@@ -23,7 +23,6 @@ import { useApp } from '@/context/AppContext'
 import { buildDiagnosticAnalytics, diagnosticToolLabel, useDiagnostics, type DiagnosticStatus } from '@/context/DiagnosticsContext'
 import { useToast } from '@/context/ToastContext'
 import {
-  ApiError,
   checkHttpEndpoint,
   checkPublicPorts,
   runLatencyProbe,
@@ -33,6 +32,7 @@ import {
   type PathResponse,
   type PortCheckResponse,
 } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { cn } from '@/lib/utils'
 
 type DiagnosticTab = 'overview' | 'latency' | 'path' | 'dns' | 'ports' | 'http' | 'ssl' | 'history'
@@ -76,11 +76,6 @@ function statusLabel(status: DiagnosticStatus, lang: 'en' | 'ar'): string {
     error: { en: 'Error', ar: 'خطأ' },
   }
   return lang === 'ar' ? labels[status].ar : labels[status].en
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.detail ? `${error.message} ${error.detail}` : error.message
-  return error instanceof Error ? error.message : 'The request failed.'
 }
 
 function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
@@ -333,7 +328,7 @@ function LatencyPanel() {
         location: 'server',
       })
     } catch (caught) {
-      const message = errorMessage(caught)
+      const message = describeError(caught, settings.language, L('The request failed.', 'تعذر تنفيذ الطلب.'))
       setError(message)
       addRecord({ tool: 'latency', target: target.trim(), status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {
@@ -491,7 +486,7 @@ function PathPanel() {
         location: 'server',
       })
     } catch (caught) {
-      const message = errorMessage(caught)
+      const message = describeError(caught, settings.language, L('The request failed.', 'تعذر تنفيذ الطلب.'))
       setError(message)
       addRecord({ tool: 'path', target: target.trim(), status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {
@@ -723,7 +718,7 @@ function PortsPanel() {
         location: 'server',
       })
     } catch (caught) {
-      const message = errorMessage(caught)
+      const message = describeError(caught, settings.language, L('The request failed.', 'تعذر تنفيذ الطلب.'))
       setError(message)
       addRecord({ tool: 'port', target: target.trim(), status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {
@@ -923,7 +918,7 @@ function HttpPanel() {
         location: 'server',
       })
     } catch (caught) {
-      const message = errorMessage(caught)
+      const message = describeError(caught, settings.language, L('The request failed.', 'تعذر تنفيذ الطلب.'))
       setError(message)
       addRecord({ tool: 'http', target: normalized, status: 'error', summary: message, durationMs: Math.round(performance.now() - started), location: 'server' })
     } finally {

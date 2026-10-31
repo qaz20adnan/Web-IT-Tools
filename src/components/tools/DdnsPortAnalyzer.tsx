@@ -27,6 +27,7 @@ import {
 import { useApp } from '@/context/AppContext'
 import { useToast } from '@/context/ToastContext'
 import { analyzeNetwork, ApiError, type NetworkAnalyzerResponse, type PortProbeInfo } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { downloadTextFile } from '@/lib/utils'
 import { readJson, STORAGE_KEYS, writeJson } from '@/lib/storage'
 import { formatDateTime } from '@/i18n'
@@ -162,18 +163,16 @@ export function DdnsPortAnalyzer() {
       setHistory(nextHistory)
       writeJson(STORAGE_KEYS.netIpHistory, nextHistory)
     } catch (caught) {
-      if (caught instanceof ApiError) {
-        setError(
-          caught.code === 'blocked_host'
-            ? L(
-                'This hostname points at private or reserved addresses, which cannot be reached from the internet. Check it on your LAN instead.',
-                'يشير هذا الاسم إلى عناوين خاصة أو محجوزة لا يمكن الوصول إليها من الإنترنت. افحصه على شبكتك المحلية بدلاً من ذلك.',
-              )
-            : caught.message,
-        )
-      } else {
-        setError(L('The network analysis failed.', 'فشل تحليل الشبكة.'))
-      }
+      // blocked_host keeps its own wording: the reason is the target's address
+      // range, and what to do about it is not something a server can know.
+      setError(
+        caught instanceof ApiError && caught.code === 'blocked_host'
+          ? L(
+              'This hostname points at private or reserved addresses, which cannot be reached from the internet. Check it on your LAN instead.',
+              'يشير هذا الاسم إلى عناوين خاصة أو محجوزة لا يمكن الوصول إليها من الإنترنت. افحصه على شبكتك المحلية بدلاً من ذلك.',
+            )
+          : describeError(caught, settings.language, L('The network analysis failed.', 'فشل تحليل الشبكة.')),
+      )
     } finally {
       setLoading(false)
     }

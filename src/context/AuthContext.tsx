@@ -25,6 +25,7 @@ import {
   authVerify,
   getAuthConfig,
   setAuthTokenProvider,
+  setUnauthorizedHandler,
   type AuthSessionResponse,
 } from '@/services/api'
 import type { AccountPayload, AuthConfig, AuthTokens, Permission } from '@/types'
@@ -117,8 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAuthTokenProvider(() => sessionRef.current?.accessToken ?? null)
-    return () => setAuthTokenProvider(null)
-  }, [])
+    // refreshTokens dedupes through refreshRef, so a burst of 401s from parallel
+    // requests costs one refresh call rather than one per request.
+    setUnauthorizedHandler(async () => (await refreshTokens())?.accessToken ?? null)
+    return () => {
+      setAuthTokenProvider(null)
+      setUnauthorizedHandler(null)
+    }
+  }, [refreshTokens])
 
   useEffect(() => {
     let cancelled = false

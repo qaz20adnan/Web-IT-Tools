@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Lock, Search, ShieldCheck } from 'lucide-react'
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Spinner } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
-import { ApiError, inspectTls, lookupDns, type DnsLookupResponse, type TlsInfo } from '@/services/api'
+import { inspectTls, lookupDns, type DnsLookupResponse, type TlsInfo } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { safeExternalUrl } from '@/lib/utils'
 import type { LocalizedText } from '@/types'
 
@@ -40,13 +41,7 @@ export function DnsTool() {
     try {
       setResult(await lookupDns(target, type))
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.code === 'not_configured'
-            ? L('DNS lookup is not available on this deployment. Deploy the Netlify functions to enable it.', 'استعلام DNS غير متاح في هذا النشر. انشر دوال Netlify لتمكينه.')
-            : caught.message
-          : L('DNS lookup failed.', 'فشل استعلام DNS.'),
-      )
+      setError(describeError(caught, settings.language, L('DNS lookup failed.', 'فشل استعلام DNS.')))
     } finally {
       setLoading(false)
     }
@@ -163,6 +158,7 @@ const TLS_PORTS = [443, 465, 587, 636, 990, 993, 995, 8443] as const
 
 export function TlsTool() {
   const L = useLabels()
+  const { settings } = useApp()
   const [host, setHost] = useState('learn.microsoft.com')
   const [port, setPort] = useState('443')
   const [info, setInfo] = useState<TlsInfo | null>(null)
@@ -179,13 +175,7 @@ export function TlsTool() {
     try {
       setInfo(await inspectTls(target, portNumber))
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.code === 'not_configured'
-            ? L('Certificate inspection is not available on this deployment. Deploy the Netlify functions to enable it.', 'فحص الشهادات غير متاح في هذا النشر. انشر دوال Netlify لتمكينه.')
-            : caught.message
-          : L('Certificate inspection failed.', 'فشل فحص الشهادة.'),
-      )
+      setError(describeError(caught, settings.language, L('Certificate inspection failed.', 'فشل فحص الشهادة.')))
     } finally {
       setLoading(false)
     }

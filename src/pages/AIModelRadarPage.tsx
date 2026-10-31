@@ -4,7 +4,8 @@ import { Alert, Badge, Button, Card, CardHeader, EmptyState, Input, PageHeader, 
 import { useApp } from '@/context/AppContext'
 import { useProviders } from '@/context/ProvidersContext'
 import { MODEL_CATALOG, MODEL_KINDS } from '@/data/models'
-import { ApiError, fetchLiveModels, type LiveModel } from '@/services/api'
+import { fetchLiveModels, type LiveModel } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { safeExternalUrl } from '@/lib/utils'
 import { formatDateTime, pickText } from '@/i18n'
 
@@ -43,7 +44,7 @@ export function AIModelRadarPage() {
       setLive(response.models)
       setLiveAt(response.fetchedAt ?? new Date().toISOString())
     } catch (caught) {
-      setLiveError(caught instanceof ApiError ? `${caught.message}${caught.detail ? ` — ${caught.detail}` : ''}` : t('radar.liveFailed'))
+      setLiveError(describeError(caught, settings.language, t('radar.liveFailed')))
     } finally {
       setLoading(false)
     }

@@ -4,10 +4,10 @@ import { Alert, Button, Field, Input } from '@/components/ui'
 import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 
 export function ForgotPasswordPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { recover, configured } = useAuth()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -26,7 +26,7 @@ export function ForgotPasswordPage() {
       await recover(email.trim())
       setSent(true)
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setSubmitting(false)
     }

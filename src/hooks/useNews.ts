@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NewsItem } from '@/types'
 import { fetchNews } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { readJson, STORAGE_KEYS, writeJson } from '@/lib/storage'
+import { useApp } from '@/context/AppContext'
 
 export interface NewsCache {
   items: NewsItem[]
@@ -10,6 +12,7 @@ export interface NewsCache {
 }
 
 export function useNews() {
+  const { settings } = useApp()
   const [items, setItems] = useState<NewsItem[]>([])
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [sources, setSources] = useState<string[]>([])
@@ -17,6 +20,12 @@ export function useNews() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [stale, setStale] = useState(false)
+  // A ref, not a dep: load() feeds the fetch effect below, so putting the
+  // language in its deps would re-request the news on every language switch.
+  const languageRef = useRef(settings.language)
+  useEffect(() => {
+    languageRef.current = settings.language
+  }, [settings.language])
 
   const load = useCallback(async (force = false) => {
     setLoading(true)
@@ -37,16 +46,17 @@ export function useNews() {
       })
     } catch (caught) {
       const cache = readJson<NewsCache | null>(STORAGE_KEYS.newsCache, null)
+      const message = describeError(caught, languageRef.current, 'News fetch failed')
       setErrors([])
       if (cache?.items?.length) {
         setItems(cache.items)
         setFetchedAt(cache.fetchedAt)
         setSources(cache.sources)
         setStale(true)
-        setError(caught instanceof Error ? caught.message : 'News fetch failed')
+        setError(message)
       } else {
         setItems([])
-        setError(caught instanceof Error ? caught.message : 'News fetch failed')
+        setError(message)
       }
     } finally {
       setLoading(false)

@@ -29,7 +29,8 @@ import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { useHealth } from '@/hooks/useHealth'
-import { adminRequest, ApiError } from '@/services/api'
+import { adminRequest } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/i18n'
 import type { AccountRole, Permission } from '@/types'
@@ -195,11 +196,11 @@ export function AdminPage() {
       else if (tab === 'feedback') await loadFeedback()
       else if (tab === 'settings') await loadSettings()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setLoading(false)
     }
-  }, [tab, loadOverview, loadUsers, loadAudit, loadFeedback, loadSettings, refreshHealth, t])
+  }, [tab, loadOverview, loadUsers, loadAudit, loadFeedback, loadSettings, refreshHealth, t, settings.language])
 
   useEffect(() => {
     void refresh()
@@ -220,7 +221,7 @@ export function AdminPage() {
       notify('success', t('admin.userUpdated'))
       await loadUsers()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 
@@ -231,7 +232,7 @@ export function AdminPage() {
       notify('success', t('workspace.deleted'))
       await loadUsers()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 
@@ -248,7 +249,7 @@ export function AdminPage() {
       notify('success', t('admin.planUpdated'))
       await loadUsers()
     } catch (caught) {
-      setPlanError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setPlanError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setPlanBusy(false)
     }
@@ -259,7 +260,7 @@ export function AdminPage() {
       await adminRequest({ action: 'feedback.resolve', id })
       await loadFeedback()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     }
   }
 
@@ -276,7 +277,7 @@ export function AdminPage() {
       })
       notify('success', t('admin.settingsSaved'))
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setSettingsBusy(false)
     }

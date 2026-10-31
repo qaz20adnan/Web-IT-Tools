@@ -5,11 +5,11 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { clearAuthHash, readSessionFromHash } from '@/services/authSession'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { isValidPassword, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/authValidation'
 
 export function ResetPasswordPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { verify, resetPassword, adoptSession, accessToken } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -44,11 +44,11 @@ export function ResetPasswordPage() {
         await verify(tokenHash, 'recovery')
         setReady(true)
       } catch (caught) {
-        setError(caught instanceof ApiError ? caught.message : t('auth.verifyFailed'))
+        setError(describeError(caught, settings.language, t('auth.verifyFailed')))
       }
     }
     void run()
-  }, [tokenHash, verify, t, adoptSession, accessToken, params])
+  }, [tokenHash, verify, t, adoptSession, accessToken, params, settings.language])
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -70,7 +70,7 @@ export function ResetPasswordPage() {
       await resetPassword(password)
       navigate('/login?reset=1', { replace: true })
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : t('auth.genericError'))
+      setError(describeError(caught, settings.language, t('auth.genericError')))
     } finally {
       setSubmitting(false)
     }

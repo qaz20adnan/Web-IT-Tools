@@ -43,6 +43,7 @@ import { useProviders } from '@/context/ProvidersContext'
 import { useHealth } from '@/hooks/useHealth'
 import { useToast } from '@/context/ToastContext'
 import { analyzeProblem, ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import { runLocalTriage } from '@/services/localTriage'
 import { consumeLabDraft, setLabDraft } from '@/lib/draft'
 import { formatBytes, truncate, validateImageFile, downloadTextFile } from '@/lib/utils'
@@ -145,7 +146,7 @@ export function TroubleshootingLabPage() {
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null
       setErrorCode(apiError?.code ?? 'unknown')
-      setError(apiError?.message ?? (caught instanceof Error ? caught.message : t('errors.generic')))
+      setError(describeError(caught, settings.language, t('errors.generic')))
     } finally {
       setBusy(false)
     }

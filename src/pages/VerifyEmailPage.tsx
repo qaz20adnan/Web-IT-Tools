@@ -5,7 +5,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { clearAuthHash, readHashValue, readSessionFromHash } from '@/services/authSession'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 
 const TYPES = ['signup', 'recovery', 'invite', 'email_change'] as const
 type VerifyType = (typeof TYPES)[number]
@@ -15,7 +15,7 @@ function verifyType(value: string | null): VerifyType {
 }
 
 export function VerifyEmailPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { verify, adoptSession, refreshAccount } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -43,7 +43,7 @@ export function VerifyEmailPage() {
         })
         .catch((caught) => {
           setState('failed')
-          setError(caught instanceof ApiError ? caught.message : t('auth.verifyFailed'))
+          setError(describeError(caught, settings.language, t('auth.verifyFailed')))
         })
       return
     }
@@ -65,11 +65,11 @@ export function VerifyEmailPage() {
         }
       } catch (caught) {
         setState('failed')
-        setError(caught instanceof ApiError ? caught.message : t('auth.verifyFailed'))
+        setError(describeError(caught, settings.language, t('auth.verifyFailed')))
       }
     }
     void run()
-  }, [tokenHash, type, verify, navigate, t, adoptSession, refreshAccount])
+  }, [tokenHash, type, verify, navigate, t, adoptSession, refreshAccount, settings.language])
 
   return (
     <AuthLayout

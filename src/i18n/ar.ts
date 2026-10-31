@@ -886,8 +886,11 @@ export const ar: Record<TranslationKey, string> = {
   'errors.generic': 'حدث خطأ ما. حاول مرة أخرى.',
   'footer.developedBy': 'منصة عدنان تك — تم التطوير بواسطة م. عدنان القاضي',
   'footer.developerName': 'Developed by Adnan Al Qadi',
-  'errors.network': 'تعذر الوصول إلى الواجهة البرمجية. تحقق من الاتصال ومن تشغيل Netlify Functions.',
-  'errors.not_configured': 'مزود الذكاء الاصطناعي غير مُهيّأ على الخادم ولم يُقدّم مفتاح.',
+  'errors.network': 'تعذر الوصول إلى الخادم. تحقق من الاتصال وحاول مجددًا.',
+  'errors.retryAfter': 'طلبات كثيرة جدًا. حاول مجددًا بعد {seconds} ثانية.',
+  // The server prose for this code names environment variables, which belongs in
+  // the operator's logs rather than in front of the person using the site.
+  'errors.not_configured': 'هذه الميزة غير مفعّلة في هذا النشر.',
   'errors.invalid_key': 'رفض المزود مفتاح API.',
   'errors.rate_limited': 'طلبات كثيرة جدًا. انتظر قليلًا ثم حاول مجددًا.',
   'errors.timeout': 'لم يستجب المزود قبل انتهاء المهلة.',

@@ -5,6 +5,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { ApiError } from '@/services/api'
+import { describeError } from '@/services/apiError'
 import {
   isValidEmail,
   isValidPassword,
@@ -26,7 +27,7 @@ function registrationErrorKey(error: ApiError): TranslationKey | null {
 }
 
 export function RegisterPage() {
-  const { t } = useApp()
+  const { t, settings } = useApp()
   const { status, account, signUp, configured, config } = useAuth()
   const navigate = useNavigate()
   const localMode = config?.localMode === true
@@ -74,8 +75,10 @@ export function RegisterPage() {
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null
       const key = apiError ? registrationErrorKey(apiError) : null
-      const message = key ? t(key) : apiError?.message ?? t('auth.genericError')
-      const detail = import.meta.env.DEV && apiError?.detail ? ` (${apiError.detail})` : ''
+      // describeError already appends the server detail on the untranslated branch,
+      // so the DEV-only suffix is for the translated headline, which has none.
+      const message = key ? t(key) : describeError(caught, settings.language, t('auth.genericError'))
+      const detail = key && import.meta.env.DEV && apiError?.detail ? ` (${apiError.detail})` : ''
       setError(`${message}${detail}`)
     } finally {
       setSubmitting(false)

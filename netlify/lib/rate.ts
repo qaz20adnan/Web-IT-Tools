@@ -22,7 +22,7 @@ export function enforceRateLimit(key: string, max = serverConfig.rateMax, window
   }
   if (bucket.count >= max) {
     const seconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
-    throw new HttpError(429, 'rate_limited', `Rate limit reached. Try again in ${seconds} seconds.`)
+    throw new HttpError(429, 'rate_limited', `Rate limit reached. Try again in ${seconds} seconds.`, undefined, seconds)
   }
   bucket.count += 1
 }
