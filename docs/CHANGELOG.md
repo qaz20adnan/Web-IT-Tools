@@ -160,6 +160,33 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Not verified**: nothing was posted to a live Vercel function — the byte-preservation claim is
   proven against the adapter, not against the platform's own request handling. Not deployed.
 
+- **W2 · L-3 + L-5 caps** (the last two parity items of the platform wave that needed code): two
+  separate leaks, both about a size limit that existed on the host but not in the repo.
+  L-3 — `scripts/dev-api-plugin.ts` read request bodies with **no cap at all**, so a 20 MB upload
+  worked perfectly in `npm run dev` and 413'd on Vercel; the dev reader now imports `MAX_BODY_BYTES`
+  from `shared/upload-limits` (the same file the Vercel adapter and the browser use), destroys the
+  request past the cap, and — the part that actually teaches the wrong lesson locally — replies with
+  the `{error:{code:'payload_too_large'}}` envelope instead of the generic 500 the catch-all produced.
+  L-5 — `readJsonBody(event, maxBytes = 8 * 1024 * 1024)` had a default larger than either host
+  accepts, so any future call site that skipped the argument would silently be un-deployable. The
+  default is **deleted**, which moves the decision to the compiler: all 18 call sites now name their
+  own ceiling (16–32 KB for the nine `net-*` tools and `research`, 64–512 KB for `ai-test`/`auth`/
+  `admin`/`workspace`, 2 MB for the two text-only AI routes, `MAX_BODY_BYTES` for `ai-analyze` and
+  `content-admin`), and none exceeds 4.5 MB.
+  **Deliberately not changed**: the *upstream* response caps (`netlify/lib/fetch.ts:31,35` 10 MB
+  default, `ai.ts:228` 12 MB, `news.ts:208` 8 MB, `supabase.ts:96` 5 MB). Those bound what a function
+  reads from another server, which is a memory question; forcing them under the host's *request*
+  payload limit would break the model-catalog and RSS fetches that legitimately need the room.
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npx vitest run` 54 files / **513**
+  tests (12.86 s on the first run, 17.22 s on the confirming re-run — the wall time is dominated by
+  creating jsdom 54 times, not by assertions); `npm run build` 0.53–0.76 s, `api/index.js` 1179 kB,
+  entry chunk unchanged at 745.57 kB min / 231.85 kB gzip. `tests/upload-limits.test.ts` went 6 → 8.
+  **Mutation-checked both ways**: restoring the `= 8 * 1024 * 1024` default *and* raising `ai-chat`
+  to 6 MB fails the cap test; replacing the dev plugin's `total > MAX_BODY_BYTES` with `if (false)`
+  fails the dev-adapter check (both reverted afterwards, suite green).
+  **Not verified**: no live dev server was started against an over-cap body — the L-3 claim is the
+  source guard plus the mutation check, not an observed 413 round trip. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -238,7 +265,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **all six named findings closed locally** — H-4, H-3, H-5, M-12, M-13 and M-14 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64 — see the six batches above; none deployed). Only the LOW items of the wave remain: L-3, L-5, L-6. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
+| W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

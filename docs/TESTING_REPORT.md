@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 54 files, 511 tests, 0 failed, 26.76 s wall (the M-14 byte tests allocate 4 MB buffers; earlier runs measured 12–14 s) |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 1.47 s (entry chunk 745.57 kB min / 231.85 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 54 files, 513 tests, 0 failed, 12.86 s wall (it swings 12–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 83 s of environment time across workers) |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.53–0.76 s depending on cache (entry chunk 745.57 kB min / 231.85 kB gzip — those do not move) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,11 +24,11 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 511 tests actually cover
+## 2. What the 513 tests actually cover
 
 Top of the suite by test count:
-`x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 26 · permissions 19 ·
-incidents 17 · diff 16 · vercel-bridge 16 · operations 15 · mtu 14 · trial 14 · calculators 13 ·
+`x509 37 · ai-adapter 26 · csv 25 · gemini-research 23 · cidr-overlap 21 · vercel-bridge 20 ·
+permissions 19 · incidents 17 · diff 16 · operations 15 · mtu 14 · trial 14 · calculators 13 ·
 net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
 
 Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 8 of 22
@@ -71,10 +71,15 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
 - `tests/gemini-research.test.ts` (23) — grounding citation parsing and `redact()`.
-- `tests/upload-limits.test.ts` (6) — one image cap across browser, schema, handlers and the Vercel
+- `tests/upload-limits.test.ts` (8) — one image cap across browser, schema, handlers and the Vercel
   bridge: it checks the base64 inflation really fits the body cap, runs a too-large file through
   `validateImageFile`, and reads the EN/AR upload hint so the promised number cannot drift from the
-  enforced one. **Mutation-checked**: restoring the old 4 MB cap fails 2 of the 6.
+  enforced one. **Mutation-checked**: restoring the old 4 MB cap fails 2 of the 6. Since L-5 it also
+  parses every `netlify/functions/*.ts` source and requires each `readJsonBody` call to carry its own
+  cap, rejecting any numeric literal above `MAX_BODY_BYTES`; since L-3 it requires the dev plugin to
+  import `shared/upload-limits` and compare against `MAX_BODY_BYTES`. **Mutation-checked again both
+  ways**: putting the `= 8 * 1024 * 1024` default back *and* raising `ai-chat` to 6 MB fails the cap
+  test, and neutering the dev plugin's guard to `if (false)` fails the dev-adapter check.
 - `tests/ai-adapter.test.ts` → `describe('request budget')` (6) — the 50 s shared AI deadline: the
   clamped value really reaches the upstream abort timer, a spent budget returns a structured
   `504 timeout` without sending a request, retries stop instead of overrunning, and the model
@@ -105,6 +110,7 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
 | Anonymous `GET /` | VPREV | **PASS as configured** — 302 to `vercel.com/sso-api`; Deployment Protection is ON. Left ON deliberately: it is the owner's stated preference not to make previews public |
 | Stale bundle check | LOCAL | **FIXED + PASS** — `api/index.js` was missing `/api/net/latency` and `/api/net/path`; regenerated, both now resolve. The recurrence path is closed: `npm run build` regenerates the bundle, and `tests/route-parity.test.ts` fails if a route exists on one host and not another (H-5). **No CI exists**, so that guard only runs when the suite is run by hand |
 | Dev API plugin, `/api/*` in-process | LOCAL | **PASS** — handlers run inside Vite via `scripts/dev-api-plugin.ts`; auth uses the file store, not Supabase (`.env.local` has no Supabase vars) |
+| Dev API plugin body cap (L-3) | LOCAL | **PASS at the source level only** — the plugin now imports `MAX_BODY_BYTES` from `shared/upload-limits`, destroys a request past it and answers with the hosts' `payload_too_large` envelope; `tests/upload-limits.test.ts` asserts both and mutation-fails when the guard is neutered to `if (false)`. **Not verified over a live HTTP round trip** — no dev server was started with an over-cap body |
 | Supabase-backed flows from LOCAL | LOCAL | **BLOCKED** — no `SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY` locally, so every RLS/admin/email test needs either the owner's env pull or a seeded test project (owner action D1/D2) |
 | Any AI answer end-to-end (chat, analyze, script, grounded search) | NETLIVE, VPREV | **BLOCKED** — `ai.configured=false`; no provider key on either host (owner action D6) |
 | `Mailer` / signup e-mail delivery | NETLIVE | **BLOCKED** — needs a real mailbox; requires D5 (SMTP) before it can be called tested |

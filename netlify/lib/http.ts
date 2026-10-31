@@ -90,7 +90,7 @@ export function header(event: NetlifyEvent, name: string): string | undefined {
   return undefined
 }
 
-export function readJsonBody<T = unknown>(event: NetlifyEvent, maxBytes = 8 * 1024 * 1024): T {
+export function readJsonBody<T = unknown>(event: NetlifyEvent, maxBytes: number): T {
   if (!event.body) throw new HttpError(400, 'invalid_input', 'A JSON request body is required.')
   let raw = event.body
   if (event.isBase64Encoded) raw = Buffer.from(raw, 'base64').toString('utf8')

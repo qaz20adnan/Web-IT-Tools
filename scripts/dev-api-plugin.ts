@@ -2,7 +2,10 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { IncomingMessage } from 'node:http'
 import type { Plugin, ViteDevServer } from 'vite'
-import type { NetlifyContext, NetlifyEvent, NetlifyResponse } from '../netlify/lib/http'
+import { HttpError, type NetlifyContext, type NetlifyEvent, type NetlifyResponse } from '../netlify/lib/http'
+// One ceiling for every host, so an oversized upload fails the same way locally
+// as it will on Netlify or Vercel (finding L-3).
+import { MAX_BODY_BYTES } from '../shared/upload-limits'
 
 /**
  * Vite dev middleware that executes the Netlify Functions in-process.
@@ -35,7 +38,18 @@ function resolveFunctionFile(root: string, apiPath: string): string | null {
 function readRequestBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    let total = 0
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length
+      // Reject as soon as the cap is crossed instead of buffering a payload the
+      // hosts would refuse before the function ever starts.
+      if (total > MAX_BODY_BYTES) {
+        reject(new HttpError(413, 'payload_too_large', 'The request body exceeds the 4.5 MB function payload limit.'))
+        req.destroy()
+        return
+      }
+      chunks.push(Buffer.from(chunk))
+    })
     req.on('end', () => resolvePromise(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
@@ -87,6 +101,14 @@ async function handleApiRequest(server: ViteDevServer, req: IncomingMessage, res
     }
     res.end(result.body)
   } catch (error) {
+    if (error instanceof HttpError) {
+      // The adapter's own failures (a body over the cap) must reach the browser in
+      // the same envelope the hosts use, or local testing teaches the wrong shape.
+      res.statusCode = error.statusCode
+      res.setHeader('content-type', 'application/json; charset=utf-8')
+      res.end(JSON.stringify({ error: { code: error.code, message: error.message } }))
+      return
+    }
     const detail = error instanceof Error ? error.message : String(error)
     res.statusCode = 500
     res.setHeader('content-type', 'application/json; charset=utf-8')

@@ -167,9 +167,14 @@ Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Current measured state: all four PASS (0 lint errors / 19 warnings; 511 tests in 54 files; 1.47 s
+Current measured state: all four PASS (0 lint errors / 19 warnings; 513 tests in 54 files; 0.53–0.76 s
 build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
+
+One local-only difference worth knowing before you trust a dev run: since L-3 the dev API adapter
+(`scripts/dev-api-plugin.ts`) enforces the same 4.5 MB body ceiling as Vercel and answers with the
+same `payload_too_large` envelope, so an upload that fails locally fails in production too. Before
+that, oversized requests succeeded locally and 413'd on the host.
 
 ## 9. Rollback
 

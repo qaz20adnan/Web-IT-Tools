@@ -148,7 +148,7 @@ The current design is sound. Four items are worth real engineering; everything e
 | # | Change | Why | Cost / risk |
 | --- | --- | --- | --- |
 | W-1 | Single error/response map shared by all handlers (fold `netlify/lib/net-errors.ts` + the ad-hoc `jsonError` calls into one module) | 6 handlers invent their own shapes; clients can't branch reliably (H-10) | low; contained in `netlify/lib` |
-| W-2 | One body-reading + timeout utility used by dev, Netlify and Vercel adapters | the 4.5 MB Vercel cap and the 60 s budget were expressed three times (H-3, H-4). **Partly landed**: `shared/upload-limits.ts` is now the single body/image ceiling and `netlify/lib/ai.ts` owns one 50 s `Deadline` per request; what remains is folding the dev adapter's own reading of those values into the same utility | low |
+| W-2 | One body-reading + timeout utility used by dev, Netlify and Vercel adapters | the 4.5 MB Vercel cap and the 60 s budget were expressed three times (H-3, H-4). **Size half landed** (H-3, L-3, L-5): `shared/upload-limits.ts` is the only ceiling and all three readers import it — the dev plugin (`scripts/dev-api-plugin.ts:8`), the Vercel bridge (`vercel/serverless.ts:14`) and the handlers that accept bodies, which now have to name their own cap because `readJsonBody(event, maxBytes)` has no default. **Time half not landed**: neither adapter sets a request timeout; the 50 s `Deadline` is owned by `netlify/lib/ai.ts` and only covers AI calls, so a slow non-AI handler still relies on the platform to kill it | low |
 | W-3 | Rate limiting moved out of process memory (Supabase RPC table + a `usage_events`-backed window) | an in-memory bucket resets on every cold start and is spoofable through `x-forwarded-for` (H-8, M-1) | medium; needs a migration + backfill plan → owner approval |
 | W-4 | Split `src/services/api.ts` (650 lines) by domain and add tests around it | it is the only module with zero test coverage and every page depends on it | low; mechanical |
 
@@ -168,6 +168,7 @@ would invalidate the working Netlify/Vercel parity described in §3.1.
 | DNS/TLS/HTTP/URL | PASS | PASS (public internet only) | PASS (public internet only) |
 | Latency/path/port | PASS | PASS (TCP only) | PASS (TCP only) |
 | LAN targets | PASS (`NET_PROBE_ALLOW_PRIVATE`) | FAIL by design (SSRF guard) | FAIL by design |
+| Body ceiling (4.5 MB) | PASS — same cap, same `payload_too_large` envelope since L-3 | PASS (platform limit) | PASS (edge rejects at 6 MB, adapter at 4.5 MB raw) |
 | ICMP ping / traceroute | NOT SUPPORTED by design | NOT SUPPORTED | NOT SUPPORTED |
 | `admin` / `workspace` | PASS | PASS | BLOCKED (needs env) |
 | Security headers | n/a (dev server) | PASS | PASS |

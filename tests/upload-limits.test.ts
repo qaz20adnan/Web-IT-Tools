@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { MAX_BODY_BYTES, MAX_IMAGE_BYTES, MAX_IMAGE_DATA_URL_CHARS } from '../shared/upload-limits'
@@ -65,5 +68,44 @@ describe('validateImageFile', () => {
       expect(result.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
       expect(analyzeRequestSchema.safeParse({ input: { ...BASE_FIELDS, imageDataUrl: result.dataUrl } }).success).toBe(true)
     }
+  })
+})
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/** `16 * 1024` as written at a call site, without evaluating anything. */
+function literalBytes(expression: string): number {
+  const parts = expression.split('*').map((part) => Number(part.trim()))
+  if (parts.some((part) => !Number.isInteger(part))) throw new Error(`not a literal byte count: ${expression}`)
+  return parts.reduce((left, right) => left * right)
+}
+
+describe('every request-body cap is one the platform can deliver', () => {
+  const handlers = readdirSync(join(ROOT, 'netlify', 'functions'))
+    .filter((name) => name.endsWith('.ts'))
+    .map((name) => [name, readFileSync(join(ROOT, 'netlify', 'functions', name), 'utf8')] as const)
+
+  it('passes an explicit cap at every call site — readJsonBody has no silent default', () => {
+    const http = readFileSync(join(ROOT, 'netlify', 'lib', 'http.ts'), 'utf8')
+    expect(http).toContain('maxBytes: number')
+    expect(http).not.toMatch(/maxBytes\s*=\s*\d/)
+    let seen = 0
+    for (const [file, source] of handlers) {
+      const calls = [...source.matchAll(/readJsonBody(?:<[^>]*>)?\(/g)]
+      const explicit = [...source.matchAll(/readJsonBody(?:<[^>]*>)?\(event, ([^)]+)\)/g)]
+      expect(explicit.length, `${file}: every readJsonBody needs its own cap`).toBe(calls.length)
+      seen += explicit.length
+      for (const [, cap] of explicit) {
+        if (!/^\d/.test(cap.trim())) continue
+        expect(literalBytes(cap), cap).toBeLessThanOrEqual(MAX_BODY_BYTES)
+      }
+    }
+    expect(seen).toBeGreaterThan(0)
+  })
+
+  it('refuses an oversized body in the dev adapter too, so local passes stop meaning "it will deploy"', () => {
+    const plugin = readFileSync(join(ROOT, 'scripts', 'dev-api-plugin.ts'), 'utf8')
+    expect(plugin).toContain("from '../shared/upload-limits'")
+    expect(plugin).toContain('total > MAX_BODY_BYTES')
   })
 })
