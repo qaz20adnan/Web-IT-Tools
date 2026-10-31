@@ -6,13 +6,10 @@ export const STORAGE_KEYS = {
   scripts: 'nexora.scripts.v1',
   scriptFavorites: 'nexora.script-favorites.v1',
   newsCache: 'nexora.news.v1',
-  researchRecent: 'nexora.research.v1',
   knowledgeBase: 'nexora.kb.v1',
   netIpHistory: 'nexora.net.ip.v1',
-  conversations: 'nexora.conversations.v1',
   diagnostics: 'nexora.diagnostics.v1',
   diagnosticFavorites: 'nexora.diagnostics.favorites.v1',
-  securityLab: 'nexora.securitylab.v1',
 } as const
 
 let activeStorageUser: string | null = null

@@ -70,7 +70,7 @@ variables belong here; never prefix secrets with `VITE_`.
 | `SUPABASE_URL` | `https://project.supabase.co` | Project URL |
 | `SUPABASE_ANON_KEY` | `eyJ...` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Server-only; bypasses RLS |
-| `NEXORA_SITE_URL` | `https://nexora-ai.netlify.app` | Used in auth redirects |
+| `NEXORA_SITE_URL` | `https://adnan-tech.netlify.app` | Used in auth redirects |
 | `NEXORA_HASH_PEPPER` | 32+ random bytes | Trial claim HMAC; keep stable. Required — with it unset the server refuses to hash an email and grants no new trial |
 | `OWNER_EMAIL` | `owner@example.com` | Optional verified owner address. Never grants a role automatically; run `npm run owner:promote` after verification. |
 | `ADMIN_EMAIL` | `admin@example.com` | Optional verified platform-administrator address. Never grants a role automatically; run `npm run admin:promote` (or `npm run super-admin:promote` for the legacy role). |
@@ -86,7 +86,7 @@ configure the Supabase Auth site URL and email templates documented in
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `AI_APP_REFERER` | `https://nexora-ai.netlify.app` | OpenRouter attribution |
+| `AI_APP_REFERER` | `https://adnan-tech.netlify.app` | OpenRouter attribution |
 | `AI_APP_TITLE` | `Adnan Tech` | OpenRouter attribution |
 | `AI_VISION_PROVIDER` / `AI_VISION_BASE_URL` / `AI_VISION_MODEL` / `AI_VISION_API_KEY` | – | Separate vision provider |
 | `AI_ALLOWED_HOSTS` | – | Extra hostnames or `.suffix` entries for custom providers |

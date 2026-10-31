@@ -43,7 +43,7 @@ templates:
 <a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery">Reset password</a>
 ```
 
-Set `NEXORA_SITE_URL` to the deployed origin (for example `https://nexora-ai.netlify.app`)
+Set `NEXORA_SITE_URL` to the deployed origin (for example `https://adnan-tech.netlify.app`)
 and add it to Supabase **Authentication → URL Configuration**.
 
 ### Owner and administrator promotion

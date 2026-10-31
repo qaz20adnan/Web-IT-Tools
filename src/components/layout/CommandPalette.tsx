@@ -56,7 +56,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       run: () => navigate(`/toolkit?tool=${tool.id}`),
     }))
 
-    const articles: CommandEntry[] = KNOWLEDGE_ARTICLES.slice(0, 30).map((article) => ({
+    const articles: CommandEntry[] = KNOWLEDGE_ARTICLES.map((article) => ({
       id: `article:${article.slug}`,
       group: 'pages',
       label: pickText(article.title, settings.language),

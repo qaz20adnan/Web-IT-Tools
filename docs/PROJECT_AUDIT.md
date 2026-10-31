@@ -20,7 +20,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | Vercel path | 1 generated function (`api/index.js`) dispatching 22 `/api` routes | `vercel/dispatcher.ts:31-54`, `scripts/build-vercel-api.mjs` |
 | Auth/DB | Supabase Auth + PostgREST over HTTPS, service-role server-side only | `netlify/lib/supabase.ts`, `netlify/lib/auth.ts` |
 | AI | OpenRouter default, OpenAI/Anthropic/Gemini/Ollama/custom; Gemini Interactions for grounded search | `netlify/lib/env.ts:5-12`, `netlify/lib/ai.ts`, `netlify/lib/gemini.ts` |
-| Tests | Vitest 5, 49 files / 479 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
+| Tests | Vitest 5, 50 files / 484 tests, jsdom | `vitest.config.ts`, LOCAL run 2026-10-31 |
 | Naming | brand is Adnan Tech; npm name `nexora-ai`, `NEXORA_*` env vars and `nexora.*` storage keys intentionally unchanged | `package.json:2`, `README.md:153-159` |
 
 ## 2. Live environment state (measured)
@@ -38,7 +38,7 @@ Everything below states the environment it was measured in. `LOCAL` = this machi
 | `https://adnan-tech.vercel.app` | VPROD | **FAIL — `DEPLOYMENT_NOT_FOUND`**; this hostname has never been assigned to project `adnan-mohamed/adnan-tech` |
 | Vercel preview `GET /api/health` | VPREV | PASS 200 but `database.configured=false`, `contentAdmin.configured=false` → **no Supabase env vars on the Vercel project** |
 | Vercel preview anonymous `GET /` | VPREV | 302 → `vercel.com/sso-api` (Deployment Protection / Vercel Authentication is ON) |
-| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 479 passed in 13.98 s / built in 531 ms (entry chunk 745.58 kB min, 231.87 kB gzip). Re-run on 2026-10-31 after the W1 AI-honesty batch; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
+| `npm run typecheck`, `lint`, `test`, `build` | LOCAL | PASS / 0 errors + 19 warnings / 484 passed in 11.52 s / built in 467 ms (entry chunk 745.58 kB min, 231.87 kB gzip). Re-run on 2026-10-31 after the W1 AI-honesty batch; full per-file breakdown in [docs/TESTING_REPORT.md](TESTING_REPORT.md) |
 | `npm audit --omit=dev` | LOCAL | PASS — 0 vulnerabilities in production dependencies |
 
 Consequence of the VPROD row: **Netlify is the only working production target today.** The
@@ -50,6 +50,9 @@ decision (see §7 item D1).
 
 Severities: CRITICAL breaks production or a core promise; HIGH breaks a feature, leaks data,
 or misleads the user; MEDIUM is a real defect with a bounded blast radius; LOW is hygiene.
+
+The tables below are the **as-found snapshot** and are deliberately not rewritten as work lands.
+What has since been fixed locally — and how it was proved — is tracked in §8.1.
 
 ### CRITICAL
 
@@ -189,7 +192,7 @@ or misleads the user; MEDIUM is a real defect with a bounded blast radius; LOW i
 | AI assistant + grounded search | Code complete, fail-closed and unit-tested, but **`ai.configured=false` and `research.configured=false` on NETLIVE** → the flagship feature has never answered a real request in production (D4) |
 | Ping / traceroute | Impossible in this runtime by design; the honest TCP-connect replacements are `net/latency` and `net/path`. Nothing fakes an ICMP result |
 | LAN tools (printer agent, private probes) | Work only under `npm run dev` (`localRuntime()` is false on both hosts); the UI says so |
-| Tests | 479 pass, but `src/services/api.ts` is only ever `vi.mock`ed and never executed, and 5 of 49 files render components → 26 of 33 pages and 16 of 22 functions have zero coverage, including every admin mutation |
+| Tests | 484 pass, but `src/services/api.ts` is only ever `vi.mock`ed and never executed, and 5 of 50 files render components → 26 of 33 pages and 14 of 22 functions have zero coverage, including every admin mutation |
 
 ## 6. What I could do without any external credential (already done)
 
@@ -221,9 +224,31 @@ or misleads the user; MEDIUM is a real defect with a bounded blast radius; LOW i
 
 | Wave | Contents | Why first | Status |
 | --- | --- | --- | --- |
-| W1 safe-now | H-1 fake citations, M-1 pepper fail-closed, M-2 printer default, M-5/M-6/M-7 AI gating and redaction, M-8 health truthfulness, L-1/L-2/L-4, H-6 light-theme contrast, M-9/M-10 | local, testable, no external dependency, and several violate the "no fake results" rule directly | **8 of 13 done locally** (`70e1deb` plus the W1 follow-up commit that carries this line): H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-2. Still open: L-1 (needs the canonical site URL from the owner), L-4, M-9, M-10, H-6 (browser pass). None of it is deployed. |
-| W2 platform | H-3 upload caps, H-4 timeout budget, H-5 stale-bundle guard, M-12 Node pin, M-13 CSP on previews only, M-14 binary bodies, L-3/L-5/L-6 | makes both hosts behave the same |
-| W3 security depth | H-7 sign-out sweep + account scoping, H-8 limiter, M-1 content-admin token, M-3 TLS rebinding, M-4 PKCE, H-2 cookie migration | each needs a design decision, ordered by blast radius |
-| W4 resilience/UX | H-9 per-route boundary, H-10 single error mapping, M-15/M-16/M-17, M-18 bundle split | user-visible quality |
-| W5 verification | §18 mandatory API matrix against preview, the 10 untested surfaces, Lighthouse/axe pass | turns "coded" into "proven" |
-| W6 release | C-1/C-2 with your D1–D4, then production only on D10 | gated by owner |
+| W1 safe-now | H-1 fake citations, M-1 pepper fail-closed, M-2 printer default, M-5/M-6/M-7 AI gating and redaction, M-8 health truthfulness, L-1/L-2/L-4, H-6 light-theme contrast, M-9/M-10 | local, testable, no external dependency, and several violate the "no fake results" rule directly | **11 of 13 fixed locally** (`70e1deb` plus the W1 follow-up commits): H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — itemised with proof in §8.1. Still open: M-9 (needs your approval, it widens what "clear everything" deletes) and H-6 (needs a browser pass in the light themes). **None of it is deployed.** |
+| W2 platform | H-3 upload caps, H-4 timeout budget, H-5 stale-bundle guard, M-12 Node pin, M-13 CSP on previews only, M-14 binary bodies, L-3/L-5/L-6 | makes both hosts behave the same | not started |
+| W3 security depth | H-7 sign-out sweep + account scoping, H-8 limiter, M-1 content-admin token, M-3 TLS rebinding, M-4 PKCE, H-2 cookie migration | each needs a design decision, ordered by blast radius | not started |
+| W4 resilience/UX | H-9 per-route boundary, H-10 single error mapping, M-15/M-16/M-17, M-18 bundle split | user-visible quality | not started |
+| W5 verification | §18 mandatory API matrix against preview, the 10 untested surfaces, Lighthouse/axe pass | turns "coded" into "proven" | not started |
+| W6 release | C-1/C-2 with your D1–D4, then production only on D10 | gated by owner | blocked on D1–D4, D10 |
+
+### 8.1 Fixed in code, not yet deployed or browser-verified
+
+| ID | What landed | Proof |
+| --- | --- | --- |
+| H-1 | Recalled analysis URLs are labelled `verified: false`, the invented `retrievedAt` is dropped, the Lab heading and note say the model recalled them, and the prompt tells the model nothing was searched | `tests/analyze-honesty.test.ts` (5) |
+| M-1 / M-2 | Trial hashing refuses to start without `NEXORA_HASH_PEPPER`; rate-limit buckets use the per-process `emailBucketKey()`; public printer probing is opt-in | `tests/secure-defaults.test.ts`, `tests/config-truth.test.ts` |
+| M-5 | `verifyProviderAuth()` returns `ProviderVerification` and distinguishes an authenticated catalog from a public one; `/api/ai/test` forwards it and the Providers page warns instead of claiming success | `tests/ai-adapter.test.ts` (5 cases) |
+| M-6 | `ai/models`, `ai/test`, `research` gate on `ai.use` / `research.read` and record usage; BYOK traffic (`x-tn-key`) is not charged to platform quota | `tests/ai-gating.test.ts` (5) |
+| M-7 | Upstream error text is redacted in the shared `mapUpstreamStatus()` instead of a per-file copy | `tests/fetch.test.ts` |
+| M-8 | `/api/health` reports derived news/research truth, including `sources` and `invalidCustomFeeds` | `tests/config-truth.test.ts` |
+| L-1 | `og:image` / `twitter:image` now point at the live host, and the duplicated `meta description` is one bilingual tag | **Verified live 2026-10-31**: `https://adnan-tech.netlify.app/og-cover.png` → 200 `image/png`; the old `nexora-ai.netlify.app` → 404 |
+| L-2 | `normalizeBaseUrl()` strips a pasted `/api/chat` | `tests/ai-adapter.test.ts` |
+| L-4 | The three dead `STORAGE_KEYS` entries were deleted (`researchRecent`, `conversations`, `securityLab`); `grep` shows no remaining reference | LOCAL grep + suite green |
+| M-10 | The command palette searches all 45 knowledge articles instead of the first 30 | LOCAL count of `slug:` across `src/data/knowledge*.ts`; no palette test exists yet (W5) |
+
+Still open from W1: **M-9** (the export/clear list omits keys the app writes — and the inventory is
+worse than the register said: `nexora.ioc.v1`, `nexora.vulns.v1`, `nexora.cidr-plan.v1`,
+`nexora.mtu-config.v1`, `nexora.capacity-input.v1`, `nexora.certdecode.prefs.v1` and
+`nexora.net.ip.v1` hold member data yet are written **unscoped**, so two accounts on one browser see
+the same lab data). Widening "clear everything" also widens what gets deleted, so it needs your go-ahead.
+**H-6** needs a real browser in each light theme.

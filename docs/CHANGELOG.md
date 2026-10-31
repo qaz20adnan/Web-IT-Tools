@@ -67,11 +67,33 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   - L-2: `normalizeBaseUrl()` also strips a pasted `/api/chat`, so an Ollama endpoint URL no longer
     doubles to `/api/chat/api/chat`.
   **Verified**: `npm run typecheck` 0 errors; `npm run lint` 0 errors / 19 warnings; `npm test`
-  49 files / 479 tests pass in 13.98 s (new: `tests/analyze-honesty.test.ts` 5 tests,
+  50 files / 484 tests pass in 11.52 s (new: `tests/analyze-honesty.test.ts` 5 tests,
   `verifyProviderAuth` cases in `tests/ai-adapter.test.ts` 17 → 20); `npm run build` 531 ms.
   **Not verified**: nothing in this batch was deployed or exercised against a live provider — the
   unproven-key panel, the lab source label and the entitlement rejections have only been proven by
   mocked handlers.
+
+- **W1 leftovers** (same wave, second batch):
+  - L-1: `og:image` / `twitter:image` pointed at `nexora-ai.netlify.app`, which answers **404**. Both
+    now use `https://adnan-tech.netlify.app/og-cover.png`, probed this session: **200,
+    `image/png`**. The two duplicated `name="description"` tags (one EN, one `lang="ar"`) became one
+    bilingual tag, because crawlers take the first and silently drop the other.
+  - L-4: deleted the three `STORAGE_KEYS` entries no code ever reads (`researchRecent`,
+    `conversations`, `securityLab`). `grep` across `src/` and `tests/` returns zero references.
+  - M-10: the command palette stopped pre-truncating `KNOWLEDGE_ARTICLES.slice(0, 30)`; the catalog
+    holds 45 articles, so 15 of them were unreachable from the palette while the UI implied full
+    coverage. No palette test exists yet — that is W5.
+  - `tests/ai-gating.test.ts` (5 tests) is the missing proof for M-6: it spies `requireMember` and
+    asserts `/api/ai/models` and `/api/ai/test` ask for `ai.use`, `/api/research` asks for
+    `research.read`, BYOK requests (`x-tn-key`) record **no** platform usage, and research with no
+    provider key is left unbilled.
+  - The retired hostname was also replaced inside `docs/DEPLOYMENT.md` and
+    `docs/ADNAN_TECH_AUTH_AND_RBAC.md`.
+  - `docs/PROJECT_AUDIT.md` gained **§8.1 "Fixed in code, not yet deployed or browser-verified"**, so
+    the register stays the as-found snapshot instead of being rewritten as work lands.
+  **Verified**: typecheck 0 errors, lint 0 errors / 19 warnings, `npm test` 50 files / 484 tests in
+  11.52 s, `npm run build` 467 ms, the two OG probes above. **Not verified**: the palette change and
+  the meta tags have not been looked at in a browser (W5).
 
 - **Work rescue.** 187+ uncommitted files from 2026-10-25→31 were committed as a checkpoint
   (`9805209`) after the ignore fix, so the six days of platform work are no longer single-copy on a
@@ -93,7 +115,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 ### Discovered, not yet fixed (next waves)
 | Wave | Items |
 | --- | --- |
-| W1 safe-now | **code-side done** (see the W1 batch below); still open: L-1 `og:image` still pointing at `nexora-ai.netlify.app`, L-4 dead storage keys, M-9 export/clear key lists incomplete, M-10 palette searches 30 of 44 articles, H-6 light-theme contrast (needs a browser) |
+| W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | H-3 three conflicting upload caps, H-4 per-attempt timeout exceeds the 60 s platform ceiling, H-5 add a stale-bundle guard to CI, M-12 Node version pinning, M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |

@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
-| Tests | `npm test` | LOCAL | **PASS** | 49 files, 479 tests, 0 failed, 13.98 s wall |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 531 ms (entry chunk 745.58 kB min / 231.87 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 50 files, 484 tests, 0 failed, 11.52 s wall |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build`, 467 ms (entry chunk 745.58 kB min / 231.87 kB gzip) |
 | Vercel API bundle | `npm run build:vercel-api` | LOCAL | **PASS** | `api/index.js` ≈1.17 MB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,20 +24,20 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 479 tests actually cover
+## 2. What the 484 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · csv 25 · gemini-research 23 · cidr-overlap 21 · ai-adapter 20 · permissions 19 ·
 incidents 17 · diff 16 · vercel-bridge 16 · operations 15 · mtu 14 · trial 14 · calculators 13 ·
 net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 6 of 22
+Server-side (the part that holds secrets and money) — 17 of 23 `netlify/lib/*` files and 8 of 22
 `netlify/functions/*` files are imported by at least one test:
 
 | Covered | Not covered by any test |
 | --- | --- |
 | `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`rate.ts`**, **`supabase.ts`**, `tls.ts` |
-| functions: `ai-analyze`, `ai-chat`, `ai-test`, `auth`, `health`, `news` | the other 16 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
+| functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
 
 Frontend: 27 `src/lib/*` pure modules and 5 tool/UI files render under test (`tool-ui`,
 `toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`).
