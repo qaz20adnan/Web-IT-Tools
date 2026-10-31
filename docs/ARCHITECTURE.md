@@ -43,7 +43,7 @@ tooling platform on free tiers; §5 lists the two places where it starts to hurt
 | session | `src/services/authSession.ts` | 55 lines | `localStorage` key `nexora.auth.session.v1` + legacy URL-hash reader |
 | error text | `src/services/apiError.ts` | 42 lines | since H-10 the **only** mapping from a caught value to something a person reads; `tests/api-error.test.ts` fails if a second `errorMessage()` appears under `src/` |
 | pure logic | `src/lib/*.ts` | 27 files | calculators, CIDR, CVSS, x509, cron, diff, csv, markdown, script scanning — all framework-free and unit-tested |
-| static knowledge | `src/data/*.ts` | 14 files | articles, scripts, models, tools, themes, domains |
+| static knowledge | `src/data/*.ts` | 15 files | articles, scripts, models, tools, themes, domains — plus `knowledgeMeta.ts`, the **generated** body-less index the list surfaces and the command palette read (see §3.1) |
 | UI kits | `src/components/{ui,layout,dashboard,charts,tools,onboarding,brand}` | — | presentational shell + 43 catalogued tools living in 18 component files (`src/data/tools.ts`, `src/components/tools/`) |
 | pages | `src/pages/*.tsx` | 33 | 38 concrete paths served by 33 modules — `DomainPage` is instantiated 7 times with a `hub` prop (`src/App.tsx:110-116`) |
 | styling | `src/styles/index.css` + `src/data/themes.ts` | — | Tailwind 4, 11 themes driven by CSS custom properties, RTL via logical properties |
@@ -58,8 +58,8 @@ review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it
 third-party speed-test endpoints and never sees an `ApiError`.
 
 One claim this section used to make and should not: the layering does **not** keep jsdom out of the
-pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 59 files pay for
-it — 88–124 s of environment creation across workers for a 12.3–13.1 s run, of which only 8 files render a
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 60 files pay for
+it — 96 s of environment creation across workers (68% of the tracked time) for a 14–15 s run, of which only 8 files render a
 component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
 recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied.
 
@@ -71,6 +71,25 @@ in `AppShell` and can open on top of a page's own dialog. And the palette, not t
 caret when its content focuses itself: `Modal`'s initial-focus timer now bails out if the panel already
 contains `document.activeElement`, because the header's Close button precedes the children in document
 order and used to win that race in every dialog in the app.
+
+### 2.1 The one generated file on the frontend
+
+`src/data/knowledgeMeta.ts` is not written by hand. `scripts/build-knowledge-index.mjs` bundles
+`src/data/knowledge.ts` with esbuild, drops the `body` field from every record and prints the rest as
+JSON; `npm run build` runs it before `tsc --noEmit && vite build`, so the artifact cannot silently
+fall behind the catalog — and `tests/knowledge-meta.test.ts` fails if it does, in either direction.
+
+It exists because a bundler cannot split an object literal. Five surfaces (the command palette, the
+dashboard, `/solutions`, `/docs`, the domain hubs) needed a *title*, and importing
+`KNOWLEDGE_ARTICLES` for a title drags all 44 article bodies into whatever chunk the importer lives
+in — which was the entry chunk. `ArticlePage.tsx:48` is the only place that renders a body, so it is
+the only file allowed to import `src/data/knowledge.ts`; the guard test asserts exactly that split,
+so a future `import { KNOWLEDGE_ARTICLES }` in a list surface fails the suite instead of quietly
+adding ~83 kB gzip back to first paint.
+
+This is a data-layer exception, not a break of the `pages → components/context → services → lib`
+direction: the generated file sits in the same `src/data` tier as the catalog it derives from, and
+nothing in `lib` or `services` reads it.
 
 ## 3. Server layers
 

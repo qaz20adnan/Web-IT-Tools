@@ -4,7 +4,7 @@ import { CornerDownLeft, Search } from 'lucide-react'
 import { Modal } from '@/components/ui'
 import { FLAT_NAV } from './nav'
 import { TOOLS } from '@/data/tools'
-import { KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { useApp } from '@/context/AppContext'
 import { pickText } from '@/i18n'
 import { cn } from '@/lib/utils'
@@ -56,7 +56,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       run: () => navigate(`/toolkit?tool=${tool.id}`),
     }))
 
-    const articles: CommandEntry[] = KNOWLEDGE_ARTICLES.map((article) => ({
+    const articles: CommandEntry[] = KNOWLEDGE_META.map((article) => ({
       id: `article:${article.slug}`,
       group: 'pages',
       label: pickText(article.title, settings.language),

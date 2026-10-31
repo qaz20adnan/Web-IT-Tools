@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { BookOpen, ExternalLink, FileText, Search } from 'lucide-react'
 import { Badge, Card, CardHeader, EmptyState, Input, PageHeader, Select } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
-import { KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { REFERENCE_SITES } from '@/data/referenceSites'
 import { getDomain } from '@/data/domains'
 import { pickText } from '@/i18n'
@@ -21,7 +21,7 @@ export function DocsHubPage() {
   )
   const guides = useMemo(() => {
     const term = query.trim().toLowerCase()
-    return KNOWLEDGE_ARTICLES.filter((article) => !term || pickText(article.title, settings.language).toLowerCase().includes(term) || article.tags.some((tag) => tag.includes(term))).slice(0, 9)
+    return KNOWLEDGE_META.filter((article) => !term || pickText(article.title, settings.language).toLowerCase().includes(term) || article.tags.some((tag) => tag.includes(term))).slice(0, 9)
   }, [query, settings.language])
 
   return (

@@ -50,7 +50,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Setting | Value | File |
 | --- | --- | --- |
 | Framework | Vite (SPA) — **not Next.js** | `vercel.json:3`, `vite.config.ts` |
-| Build command (Netlify) | `npm run build` (= `tsc --noEmit && vite build && npm run build:vercel-api`) | `netlify.toml:2`, `package.json:14` |
+| Build command (Netlify) | `npm run build` (= `build:knowledge-index && tsc --noEmit && vite build && npm run build:vercel-api`) | `netlify.toml:2`, `package.json:14` |
 | Build command (Vercel) | `npm run build` (same script; the API bundle is part of it) | `vercel.json:4` |
 | Output directory | `dist` | `netlify.toml:3`, `vercel.json:5` |
 | Install | `npm ci --no-audit --no-fund` | `vercel.json:6` |
@@ -58,7 +58,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Vercel function | `api/index.js`, generated, git-ignored, 60 s `maxDuration` | `vercel.json:7-11` |
 | Node | **22.x on both hosts.** `engines.node = "22.x"` overrides the Vercel project dropdown, so the dashboard can stay on 24.x and the deploy still runs 22.x (M-12) | `netlify.toml:7`, `package.json:8-10` |
 
-**Two structural traps, both already bitten once:**
+**Three structural traps, two already bitten once:**
 - Nested function folders do not work on Netlify. Handlers stay flat and `/api/*` redirects stay
   explicit, with the specific rules above the `/api/*` wildcard (`netlify.toml:19-118`).
 - `api/index.js` is generated. It is no longer a second command to remember: `npm run build`
@@ -66,6 +66,11 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
   this, building by hand or forgetting the second command left Vercel silently serving a stale API.
   `tests/route-parity.test.ts` additionally fails `npm test` if a route exists on one host but not
   another; there is no CI here, so that check only runs when the suite is run locally.
+- `src/data/knowledgeMeta.ts` is generated too, and it is committed on purpose (Vite needs it at
+  build time and the test suite reads it). It is the catalog without the article bodies, which is
+  what keeps 44 bodies out of the first-paint bundle. Editing it by hand is the trap: the next
+  `npm run build` overwrites the edit, and `tests/knowledge-meta.test.ts` fails the mismatch first.
+  Edit `src/data/knowledge.ts` and regenerate instead.
 
 ## 4. Deploy path A — Netlify (the working host)
 
@@ -168,8 +173,8 @@ npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 Current measured state: all four PASS (0 lint errors / 16 warnings, all of them `react-refresh`
-module-layout hints rather than defects; 566 tests in 59 files; 0.48–0.66 s
-build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
+module-layout hints rather than defects; 572 tests in 60 files; a 0.45–0.69 s Vite build inside a
+~17 s `npm run build`, which also regenerates `src/data/knowledgeMeta.ts` and `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 
 One local-only difference worth knowing before you trust a dev run: since L-3 the dev API adapter

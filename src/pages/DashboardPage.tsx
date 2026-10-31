@@ -39,7 +39,7 @@ import { useToast } from '@/context/ToastContext'
 import { useHealth } from '@/hooks/useHealth'
 import { useNews } from '@/hooks/useNews'
 import { DIAGNOSTIC_CATEGORIES, DIAGNOSTIC_TOOLS, SECONDARY_TOOLS, type DiagnosticCategory } from '@/data/diagnosticTools'
-import { KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { TOOLS } from '@/data/tools'
 import { getDomain } from '@/data/domains'
 import { loadKnowledgeBase } from '@/services/knowledge-base'
@@ -152,7 +152,7 @@ export function DashboardPage() {
 
   const latestKnowledge = useMemo(
     () =>
-      [...KNOWLEDGE_ARTICLES]
+      [...KNOWLEDGE_META]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
         .slice(0, 4)
         .map((article) => ({
@@ -522,7 +522,7 @@ export function DashboardPage() {
             {
               key: 'knowledge',
               label: L('Knowledge articles', 'مقالات المعرفة'),
-              value: KNOWLEDGE_ARTICLES.length,
+              value: KNOWLEDGE_META.length,
               hint: `${localKnowledge.length} ${L('personal notes', 'ملاحظة شخصية')}`,
               icon: BookOpen,
               accent: '#8ea7ff',

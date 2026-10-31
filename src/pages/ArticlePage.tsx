@@ -5,7 +5,8 @@ import { Alert, Badge, Button, Card, CardHeader, EmptyState, PageHeader, RiskBad
 import { useApp } from '@/context/AppContext'
 import { useLibrary } from '@/context/LibraryContext'
 import { useToast } from '@/context/ToastContext'
-import { getArticleBySlug, KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { getArticleBySlug } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { SCRIPT_TEMPLATES } from '@/data/scripts'
 import { getDomain } from '@/data/domains'
 import { formatDate, pickText } from '@/i18n'
@@ -20,7 +21,7 @@ export function ArticlePage() {
   const article = slug ? getArticleBySlug(slug) : undefined
 
   const related = useMemo(
-    () => (article ? KNOWLEDGE_ARTICLES.filter((item) => item.id !== article.id && item.domain === article.domain).slice(0, 3) : []),
+    () => (article ? KNOWLEDGE_META.filter((item) => item.id !== article.id && item.domain === article.domain).slice(0, 3) : []),
     [article],
   )
   const scripts = useMemo(

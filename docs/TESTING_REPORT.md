@@ -15,8 +15,9 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 59 files, 566 tests, 0 failed, 12.3–13.1 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 88–124 s of environment time across workers) |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.48–0.66 s depending on cache (entry chunk 747.68 kB min / 232.60 kB gzip; M-15/M-16/M-17 together cost 0.92 kB min, 0.40 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 60 files, 572 tests, 0 failed, 14.0–15.0 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 67–68% of the tracked time is ~96 s of jsdom setup across 60 environments) |
+| Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`, 0.44–0.69 s depending on cache (entry chunk 484.91 kB min / 149.51 kB gzip after M-18; M-15/M-16/M-17 together cost 0.92 kB min, 0.40 kB gzip) |
+| Generated knowledge index | `npm run build:knowledge-index` | LOCAL | **PASS** | `src/data/knowledgeMeta.ts` regenerated: 44 articles, 62 kB, byte-identical to the committed artifact; `tests/knowledge-meta.test.ts` fails if it drifts |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,7 +25,7 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 566 tests actually cover
+## 2. What the 572 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 ·
@@ -43,8 +44,8 @@ Server-side (the part that holds secrets and money) — 18 of 23 `netlify/lib/*`
 Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
 `src/services/api.ts` (see below), and 7 UI files render under test (`tool-ui`,
 `toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`, `modal-focus`,
-`command-palette`). `responsive-tables` and `error-boundary` add a source-wide scan and a
-containment render respectively.
+`command-palette`). `responsive-tables`, `knowledge-meta` and `error-boundary` add a source-wide
+scan (the middle one a generated-artifact drift check) and a containment render respectively.
 **26 of 33 pages and 5 of 18 tool modules have no test.**
 `src/services/api.ts` — the 650-line module every page depends on — **was never executed by a test
 before H-10**; the only reference to it was `vi.mock('@/services/api')` in
@@ -129,6 +130,18 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   rejects a wrapper that is `overflow-hidden` without a scroll value, or a table that is in neither a
   scroll wrapper nor given `min-w-`. **Mutation-checked**: putting `overflow-hidden` back on one of
   the three fixed sites fails it.
+- `tests/knowledge-meta.test.ts` (6) — M-18 guards a *generated* file, so it has to fail in both
+  directions: the artifact must equal the catalog (`KNOWLEDGE_META` ids in the same order, and per
+  record `{ ...meta, body: source.body }` deep-equals the real article, which catches a dropped field,
+  an added one and a drifted title at once) **and** it must stay smaller (the file itself carries no
+  `body:` key, asserted against the source text). The other four hold the shape of the fix: the type
+  is `Omit<KnowledgeArticle, 'body'>`; the five list surfaces must not import `@/data/knowledge` while
+  `ArticlePage` — the one thing that renders a body — must; and `scripts.build` still regenerates the
+  index *before* `vite build`. **Mutation-checked** three ways: editing one title in the artifact fails
+  the field-for-field test, swapping the build order fails the ordering test, deleting the regenerate
+  step fails it too — but only after the first version was caught vacuous, because `indexOf` returns
+  `-1` when the step is gone and `-1` sorts before every real index, so an ordering assertion alone
+  passes on a build that quietly stopped generating the file.
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
@@ -197,11 +210,14 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 
 | Metric | Environment | Value | Verdict |
 | --- | --- | --- | --- |
-| Vite production build time | LOCAL | 483–663 ms | PASS |
-| Entry chunk | LOCAL | 747.68 kB min / **232.60 kB gzip** (`index-DTyL1qmm.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18. M-15/M-16/M-17 added 0.92 kB min / 0.40 kB gzip on top of H-10's 1.19 kB / 0.35 kB |
+| Vite production build time | LOCAL | 447–690 ms; the new `build:knowledge-index` step adds 123–165 ms | PASS |
+| `npm run build` end to end | LOCAL | 17.2–17.5 s wall (npm overhead + `tsc --noEmit` + vite + the 1179 kB `api/index.js` esbuild bundle) | INFO — the gate is slow for reasons that have nothing to do with the bundle split |
+| Entry chunk | LOCAL | 484.91 kB min / **149.51 kB gzip** (`index-KsoF9hUP.js`) — was 747.68 / 232.60 before M-18 | M-18 landed: 263 kB min / 83 kB gzip out of the entry |
+| First-paint download (entry + its static imports) | LOCAL | `index` + `utils` = 658.1 kB min / **203.7 kB gzip** (was 278.6 kB gzip) | **MISS by 3.7 kB** vs the < 200 kB gzip budget → the remaining lever is the eagerly-bundled Arabic dictionary, which needs an async language load, i.e. a UX decision (see M-18) |
 | Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.21 kB gzip | WARN — 43 tools statically imported |
-| `utils` shared chunk | LOCAL | 171.66 kB / 53.68 kB gzip | INFO |
-| Total JS emitted | LOCAL | 61 chunks, ≈1.9 MB minified (2.1 MB in `dist/assets`) | PASS (splitting works; the problem is only the entry) |
+| Knowledge catalog | LOCAL | `ArticlePage` 318.05 kB / 98.45 kB gzip, of which the 44 article bodies are the bulk | INFO — post-M-18 this is where the bodies live, fetched only on `/kb/<slug>` |
+| `utils` shared chunk | LOCAL | 173.23 kB / 54.16 kB gzip | INFO — holds both i18n dictionaries; statically imported by the entry, so it *is* first paint |
+| Total JS emitted | LOCAL | 61 chunks, 1.94 MB minified JS | PASS (splitting works; M-18 moved the bodies between chunks and removed them from the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
 | Test suite wall time | LOCAL | 12.3–13.1 s, 66–71 % of tracked time spent creating 59 jsdom environments (88–124 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |

@@ -192,7 +192,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   settings.language === 'ar' …` inside the component, so the closure was a new function every render and
   the service-row memo at `:119` was keyed partly on something that could not be equal to its previous
   value; `L` is now a `useCallback` on `[settings.language]` and the memo depends on `L` itself.
-  `DomainPage.tsx` (the finding's `:72`, now `:75`) built `allowed` as a fresh array literal per render, which made the 45-article
+  `DomainPage.tsx` (the finding's `:72`, now `:75`) built `allowed` as a fresh array literal per render, which made the 44-article
   filter-and-`.sort()` at `:75` re-run on every keystroke-driven re-render; it is memoized on
   `[filter, config.domains]`, and `config` comes from a module-level `HUBS` object so those deps really
   are stable.
@@ -374,11 +374,41 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   browser-verified**, and M-10's search *coverage* is unchanged — this is about announcing results, not
   finding them.
 
-- **W4 · bundle cost of this wave**: `npm run build` after M-15/M-16/M-17 is 483 ms, entry chunk
-  **747.68 kB min / 232.60 kB gzip** (`index-DTyL1qmm.js`) — 0.92 kB min / 0.40 kB gzip over H-10's
-  746.76 / 232.20. M-18 (the <200 kB gzip budget) is still open and is now measured against this number.
-  **Verified**: typecheck 0 errors; lint 0 errors / 16 warnings; `npm test` 59 files / **566** tests in
-  12.3–13.1 s. Not deployed.
+- **W4 · M-18 the knowledge catalog was pinned to first paint**: the entry chunk shipped **747.68 kB
+  min / 232.60 kB gzip**, and the honest measure — the entry's *static import closure*, because a
+  chunk only stops being downloaded when the boundary is a dynamic import — was 278.6 kB gzip. The
+  cause was not the router or a heavy library: six files imported `KNOWLEDGE_ARTICLES`, and only one
+  of them (`ArticlePage.tsx:48`, `renderMarkdown(pickText(article.body, …))`) ever read a body. The
+  other five wanted a title. A bundler cannot split an object literal, so asking the catalog for a
+  title bought all 44 article bodies in the same chunk. The fix is generated rather than duplicated:
+  `scripts/build-knowledge-index.mjs` bundles the catalog with esbuild, strips `body`, and writes
+  `src/data/knowledgeMeta.ts` (44 records, 62 kB, typed `Omit<KnowledgeArticle, 'body'>`); the
+  palette, the dashboard, `/solutions`, `/docs` and the domain hubs read that, and `ArticlePage` is
+  the only file left importing the catalog. `npm run build` regenerates it before `vite build`, and
+  `tests/knowledge-meta.test.ts` (6) fails both if the artifact drifts *and* if it stops being
+  smaller — `{ ...meta, body }` deep-equals the source record, so a dropped or added field fails, and
+  a hand-edit of the generated file fails until the next build overwrites it. **Verified**: entry
+  chunk 484.91 kB / **149.51 kB gzip**, closure 658.1 kB / **203.7 kB gzip** — first paint shed
+  ~75 kB gzip (−27%) and the bodies moved to `ArticlePage-*.js` (318.05 kB / 98.45 kB gzip), fetched
+  only on `/kb/<slug>`. The generator is deterministic (same md5 across runs). **The <200 kB budget
+  is missed by 3.7 kB**, and the only lever that size is the eagerly-bundled Arabic dictionary
+  (`src/i18n/ar.ts`, 78 kB of source, both dictionaries in the statically-imported `utils` chunk) —
+  that needs an async language load gating the first render, which on an Arabic-first product means a
+  flash of untranslated keys, so it is the owner's UX call and not something to spend quietly.
+  `DashboardPage` stays eager by the same reasoning: it *is* the `/` route, so lazy-loading it adds a
+  round trip to the most common first paint instead of removing bytes. Three mutations: drift one
+  title (fails), swap the build order (fails), delete the build step (fails — only after the first
+  version of that assertion was caught vacuous, since `indexOf` returns `-1` for a missing step and
+  `-1` sorts before every real index). Also corrected here: two docs claimed the catalog "holds 45
+  articles"; it holds 44, and the M-10 row still described the `slice(0, 30)` as open although W1
+  closed it. **Not browser-verified, nothing deployed.**
+
+- **W4 bundle cost, re-measured after M-18**: `vite build` 447–690 ms (the new generator step adds
+  123–165 ms; `npm run build` end to end is ~17.2–17.5 s of npm + tsc + vite + the 1179 kB API
+  bundle). Entry chunk **484.91 kB min / 149.51 kB gzip** (`index-KsoF9hUP.js`), first-paint closure
+  **203.7 kB gzip**. M-15/M-16/M-17 together cost 0.92 kB min / 0.40 kB gzip on top of H-10's 1.19 kB
+  / 0.35 kB, and M-18 paid for all of it and 83 kB more. **Verified**: typecheck 0 errors; lint 0
+  errors / 16 warnings; `npm test` 60 files / **572** tests in 14.0–15.0 s. Not deployed.
 
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
@@ -423,7 +453,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   - L-4: deleted the three `STORAGE_KEYS` entries no code ever reads (`researchRecent`,
     `conversations`, `securityLab`). `grep` across `src/` and `tests/` returns zero references.
   - M-10: the command palette stopped pre-truncating `KNOWLEDGE_ARTICLES.slice(0, 30)`; the catalog
-    holds 45 articles, so 15 of them were unreachable from the palette while the UI implied full
+    holds 44 articles, so 14 of them were unreachable from the palette while the UI implied full
     coverage. No palette test exists yet — that is W5.
   - `tests/ai-gating.test.ts` (5 tests) is the missing proof for M-6: it spies `requireMember` and
     asserts `/api/ai/models` and `/api/ai/test` ask for `ai.use`, `/api/research` asks for
@@ -471,7 +501,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
-| W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2). None of it browser-verified. Still open: M-18 — entry chunk is **232.60 kB gzip** against the <200 kB budget. Not deployed |
+| W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 
 ### Blocked on the owner (no code change will move these)

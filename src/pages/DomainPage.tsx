@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BookOpen, ExternalLink, Wrench } from 'lucide-react'
 import { Badge, Card, CardHeader, EmptyState, PageHeader, Stat } from '@/components/ui'
 import { useApp } from '@/context/AppContext'
-import { KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { TOOLS } from '@/data/tools'
 import { DOMAINS, getDomain } from '@/data/domains'
 import { REFERENCE_SITES } from '@/data/referenceSites'
@@ -78,7 +78,7 @@ export function DomainPage({ hub }: { hub: keyof typeof HUBS }) {
   )
 
   const articles = useMemo(
-    () => KNOWLEDGE_ARTICLES.filter((article) => allowed.includes(article.domain)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    () => KNOWLEDGE_META.filter((article) => allowed.includes(article.domain)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [allowed],
   )
   const tools = useMemo(() => TOOLS.filter((tool) => config.toolCategories.includes(tool.category)), [config.toolCategories])

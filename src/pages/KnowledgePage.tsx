@@ -5,7 +5,7 @@ import { Badge, Button, Card, EmptyState, Input, PageHeader, Select } from '@/co
 import { useApp } from '@/context/AppContext'
 import { useLibrary } from '@/context/LibraryContext'
 import { useToast } from '@/context/ToastContext'
-import { KNOWLEDGE_ARTICLES } from '@/data/knowledge'
+import { KNOWLEDGE_META } from '@/data/knowledgeMeta'
 import { getDomain } from '@/data/domains'
 import { formatDate, pickText } from '@/i18n'
 import type { ProblemCategory } from '@/types'
@@ -21,7 +21,7 @@ export function KnowledgePage() {
 
   const articles = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return KNOWLEDGE_ARTICLES.filter((article) => {
+    return KNOWLEDGE_META.filter((article) => {
       if (domain !== 'all' && article.domain !== domain) return false
       if (difficulty !== 'all' && article.difficulty !== difficulty) return false
       if (!needle) return true
@@ -44,7 +44,7 @@ export function KnowledgePage() {
       <PageHeader
         title={t('knowledge.title')}
         subtitle={t('knowledge.subtitle')}
-        badge={<Badge>{t('knowledge.articleCount', { count: KNOWLEDGE_ARTICLES.length })}</Badge>}
+        badge={<Badge>{t('knowledge.articleCount', { count: KNOWLEDGE_META.length })}</Badge>}
         actions={
           <Button
             size="sm"
@@ -71,7 +71,7 @@ export function KnowledgePage() {
           </div>
           <Select value={domain} onChange={(event) => setDomain(event.target.value as typeof domain)} aria-label={t('knowledge.allDomains')}>
             <option value="all">{t('knowledge.allDomains')}</option>
-            {[...new Set(KNOWLEDGE_ARTICLES.map((article) => article.domain))].map((id) => (
+            {[...new Set(KNOWLEDGE_META.map((article) => article.domain))].map((id) => (
               <option key={id} value={id}>
                 {t(getDomain(id).labelKey)}
               </option>
