@@ -489,6 +489,25 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Verified**: `git log -S` for the `.env.example` line, grep for the deleted literal, the two
   guard tests exist and pass. **Not verified**: nothing was re-deployed, so the *host* env state is
   unchanged (Vercel still has no Supabase vars — C-3/D3).
+- Re-read all eight `Discovered → W1` **medium** findings against current source instead of trusting
+  the changelog that claimed them, because the register still showed every one of them as open six
+  batches later. Six are genuinely closed and now say which line proves it: M-1 (`emailBucketKey()`
+  at `netlify/lib/auth.ts:129`, refusal warning at `:210`), M-2 (`envBool` is false unless the value
+  is exactly `true`, `netlify/lib/env.ts:18-20,65`), M-5 (`ProviderVerification.keyVerified`,
+  `netlify/lib/ai.ts:478-527`), M-6 (`requireMember(event, 'ai.use')` / `'research.read'` plus
+  `recordAiUsage`, BYOK excluded by `usesClientProviderKey`), M-7 (`redactSecret` +
+  `mapUpstreamStatus` in `netlify/lib/fetch.ts:86-93`, now reused by `gemini.ts:272`), M-8
+  (`news.configured = feeds.length > 0`, `research.configured = providers.length > 0 || grounded`).
+  **Two are not closed, and saying so is the point of the pass**: **M-3 is still a live defect** —
+  `net-tls.ts:22-24` calls `assertPublicHost(host)` and then `inspectCertificate(host, port)`, so it
+  resolves the name twice and connects to the *second* answer; the rebinding window the audit
+  described was never fixed, and it is now the next code item. **M-4 was already mitigated before the
+  audit** and the register overstated it: both landing pages call `clearAuthHash()` immediately after
+  reading (`ResetPasswordPage.tsx:27,30`, `VerifyEmailPage.tsx:31,34`), so the fragment does not
+  survive in history or the address bar; what remains is the implicit flow itself and `localStorage`
+  persistence, which the H-level session findings already own.
+  **Verified**: every claim above is a file:line read in this session. **Not verified**: none of it
+  was re-deployed or exercised against a live provider.
 - Recorded that `adnan-tech.vercel.app` has never been assigned to the Vercel project and that its
   production alias 404s (finding C-1/C-2 in the audit table). Note for the owner: the repo's own
   plan (`README.md:15`, `docs/DEPLOYMENT.md:5-13`) designates **Netlify** as production and Vercel
@@ -500,7 +519,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | --- | --- |
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
-| W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
+| W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window (**re-verified open this session — the only W1-listed medium that was never fixed**), M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 
