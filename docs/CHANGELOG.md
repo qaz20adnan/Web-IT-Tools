@@ -116,6 +116,27 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   dev stays on Node 24.22, which npm now reports as an `EBADENGINE` **warning** on install, not an
   error (`engine-strict` is off). Not deployed.
 
+- **W2 · M-13 CSP** (closed by decision, **no policy change**): the Vercel Toolbar console error the
+  owner saw comes from `script-src 'self'` and a `connect-src` with no `wss:`. Satisfying the
+  Toolbar means allowlisting `vercel.live` and `wss://ws-us3.pusher.com`, which is exactly the kind
+  of blanket CSP weakening this project has ruled out — and the app needs neither: it opens no
+  websocket, no `EventSource`, loads no external font and runs no Worker, so the policy costs the
+  product nothing. What landed instead is the drift guard, because the CSP string exists twice
+  (`netlify.toml` for production traffic, `vercel.json` for the second host) and nothing checked
+  that the two agreed: `tests/security-headers.test.ts` (4) asserts all seven headers on both
+  hosts, asserts they are byte-identical, asserts the hardening directives individually
+  (`default-src 'self'`, `script-src 'self'`, `object-src 'none'`, `base-uri 'self'`,
+  `form-action 'self'`, `frame-ancestors 'none'`, no `unsafe-eval`), and asserts that no file under
+  `src/`, `netlify/`, `vercel/` or `shared/` starts using a websocket or `EventSource` — the case
+  where the missing `wss:` would stop being cosmetic.
+  **Verified**: typecheck 0 errors; lint 0 errors / 19 warnings; `npm test` 54 files / 507 tests in
+  14.19 s; `npm run build` 699 ms. **Mutation-checked**: `wss:` added to the Netlify copy alone
+  fails the parity test, and a `new WebSocket(...)` in `src/lib/utils.ts` fails the absence check.
+  **Not verified**: nothing about live header delivery changed — the live `curl -I` result for
+  Netlify is unchanged from checklist row 5, and no preview was opened to confirm the Toolbar error
+  is still there (it is expected to be). If the owner wants the Toolbar on previews, say so and it
+  becomes an approved, preview-scoped exception rather than a silent edit. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -194,7 +215,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | Wave | Items |
 | --- | --- |
 | W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
-| W2 platform | **H-4, H-3, H-5 and M-12 fixed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places — see the four batches above; none deployed). Open: M-13 CSP on previews only, M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
+| W2 platform | **H-4, H-3, H-5, M-12 fixed and M-13 closed locally** (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` now regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift — see the five batches above; none deployed). Open: M-14 binary/multipart bodies on the Vercel bridge. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |

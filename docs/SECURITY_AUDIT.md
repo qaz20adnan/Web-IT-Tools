@@ -105,7 +105,7 @@ authored message — never a body, header or query string (`netlify/lib/http.ts:
 | X-Frame-Options / frame-ancestors | `DENY` / `'none'` | same | good |
 | Referrer-Policy, X-Content-Type-Options, Permissions-Policy, COOP | present | present | good |
 | `/api/*` `Cache-Control: no-store` | configured | configured | HTML on NETLIVE comes back `public,max-age=0,must-revalidate` — acceptable, but revisit after auth changes |
-| M-13 | preview console error: `script-src 'self'` + `connect-src 'self' https:` (no `wss:`) blocks the Vercel Toolbar (`vercel.live`, `wss://ws-us3.pusher.com`) | — | **cosmetic only** — the app has no websocket client, no external fonts, no Worker. Fix with a preview-scoped header (`has`/`missing` condition) or `Content-Security-Policy-Report-Only` on previews. Do **not** add `vercel.live` to the production CSP |
+| M-13 | preview console error: `script-src 'self'` + `connect-src 'self' https:` (no `wss:`) blocks the Vercel Toolbar (`vercel.live`, `wss://ws-us3.pusher.com`) | — | **closed 2026-10-31 without relaxing anything** — the app has no websocket client, no external fonts, no Worker, and the CSP was byte-identical on both hosts, so nothing was added to it. `tests/security-headers.test.ts` now fails if the two copies diverge or if application code grows a `new WebSocket`/`wss:`/`EventSource` use the policy would block. A preview-scoped header is still possible but is a deliberate relaxation and needs the owner's approval; adding `vercel.live` to the production CSP stays forbidden |
 | Vercel SSO protection | n/a | on: anonymous preview = 302 to `vercel.com/sso-api` | correct default; verification through an authenticated CLI instead of disabling it |
 
 ## 6. Dependency and supply chain

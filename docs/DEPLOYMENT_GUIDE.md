@@ -167,7 +167,7 @@ Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-Current measured state: all four PASS (0 lint errors / 19 warnings; 503 tests in 53 files; 413 ms
+Current measured state: all four PASS (0 lint errors / 19 warnings; 507 tests in 54 files; 699 ms
 build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 
