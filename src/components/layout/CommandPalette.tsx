@@ -110,14 +110,19 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return entries.filter((entry) => entry.keywords.toLowerCase().includes(needle))
   }, [entries, query])
 
-  useEffect(() => {
-    setActive(0)
-  }, [query])
+  // When the filter matches nothing there is no option to point at, and
+  // `aria-activedescendant` would name an id that is not in the DOM.
+  const activeIndex = filtered.length === 0 ? -1 : active
 
   useEffect(() => {
-    const element = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)
+    const element = listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
     element?.scrollIntoView({ block: 'nearest' })
-  }, [active])
+  }, [activeIndex])
+
+  const move = (next: number) => {
+    if (filtered.length === 0) return
+    setActive(Math.max(0, Math.min(next, filtered.length - 1)))
+  }
 
   const groups: Array<{ id: CommandEntry['group']; label: string }> = [
     { id: 'actions', label: t('command.actions') },
@@ -138,17 +143,29 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <input
           autoFocus
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            // Both updates in one handler: a separate effect on [query] commits a
+            // frame where the highlight still points past the end of the shorter
+            // list the keystroke just produced.
+            setQuery(event.target.value)
+            setActive(0)
+          }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') {
               event.preventDefault()
-              setActive((current) => Math.min(current + 1, filtered.length - 1))
+              move(activeIndex + 1)
             } else if (event.key === 'ArrowUp') {
               event.preventDefault()
-              setActive((current) => Math.max(current - 1, 0))
+              move(activeIndex - 1)
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              move(0)
+            } else if (event.key === 'End') {
+              event.preventDefault()
+              move(filtered.length - 1)
             } else if (event.key === 'Enter') {
               event.preventDefault()
-              execute(filtered[active])
+              execute(filtered[activeIndex])
             }
           }}
           placeholder={t('command.placeholder')}
@@ -157,6 +174,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           aria-controls="command-results"
           role="combobox"
           aria-expanded="true"
+          aria-autocomplete="list"
+          aria-activedescendant={activeIndex === -1 ? undefined : `command-option-${activeIndex}`}
         />
       </div>
 
@@ -167,30 +186,32 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           groups.map((group) => {
             const groupEntries = filtered.filter((entry) => entry.group === group.id)
             if (groupEntries.length === 0) return null
+            const headingId = `command-group-${group.id}`
             return (
-              <div key={group.id}>
-                <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-subtle">{group.label}</p>
+              <div key={group.id} role="group" aria-labelledby={headingId}>
+                <p id={headingId} className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-subtle">{group.label}</p>
                 <div className="space-y-0.5">
                   {groupEntries.map((entry) => {
                     const index = filtered.indexOf(entry)
                     return (
                       <button
                         key={entry.id}
+                        id={`command-option-${index}`}
                         type="button"
                         data-index={index}
                         role="option"
-                        aria-selected={active === index}
+                        aria-selected={activeIndex === index}
                         onMouseEnter={() => setActive(index)}
                         onClick={() => execute(entry)}
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-start text-sm',
-                          active === index ? 'bg-surface-3 text-text' : 'text-muted hover:bg-surface-2',
+                          activeIndex === index ? 'bg-surface-3 text-text' : 'text-muted hover:bg-surface-2',
                         )}
                       >
                         <span className="text-subtle">{entry.icon}</span>
                         <span className="min-w-0 flex-1 truncate">{entry.label}</span>
                         {entry.hint ? <span className="shrink-0 text-[10px] text-subtle">{entry.hint}</span> : null}
-                        {active === index ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-subtle" /> : null}
+                        {activeIndex === index ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-subtle" /> : null}
                       </button>
                     )
                   })}

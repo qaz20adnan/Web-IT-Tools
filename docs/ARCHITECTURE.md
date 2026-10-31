@@ -58,10 +58,19 @@ review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it
 third-party speed-test endpoints and never sees an `ApiError`.
 
 One claim this section used to make and should not: the layering does **not** keep jsdom out of the
-pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 56 files pay for
-it — 88–124 s of environment creation across workers for a 13.9–19.8 s run, of which only 6 files render a
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 59 files pay for
+it — 88–124 s of environment creation across workers for a 12.3–13.1 s run, of which only 8 files render a
 component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
 recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied.
+
+Two behaviours the shared UI kit owns rather than the pages that use it, both new in W4 and both
+pinned by `tests/modal-focus.test.tsx` / `tests/command-palette.test.tsx`: `Modal` keeps a module-level
+stack of open overlays and marks every *other* `<body>` child `inert`, so only the topmost dialog takes
+keyboard — that is a module singleton rather than per-instance state because the command palette lives
+in `AppShell` and can open on top of a page's own dialog. And the palette, not the dialog, owns the
+caret when its content focuses itself: `Modal`'s initial-focus timer now bails out if the panel already
+contains `document.activeElement`, because the header's Close button precedes the children in document
+order and used to win that race in every dialog in the app.
 
 ## 3. Server layers
 

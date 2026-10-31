@@ -355,6 +355,33 @@ export function Skeleton({ className }: { className?: string }) {
 
 /* -------------------------------- Modal ------------------------------- */
 
+/**
+ * Open overlays, oldest first. Only the top one stays interactive: the command
+ * palette is mounted in `AppShell`, so it can open on top of a page's own
+ * dialog, and the dialog underneath has to stop taking Tab as well.
+ */
+const overlayStack: HTMLElement[] = []
+
+/** Body-level elements that can never hold anything focusable. */
+const NEVER_INTERACTIVE = new Set(['LINK', 'NOSCRIPT', 'SCRIPT', 'STYLE', 'TEMPLATE'])
+
+/** Anything a keyboard can stop on, used for both the initial focus and the Tab trap. */
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * `aria-modal` tells assistive technology to ignore the page behind a dialog;
+ * `inert` is what actually stops a keyboard from reaching it.
+ */
+function syncBackgroundInert(): void {
+  const top = overlayStack[overlayStack.length - 1] ?? null
+  for (const child of Array.from(document.body.children)) {
+    if (!(child instanceof HTMLElement) || NEVER_INTERACTIVE.has(child.tagName)) continue
+    if (top !== null && child !== top) child.setAttribute('inert', '')
+    else child.removeAttribute('inert')
+  }
+}
+
 export function Modal({
   open,
   onClose,
@@ -370,17 +397,30 @@ export function Modal({
   footer?: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
+  const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
+  // 11 of the 12 call sites pass an inline arrow, so onClose gets a new identity
+  // on every parent render. Depending on it re-ran the effect below each time,
+  // which cleared and re-armed the focus timer — focus jumped back to the first
+  // field while the person was typing into another one.
+  const closeRef = useRef(onClose)
+
+  useEffect(() => {
+    closeRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
+    // Read before the cleanup runs: a passive effect's cleanup fires after React
+    // has already removed the portal, by which time the ref reads null.
+    const overlay = overlayRef.current
+    const trigger = document.activeElement
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') closeRef.current()
       if (event.key === 'Tab' && panelRef.current) {
-        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        )
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
         if (focusables.length === 0) return
         const first = focusables[0]
         const last = focusables[focusables.length - 1]
@@ -396,22 +436,44 @@ export function Modal({
     document.addEventListener('keydown', onKey)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    if (overlay) overlayStack.push(overlay)
+    syncBackgroundInert()
     const timer = window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus()
+      const panel = panelRef.current
+      // A dialog whose content focuses itself (the command palette autofocuses its
+      // search box) has already chosen its caret; the header's Close button comes
+      // first in document order, so an unconditional focus here would take it.
+      if (!panel || panel.contains(document.activeElement)) return
+      const inBody = bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE)
+      ;(inBody ?? panel.querySelector<HTMLElement>(FOCUSABLE))?.focus()
     }, 30)
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
       window.clearTimeout(timer)
+      if (overlay) {
+        const index = overlayStack.indexOf(overlay)
+        if (index !== -1) overlayStack.splice(index, 1)
+      }
+      syncBackgroundInert()
+      // Without this the portal unmounts and activeElement falls back to <body>,
+      // so a keyboard user who opened a dialog from halfway down a long page has
+      // to Tab from the top of the document again. The trigger may itself be gone
+      // — closing a row's dialog is often what unmounted that row's button.
+      if (trigger instanceof HTMLElement && trigger !== document.body && trigger.isConnected) trigger.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
   const widths = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm animate-fade" onClick={onClose}>
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm animate-fade"
+      onClick={onClose}
+    >
       <div
         ref={panelRef}
         role="dialog"
@@ -428,7 +490,7 @@ export function Modal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div ref={bodyRef} className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer ? <div className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</div> : null}
       </div>
     </div>,

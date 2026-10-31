@@ -313,6 +313,73 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   lapse-and-replay. And Arabic copy for the *other* codes still needs the server to emit message keys
   instead of English prose; the dictionary cannot fix that from the client. Not deployed.
 
+- **W4 · M-17 three clipped tables**: `NetworkDiagnosticsPage` put its latency-sample, cross-resolver
+  DNS and response-header tables in `overflow-hidden` wrappers, so on a phone the columns were cut off
+  with no way to scroll — the data existed and the user could not reach it. A census first: 24
+  `<table` elements in `src`, and 46 matches for `overflow-auto`/`overflow-x-auto`, so the repo already
+  had one convention (`overflow-auto rounded-lg border border-line` beside `<table className="w-full
+  text-xs">`); exactly three sites broke it, which made this a one-word change per site rather than a
+  layout rethink. `tests/responsive-tables.test.ts` (2) is the standing guard, not a regression test for
+  those three files: it walks every `.tsx` under `src`, reads the 200 characters before each `<table`,
+  and rejects a wrapper that is `overflow-hidden` without a scroll value or a table that is in neither a
+  scroll wrapper nor given `min-w-` on itself. **Mutation-checked**: putting `overflow-hidden` back on
+  one site fails the guard. **Not verified on a device** — the test reads the source, so it proves the
+  class is present, not that 375 px now scrolls.
+
+- **W4 · M-15 modal focus and inert background**: `Modal` trapped Tab but did nothing else a dialog is
+  supposed to do — focus did not return to the trigger when it closed, and the page behind it stayed
+  reachable. `aria-modal="true"` asks assistive technology to ignore the background; it does not stop a
+  keyboard, and nothing in the app set `inert`, so Escape-closing a dialog left a screen-reader user in
+  the middle of a page they had not asked to return to. Four changes: an `overlayStack` + `syncBackgroundInert()`
+  marks every other `<body>` child inert while a dialog is open (a stack rather than a flag, because
+  `AppShell` mounts the command palette and it can open on top of a page's own dialog — the dialog
+  underneath has to stop taking Tab too), focus returns to the trigger only when the trigger is still
+  connected (a row's delete dialog is often what unmounted that row's button, and focusing a detached
+  node lands the caret on `<body>`), the effect now depends on `[open]` alone, and the initial-focus
+  timer was repaired. The dependency change is not cosmetic: 11 of the 12 call sites pass an inline
+  arrow `onClose`, so every parent render handed `Modal` a new function identity, which cleared and
+  re-armed the 30 ms autofocus and pulled the caret back to the first field mid-typing; `closeRef` keeps
+  the latest handler for Escape without re-running the effect. **Reading the autofocus to write its test
+  found a defect the audit had not listed**: it ran `panel.querySelector('input, textarea, select,
+  button')`, and the header's Close button precedes the children in document order — so **every** dialog
+  in the app opened with focus on Close, including the palette, whose `autoFocus` search box lost the
+  caret 30 ms after Ctrl+K. Initial focus now leaves a control the content already claimed and otherwise
+  prefers the first control in the dialog body, falling back to the panel when the body has none.
+  `tests/modal-focus.test.tsx` (13) covers all of it, including that the trap wraps across the panel's
+  **three** controls (the first two attempts at this suite failed because they assumed two) and that
+  Escape calls the latest `onClose`. **Mutation-checked** three ways, each failing exactly one test:
+  drop the claimed-focus guard, drop the body preference, drop the panel fallback. Two assertions were
+  rewritten before they were trusted: the inert-on-close check had to close by `rerender` (after RTL
+  `cleanup()` the container is detached, which makes a `body > [inert]` count vacuous), and background
+  elements are reached through the DOM rather than by role. **Not browser-verified**: jsdom has no
+  `inert` semantics, so the suite proves the attribute, not what a keyboard and screen reader do with it.
+
+- **W4 · M-16 the command palette was silent to a screen reader**: it declared `role="combobox"` +
+  `listbox` + `role="option"` but never told anyone *which* option was active — `aria-activedescendant`
+  was absent and the options had no ids, so arrow keys moved a highlight that only sighted users could
+  see. Options now carry ids, the input points at the active one, and `aria-autocomplete="list"` states
+  what the list is. Home/End jump to the ends. Two more changes were needed to make the pointer honest
+  rather than merely present: the query keystroke resets it in the same batch as the text (`setQuery` +
+  `setActive(0)` in one handler) because a `useEffect` on `[query]` commits one frame in which the
+  pointer still names an index past the end of the shorter list the keystroke just produced — that frame
+  is exactly what an AT reads — and an empty filter now emits no `aria-activedescendant` instead of one
+  pointing at `command-option-0`, which is not in the DOM. The group headers became real `role="group"`
+  regions labelled by the heading the sighted user sees, instead of unlabelled `<div>`s inside a listbox.
+  `tests/command-palette.test.tsx` (10) asserts the pointer always resolves through `getElementById` to
+  a rendered, `aria-selected` option inside the element named by `aria-controls`; that Enter runs the
+  option under the pointer rather than the first one; that a narrowing query lands on the first remaining
+  match; and that no results means no pointer. **Mutation-checked** six ways (remove the attribute, the
+  ids, Home/End, the clamp, the batched reset, the group semantics). This also corrects the W1 note above
+  that said "no palette test exists yet — that is W5": it exists now, a wave earlier. **Not
+  browser-verified**, and M-10's search *coverage* is unchanged — this is about announcing results, not
+  finding them.
+
+- **W4 · bundle cost of this wave**: `npm run build` after M-15/M-16/M-17 is 483 ms, entry chunk
+  **747.68 kB min / 232.60 kB gzip** (`index-DTyL1qmm.js`) — 0.92 kB min / 0.40 kB gzip over H-10's
+  746.76 / 232.20. M-18 (the <200 kB gzip budget) is still open and is now measured against this number.
+  **Verified**: typecheck 0 errors; lint 0 errors / 16 warnings; `npm test` 59 files / **566** tests in
+  12.3–13.1 s. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -404,7 +471,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
-| W4 resilience/UX | **H-9 and H-10 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); and one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 22, mutation-checked four ways). Still open: M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232.20 kB gzip entry chunk. Not deployed |
+| W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2). None of it browser-verified. Still open: M-18 — entry chunk is **232.60 kB gzip** against the <200 kB budget. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 
 ### Blocked on the owner (no code change will move these)

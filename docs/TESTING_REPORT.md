@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 56 files, 541 tests, 0 failed, 13.9–19.8 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 88–124 s of environment time across workers) |
-| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.53–0.66 s depending on cache (entry chunk 746.76 kB min / 232.20 kB gzip) |
+| Tests | `npm test` | LOCAL | **PASS** | 59 files, 566 tests, 0 failed, 12.3–13.1 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 88–124 s of environment time across workers) |
+| Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.48–0.66 s depending on cache (entry chunk 747.68 kB min / 232.60 kB gzip; M-15/M-16/M-17 together cost 0.92 kB min, 0.40 kB gzip) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
@@ -24,12 +24,13 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 541 tests actually cover
+## 2. What the 566 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 ·
 vercel-bridge 20 · permissions 19 · incidents 17 · diff 16 · operations 15 · mtu 14 · trial 14 ·
-calculators 13 · net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 · local-auth 10 · rbac 10`
+calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 ·
+command-palette 10 · local-auth 10 · rbac 10`
 
 Server-side (the part that holds secrets and money) — 18 of 23 `netlify/lib/*` files and 8 of 22
 `netlify/functions/*` files are imported by at least one test:
@@ -40,8 +41,10 @@ Server-side (the part that holds secrets and money) — 18 of 23 `netlify/lib/*`
 | functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
 
 Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
-`src/services/api.ts` (see below), and 5 tool/UI files render under test (`tool-ui`,
-`toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`).
+`src/services/api.ts` (see below), and 7 UI files render under test (`tool-ui`,
+`toolkit-additions`, `copilot-research`, `new-surfaces`, `register-page`, `modal-focus`,
+`command-palette`). `responsive-tables` and `error-boundary` add a source-wide scan and a
+containment render respectively.
 **26 of 33 pages and 5 of 18 tool modules have no test.**
 `src/services/api.ts` — the 650-line module every page depends on — **was never executed by a test
 before H-10**; the only reference to it was `vi.mock('@/services/api')` in
@@ -98,6 +101,34 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   header gets called "too many requests", copying the mapper back into `src/lib/apiError.ts`, and
   adding `import { useState } from 'react'` to `src/services/localTriage.ts` (each reverted from a
   copy, never from git).
+- `tests/modal-focus.test.tsx` (13) — M-15, rendered through the real `Modal`. Three groups: the
+  background (`<body>` children other than the topmost overlay carry `inert` while a dialog is open,
+  the overlay itself does not, a stacked pair inerts the lower one and frees it when the top closes,
+  and the scroll lock is restored on close — closed by re-render rather than RTL `cleanup()`, because
+  detaching the container made that assertion vacuous); focus handoff (returns to the trigger, and
+  does not chase a trigger the close also unmounted — the delete-a-row case); and the trap (Tab wraps
+  across all **three** panel controls, because the header's Close button precedes the children, and
+  Escape must call the *latest* `onClose`, proven by re-rendering and asserting `['second']`). The
+  autofocus group is where the second defect surfaced: the 30 ms timer searched the whole panel, so
+  every dialog in the app opened with the caret on Close — including the palette, whose `autoFocus`
+  search box lost focus 30 ms after Ctrl+K. **Mutation-checked** three ways, each failing exactly one
+  test: dropping the "content already claimed focus" guard, dropping the dialog-body preference, and
+  dropping the panel fallback.
+- `tests/command-palette.test.tsx` (10) — M-16, rendered with a mocked `useNavigate` and `useApp`. The
+  invariant is that `aria-activedescendant` always resolves through `getElementById` to a
+  `role="option"` that is `aria-selected`, inside the element named by `aria-controls`; then arrows,
+  Home/End and the clamp at both ends; that Enter runs the option under the pointer rather than the
+  first one (the second entry is the theme action, asserted against a mocked `cycleTheme`); that a
+  narrowing query leaves the pointer on the first remaining match; that zero results means the
+  attribute is *absent* rather than dangling; and that each `role="group"` resolves its label and the
+  option ids stay unique. **Mutation-checked** six ways: removing the attribute, removing the option
+  ids (fails 6), removing Home/End, removing the clamp in `move()`, removing the batched
+  `setActive(0)`, and reverting the group wrappers to plain `<div>`s.
+- `tests/responsive-tables.test.ts` (2) — M-17 as a standing guard rather than a one-off fix: it walks
+  every `.tsx` under `src`, reads the 200 characters before each of the 24 `<table` elements, and
+  rejects a wrapper that is `overflow-hidden` without a scroll value, or a table that is in neither a
+  scroll wrapper nor given `min-w-`. **Mutation-checked**: putting `overflow-hidden` back on one of
+  the three fixed sites fails it.
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
@@ -166,27 +197,27 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 
 | Metric | Environment | Value | Verdict |
 | --- | --- | --- | --- |
-| Vite production build time | LOCAL | 529–663 ms | PASS |
-| Entry chunk | LOCAL | 746.76 kB min / **232.20 kB gzip** (`index-iyN_9mkG.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18 |
+| Vite production build time | LOCAL | 483–663 ms | PASS |
+| Entry chunk | LOCAL | 747.68 kB min / **232.60 kB gzip** (`index-DTyL1qmm.js`) | **FAIL vs budget** (target < 200 kB gzip first paint) → M-18. M-15/M-16/M-17 added 0.92 kB min / 0.40 kB gzip on top of H-10's 1.19 kB / 0.35 kB |
 | Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.21 kB gzip | WARN — 43 tools statically imported |
 | `utils` shared chunk | LOCAL | 171.66 kB / 53.68 kB gzip | INFO |
 | Total JS emitted | LOCAL | 61 chunks, ≈1.9 MB minified (2.1 MB in `dist/assets`) | PASS (splitting works; the problem is only the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
-| Test suite wall time | LOCAL | 13.9–19.8 s, 65–72 % of tracked time spent creating 56 jsdom environments (88–124 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |
+| Test suite wall time | LOCAL | 12.3–13.1 s, 66–71 % of tracked time spent creating 59 jsdom environments (88–124 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |
 | Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
 | Real-device / mid-tier network | — | **NOT TESTED** |
 
 ## 7. UI, accessibility, responsive — NOT TESTED
 
 The master prompt's Phase 9 and Phase 13 need a browser. What exists today is static reasoning
-plus 5 rendering tests, which is not enough to claim any of the following:
+plus 7 rendering tests, which is not enough to claim any of the following:
 
 | Surface | Status |
 | --- | --- |
 | Desktop / laptop / tablet / mobile layout at 1440, 1024, 768, 390 px | **NOT TESTED** |
 | RTL (Arabic) visual parity on the 5 pages that switch direction | **NOT TESTED** (clean in code; 0 mixed-direction strings found by grep) |
-| Keyboard-only navigation, focus rings, skip link | **NOT TESTED** — and M-15/M-16 are known defects (modal focus restore, palette `aria-activedescendant`) |
+| Keyboard-only navigation, focus rings, skip link | **NOT TESTED in a browser.** M-15/M-16 were the two known defects in this row and are now fixed with 23 jsdom tests behind them (`modal-focus` 13, `command-palette` 10) — but jsdom has no `inert` semantics, no focus ring and no screen reader, so those tests assert attributes and pointer identity, not what a keyboard user experiences. The skip link and focus-visible styling are still unread by any test |
 | Screen-reader labels on the 43 tools | **NOT TESTED** |
 | 11 themes × light/dark contrast | **NOT TESTED**; H-6 flags light-theme contrast specifically |
 | Reduce-motion toggle actually stopping animation | **NOT TESTED** |

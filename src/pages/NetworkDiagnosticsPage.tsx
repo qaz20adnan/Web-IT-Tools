@@ -410,7 +410,7 @@ function LatencyPanel() {
                 />
               </div>
             ) : null}
-            <div className="overflow-hidden rounded-lg border border-line">
+            <div className="overflow-auto rounded-lg border border-line">
               <table className="w-full text-xs">
                 <thead className="bg-surface-2 text-start text-[10px] uppercase tracking-wider text-subtle">
                   <tr>
@@ -551,7 +551,7 @@ function PathPanel() {
               <p className="text-xs text-muted">{L('Canonical name', 'الاسم النهائي')} · <span className="font-mono" dir="ltr">{result.canonicalName.join(' → ')}</span></p>
             ) : null}
 
-            <div className="overflow-hidden rounded-lg border border-line">
+            <div className="overflow-auto rounded-lg border border-line">
               <table className="w-full text-xs">
                 <thead className="bg-surface-2 text-start text-[10px] uppercase tracking-wider text-subtle">
                   <tr>
@@ -992,7 +992,7 @@ function HttpPanel() {
             ) : null}
             <div>
               <h3 className="mb-1.5 text-xs font-semibold">{L('Response headers', 'ترويسات الاستجابة')}</h3>
-              <div className="overflow-hidden rounded-lg border border-line">
+              <div className="overflow-auto rounded-lg border border-line">
                 <table className="w-full text-[11px]">
                   <tbody className="divide-y divide-line">
                     {Object.entries(result.headers).map(([key, value]) => (
