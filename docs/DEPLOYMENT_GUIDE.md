@@ -157,7 +157,7 @@ curl -sI $B/ | grep -iE "content-security|strict-transport|x-frame|x-content-typ
 | 9 | upload at 3 MB and above 3 MB | one accepted, one structured "exceeds the 3 MB limit" (not a raw 413) | **NOT TESTED in a browser**; H-3 is now single-sourced in `shared/upload-limits.ts` and covered by `tests/upload-limits.test.ts` — a real upload on both hosts is still owed (W5) |
 | 10 | second account cannot read the first one's workspace case | 404/403, empty list | **BLOCKED** (needs 2 sessions + D7) |
 | 11 | `/admin` invisible to member, tabs correct for staff | server rejects the API call too, not just the UI | **BLOCKED** (needs sessions) |
-| 12 | `/toolkit`, `/copilot`, `/diagnostics` load on a phone width | no clipped tables, no blank shell | **NOT TESTED** (M-17, H-9) |
+| 12 | `/toolkit`, `/copilot`, `/diagnostics` load on a phone width | no clipped tables, no blank shell | **NOT TESTED** (M-17 still open; H-9's per-route boundary is fixed in code and unit-tested but never exercised in a browser) |
 
 Anything in **BLOCKED** needs an owner action from `docs/PROJECT_AUDIT.md` §7 (D1–D10), not more code.
 
@@ -168,7 +168,7 @@ npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 Current measured state: all four PASS (0 lint errors / 16 warnings, all of them `react-refresh`
-module-layout hints rather than defects; 513 tests in 54 files; 0.53–0.76 s
+module-layout hints rather than defects; 517 tests in 55 files; 0.39–1.38 s
 build, which now also regenerates `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import { Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { Toaster } from '@/components/ui/Toaster'
@@ -69,13 +70,14 @@ function PageFallback() {
   )
 }
 
-export function App() {
+function PageRoutes() {
+  // Keyed per route: a page that throws blanks only the content area, and
+  // navigating away rebuilds the boundary instead of leaving the shell stuck.
+  const { pathname } = useLocation()
   return (
-    <>
-      <ScrollToTop />
-      <AppShell>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
+    <ErrorBoundary key={pathname}>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -132,8 +134,18 @@ export function App() {
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
+  )
+}
+
+export function App() {
+  return (
+    <>
+      <ScrollToTop />
+      <AppShell>
+        <PageRoutes />
       </AppShell>
       <OnboardingWizard />
       <Toaster />

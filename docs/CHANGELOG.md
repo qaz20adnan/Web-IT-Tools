@@ -214,6 +214,28 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Not verified**: no browser was opened, so "the catalog memo now caches" is React semantics plus the
   dependency identities, not a measured render count.
 
+- **W4 · H-9 route-level error boundary**: `ErrorBoundary` was mounted once, at the root above
+  `BrowserRouter`, so a throw in any of the 33 pages blanked the whole shell — sidebar, topbar and
+  navigation included — while the fallback promised "the error was contained so the rest of the app
+  keeps working". That sentence was not true at the time it was written. The route tree now lives in
+  its own `PageRoutes()` component (`src/App.tsx:73`) wrapped in `<ErrorBoundary key={pathname}>` and
+  mounted **inside** `AppShell`, so a crashing page blanks only the content slot. The `key` is what
+  makes recovery possible: any navigation rebuilds the boundary instead of leaving the shell pinned to
+  the old error. The root boundary stays as the last resort for failures in the providers or the shell
+  itself.
+  One thing deliberately **not** changed: the fallback's dashboard control stays a plain
+  `<a href="/">`. `Link` looks like the better fix and is a trap — the root boundary renders outside
+  `BrowserRouter`, so a router-aware link there would throw a second error with no Router context and
+  leave a blank screen exactly when the user needs the recovery path. `tests/error-boundary.test.tsx`
+  now asserts the boundary imports no router module at all.
+  **Verified**: typecheck 0 errors; lint 0 errors / 16 warnings; `npx vitest run` 55 files / **517**
+  tests in 11.78 s; `npm run build` 392 ms, entry chunk unchanged at 745.57 kB min / 231.85 kB gzip.
+  The containment test renders a component that throws next to a live sibling `<nav>` and asserts both
+  the fallback heading and the sibling are in the DOM. **Mutation-checked**: deleting `key={pathname}`
+  fails the structural guard; restored.
+  **Not verified**: no page was made to throw in a running browser, so "the sidebar stays usable after
+  a crash" is proven in jsdom, not on a screen. Not deployed.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -305,7 +327,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
-| W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
+| W4 resilience/UX | **H-9 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); still open: H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 
 ### Blocked on the owner (no code change will move these)

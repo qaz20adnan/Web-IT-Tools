@@ -43,6 +43,8 @@ export class ErrorBoundary extends Component<Props, State> {
               <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
                 {arabic ? 'إعادة التحميل' : 'Reload'}
               </button>
+              {/* A plain anchor, not <Link>: this same boundary is also mounted at
+                  the root, outside BrowserRouter, where router context is absent. */}
               <a href="/" className="btn btn-secondary">
                 {arabic ? 'لوحة التحكم' : 'Dashboard'}
               </a>
