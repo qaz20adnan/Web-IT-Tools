@@ -9,7 +9,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 ## Unreleased — 2026-10-31 (audit phase + foundation repair)
 
 ### Added
-- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO,
+- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO (11 since this session added L-11),
   each with file:line evidence, plus a measured live-environment table and the owner-action list
   D1–D10. **Verified** (live probes against NETLIVE/VPROD/VPREV + LOCAL gate runs).
 - `docs/ENVIRONMENT_VARIABLES.md` — authoritative variable census extracted from code, with the
@@ -410,6 +410,47 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   / 0.35 kB, and M-18 paid for all of it and 83 kB more. **Verified**: typecheck 0 errors; lint 0
   errors / 16 warnings; `npm test` 60 files / **572** tests in 14.0–15.0 s. Not deployed.
 
+- **W3 · M-3 DNS-rebinding window in the TLS probe** (the last `Discovered → W1` medium that was
+  still a live code defect — and the finding was wider than the register said): `net-tls.ts` called
+  `await assertPublicHost(host)` and then `inspectCertificate(host, port)`. Validate by name, connect
+  by name, so the socket performs a **second** resolution and a TTL-1 record flipped between the two
+  lookups reaches `169.254.169.254` or `127.0.0.1`. The register credited the other paths with
+  "connect to the validated literal IP"; that was true of the HTTP hop
+  (`net-diagnostics.ts:148-171`) and **false of its own TLS sub-probe**, which re-resolved
+  `current.hostname` after the hop finished. Two sites, not one.
+  Fix, reusing the convention already in `net-probe.ts` instead of inventing a mechanism:
+  `netlify/lib/host.ts:79-112` `resolvePublicAddress()` resolves **once**, rejects if *any* answer is
+  private/reserved, and returns `{host, address, family}` — the literal address to connect to;
+  `assertPublicHost()` is now a delegate that returns only the name (`host.ts:59-62`), so the unsafe
+  half is no longer reachable by accident. `inspectCertificate()` gained an explicit `servername`
+  (`netlify/lib/tls.ts:16-32`), because a socket opened to an IP with no SNI lands on the host's
+  default vhost: pinning without SNI would have traded an SSRF hole for a wrong-certificate answer.
+  `net-tls.ts:22,24` connects to `target.address` and carries the typed hostname as SNI; `checkHttp`
+  does better and connects to `response.socket.remoteAddress` (captured at `:183`, used at `:235`) —
+  the address the hop actually spoke to, so that path never resolves a third time.
+  **Verified**: typecheck 0 errors; lint 0 errors / 16 warnings; `npm test` **61 files / 587 tests**
+  in 15.1–15.8 s tracked (16.3 s wall); `npm run build` green — vite 0.58 and 0.65 s,
+  `api/index.js` 1179 → **1180 kB** because the resolver is shared by both hosts, and the entry chunk
+  is unchanged at 484.91 kB / 149.51 kB gzip since nothing in this fix is frontend code. New
+  `tests/net-dns-rebinding.test.ts` (15 tests, 15 ms). **Mutation-checked 6/6**: revert `net-tls` to
+  `inspectCertificate(host, port)`; revert the sub-probe to `current.hostname`; null the `peer`
+  capture; ignore the `servername` argument; return `address: host` from the resolver; delete the
+  private-answer check.
+  **Not verified**: there is no live rebinding target. Proving this against the internet needs a
+  domain whose record I control *and* egress from the function, so the unit proof is the entire proof,
+  and it is a proof about this code path, not about the platform's resolver. Nothing is deployed.
+  Two documentation errors surfaced on the way and are corrected in this commit:
+  `docs/ARCHITECTURE.md` claimed `NET_PROBE_ALLOW_PRIVATE` relaxes `host.ts` (it does not — that file
+  answers only to `ALLOW_LOCAL_AI`, and only for `localhost`/`127.0.0.1`/`::1`), and the line-number
+  citations for `host.ts` in `docs/ENVIRONMENT_VARIABLES.md` and `docs/SECURITY_AUDIT.md` moved with
+  the file (113 → 141 lines).
+  One **new finding** came out of reading the guard closely, and it is recorded rather than fixed:
+  **L-11** — `ALLOW_LOCAL_AI=true` never actually authorizes `http://localhost:11434`, because
+  `normalizeHost()` rejects single-label names before the flag is consulted (`127.0.0.1` works; both
+  measured with a throwaway probe, since deleted). It fails closed, so it is a usability defect, and
+  the obvious fix widens the input gate of the SSRF guard — that is your call, not mine to make
+  quietly. `docs/ENVIRONMENT_VARIABLES.md` now documents the IP form as the only one that works.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the
@@ -519,7 +560,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 | --- | --- |
 | W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
-| W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window (**re-verified open this session — the only W1-listed medium that was never fixed**), M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token |
+| W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token. ~~M-3 TLS DNS-rebinding window~~ **fixed in this session** — it was re-verified open by the documentation pass above and closed by the W3 entry that follows it |
 | W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
 | W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts`, `netlify/lib/host.ts`, `admin.ts` |
 

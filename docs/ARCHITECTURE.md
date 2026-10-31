@@ -58,10 +58,12 @@ review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it
 third-party speed-test endpoints and never sees an `ApiError`.
 
 One claim this section used to make and should not: the layering does **not** keep jsdom out of the
-pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 60 files pay for
-it — 96 s of environment creation across workers (68% of the tracked time) for a 14–15 s run, of which only 8 files render a
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 61 files pay for
+it — ~102 s of environment creation across workers (69% of the tracked time) for a ~15.8 s run, of which only 8 files render a
 component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
-recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied.
+recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied. The newest file in the suite
+(`tests/net-dns-rebinding.test.ts`, 15 tests in 15 ms) is the purest example of the waste: it renders
+nothing and would run under `node`.
 
 Two behaviours the shared UI kit owns rather than the pages that use it, both new in W4 and both
 pinned by `tests/modal-focus.test.tsx` / `tests/command-palette.test.tsx`: `Modal` keeps a module-level
@@ -131,7 +133,7 @@ that guard only runs when someone runs the suite locally.
 | `netlify/lib/supabase.ts` | — | PostgREST + GoTrue + admin fetch over `fetch`, service-role server-side, `restError()` mapping, every param `encodeURIComponent` | no `@supabase/supabase-js` dependency at runtime |
 | `netlify/lib/ai.ts` | — | provider adapters (openai/anthropic/gemini/openrouter/ollama/custom), `normalizeBaseUrl`, retry + fallback model, `verifyProviderAuth` | BYOK arrives in `x-tn-*` request headers, never in the URL or the bundle |
 | `netlify/lib/gemini.ts` | — | Gemini Interactions API + Google Search grounding, citation annotation parsing, `redact()` | the only real web-search source today |
-| `netlify/lib/host.ts` | 113 | `assertPublicHost` — SSRF guard: loopback/RFC1918/link-local/CGNAT/metadata always rejected, resolution re-checked at connect time | `NET_PROBE_ALLOW_PRIVATE` relaxes it in dev only |
+| `netlify/lib/host.ts` | 141 | `resolvePublicAddress` — the SSRF guard: resolve **once**, reject if *any* answer is loopback/RFC1918/link-local/CGNAT/metadata, and return the literal `address` to connect to alongside the normalized `host`. `assertPublicHost` is a delegate that returns only the name, so it is a policy check, not a connection recipe | `NET_PROBE_ALLOW_PRIVATE` does **not** reach this file (that row used to claim it did); only `ALLOW_LOCAL_AI` relaxes it, and only for `localhost`/`127.0.0.1`/`::1`. Rule for socket code: take `address`, keep `host` for SNI/Host — see M-3 |
 | `netlify/lib/net-*.ts` | 6 files | TCP-connect RTT (`net-latency`), path inference (`net-path`), DoH lookups (`net-doh`), response analysis (`net-analysis`), probes (`net-probe`), diagnostics (`net-diagnostics`) | there is no `child_process`, no `dgram`, no raw socket anywhere — see §4.4 |
 | `netlify/lib/schema.ts` | 171 | zod schemas for every request body | validation happens before any network or DB call |
 | `netlify/lib/rate.ts` | — | in-memory token bucket per identity/IP | **not** a distributed limiter; resets per container (§5, W-3). Since H-10 it passes its window to `HttpError` so the browser gets `Retry-After`; that number inherits the same per-container caveat, so a UI countdown is a hint, not a guarantee |

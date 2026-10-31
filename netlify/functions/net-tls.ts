@@ -1,6 +1,6 @@
 import { requireMember } from '../lib/auth'
 import { clientIp, HttpError, json, readJsonBody, requireMethod, wrap, type Handler } from '../lib/http'
-import { assertPublicHost, normalizeHost } from '../lib/host'
+import { normalizeHost, resolvePublicAddress } from '../lib/host'
 import { enforceRateLimit } from '../lib/rate'
 import { describeTlsFailure } from '../lib/net-errors'
 import { flattenZod, tlsRequestSchema } from '../lib/schema'
@@ -19,9 +19,9 @@ export const handler: Handler = wrap(async (event, context) => {
   if (!ALLOWED_PORTS.has(port)) {
     throw new HttpError(400, 'invalid_input', `Only standard TLS ports are supported: ${[...ALLOWED_PORTS].join(', ')}.`)
   }
-  await assertPublicHost(host)
+  const target = await resolvePublicAddress(host)
 
-  const info = await inspectCertificate(host, port).catch((error: unknown) => {
+  const info = await inspectCertificate(target.address, port, 9000, target.address === host ? undefined : host).catch((error: unknown) => {
     throw new HttpError(502, 'upstream_error', describeTlsFailure(error))
   })
 

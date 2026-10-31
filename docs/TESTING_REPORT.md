@@ -15,31 +15,31 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 60 files, 572 tests, 0 failed, 14.0–15.0 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 67–68% of the tracked time is ~96 s of jsdom setup across 60 environments) |
+| Tests | `npm test` | LOCAL | **PASS** | 61 files, 587 tests, 0 failed, 15.82 s wall (it swings 11–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 69% of the tracked time is ~102 s of jsdom setup across 61 environments) |
 | Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`, 0.44–0.69 s depending on cache (entry chunk 484.91 kB min / 149.51 kB gzip after M-18; M-15/M-16/M-17 together cost 0.92 kB min, 0.40 kB gzip) |
 | Generated knowledge index | `npm run build:knowledge-index` | LOCAL | **PASS** | `src/data/knowledgeMeta.ts` regenerated: 44 articles, 62 kB, byte-identical to the committed artifact; `tests/knowledge-meta.test.ts` fails if it drifts |
-| Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |
+| Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1180 kB (was 1179 until M-3's resolver landed in it), 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
 | Coverage | `npm run test:coverage` | LOCAL | **FAIL (tooling)** | `MISSING DEPENDENCY Cannot find dependency '@vitest/coverage-v8'` — the script is published but the provider is not installed, so **no coverage percentage exists for this project** |
 
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 572 tests actually cover
+## 2. What the 587 tests actually cover
 
 Top of the suite by test count:
 `x509 37 · ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 ·
-vercel-bridge 20 · permissions 19 · incidents 17 · diff 16 · operations 15 · mtu 14 · trial 14 ·
-calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 · tool-ui 11 ·
-command-palette 10 · local-auth 10 · rbac 10`
+vercel-bridge 20 · permissions 19 · incidents 17 · diff 16 · operations 15 · net-dns-rebinding 15 ·
+mtu 14 · trial 14 · calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 ·
+tool-ui 11 · command-palette 10 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — 18 of 23 `netlify/lib/*` files and 8 of 22
+Server-side (the part that holds secrets and money) — 20 of 23 `netlify/lib/*` files and 8 of 22
 `netlify/functions/*` files are imported by at least one test:
 
 | Covered | Not covered by any test |
 | --- | --- |
-| `ai`, `auth`, `env`, `fetch`, `gemini`, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, `trial` | **`host.ts` (the SSRF guard)**, `json.ts`, `net-errors.ts`, **`supabase.ts`**, `tls.ts` |
-| functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler |
+| `ai`, `auth`, `env`, `fetch`, `gemini`, **`host`**, `http`, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, **`tls`**, `trial` — `host.ts` and `tls.ts` were untested guards until M-3, and the guard is the DNS-resolver contract itself, not just "a function was called" | `json.ts`, `net-errors.ts`, **`supabase.ts`** |
+| functions: `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research` | the other 14 functions, including **all of `admin.ts`**, `content-admin.ts`, `ai-script.ts`, every `net-*` handler (`net-tls` has only a source-shape guard, because the handler sits behind auth + rate limiting) |
 
 Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
 `src/services/api.ts` (see below), and 7 UI files render under test (`tool-ui`,
@@ -145,6 +145,18 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
 - `tests/access-control.test.ts` (7) — permission matrix against the real role table.
 - `tests/auth-session.test.ts` (8) + `tests/local-auth.test.ts` (10) — token store, scrypt params, session cap.
 - `tests/net-probe.test.ts`, `net-port.test.ts`, `net-latency.test.ts`, `net-path.test.ts` — the private-address rejections.
+- `tests/net-dns-rebinding.test.ts` (15) — the resolver contract behind every outbound probe, added with M-3:
+  `resolvePublicAddress` hands back the *literal address it validated* (one `dns.lookup`, asserted, because
+  the bug was a second lookup), rejects a hostname whose answer set contains a private address, never hands
+  an IP literal to DNS, prefers v4 the way the socket helpers do, and keeps the 400 that `analyzeUrl`
+  deliberately treats as "inert host". `inspectCertificate` is asserted at `tls.connect` — `{host: IP,
+  servername: name}` — which is the half people forget when pinning: an IP with no SNI reaches the default
+  vhost. `checkHttp` is driven through a faked hop whose socket reports an address *different* from the
+  hostname, so the assertion fails if the sub-probe goes back to the name. **Mutation-checked 6/6**: revert
+  `net-tls`, revert the sub-probe, null the `peer` capture, ignore the `servername` argument, return the name
+  as the address, delete the private-answer check. The file mocks `node:http` with a throwing `request` so a
+  future test in it cannot silently start reaching the network — the first draft of this file did exactly
+  that, and a 350 ms test was the only clue.
 - `tests/gemini-research.test.ts` (23) — grounding citation parsing and `redact()`.
 - `tests/upload-limits.test.ts` (8) — one image cap across browser, schema, handlers and the Vercel
   bridge: it checks the base64 inflation really fits the body cap, runs a too-large file through
@@ -200,7 +212,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | SQL injection surface | LOCAL | **PASS** — no SQL strings; PostgREST query params are `encodeURIComponent`-ed (`netlify/lib/supabase.ts`), so injection is structural, not policy-dependent |
 | Path traversal in uploads | LOCAL | **PASS** — server-generated keys; no user-controlled path segment reaches storage |
 | SSRF: loopback / RFC1918 / link-local / CGNAT / `169.254.169.254` | LOCAL (unit) | **PASS** at the unit level; **NOT TESTED** against the live function because no session token exists |
-| DNS-rebinding TOCTOU on `assertPublicHost` | LOCAL | **FAIL (accepted risk, M-3)** — resolution is checked then re-resolved by the connector; needs pinning at connect time |
+| DNS-rebinding TOCTOU on the host guard | LOCAL (unit) | **PASS — M-3 closed 2026-10-31.** The guard now resolves once and returns the validated literal address, `assertPublicHost` delegates to it, and both socket paths (`net-tls`, `checkHttp`'s TLS sub-probe) connect to that address with the hostname kept only for SNI. `tests/net-dns-rebinding.test.ts` (15) holds the contract; 6 mutations, 6 caught. Still **NOT TESTED** against a live rebinding target — that needs an egress path and a domain whose record I can flip, so the unit proof is the entire proof |
 | Client-bundle secret scan | LOCAL + NETLIVE | **PASS** — no `VITE_*`/`NEXT_PUBLIC_*` exists; grep of `dist/` and the served JS finds no key material |
 | Role escalation through the request body | LOCAL | **PASS** — no handler reads `role`; DB triggers block privilege writes (migrations 0001:82, 0002:84, 0003:39) |
 | Rate limiting under parallel load | — | **NOT TESTED**; and it is in-memory per container (H-8), so a load test would prove weakness, not strength |
@@ -211,7 +223,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Metric | Environment | Value | Verdict |
 | --- | --- | --- | --- |
 | Vite production build time | LOCAL | 447–690 ms; the new `build:knowledge-index` step adds 123–165 ms | PASS |
-| `npm run build` end to end | LOCAL | 17.2–17.5 s wall (npm overhead + `tsc --noEmit` + vite + the 1179 kB `api/index.js` esbuild bundle) | INFO — the gate is slow for reasons that have nothing to do with the bundle split |
+| `npm run build` end to end | LOCAL | 17.2–19.2 s wall (npm overhead + `tsc --noEmit` + vite + the 1180 kB `api/index.js` esbuild bundle) | INFO — the gate is slow for reasons that have nothing to do with the bundle split |
 | Entry chunk | LOCAL | 484.91 kB min / **149.51 kB gzip** (`index-KsoF9hUP.js`) — was 747.68 / 232.60 before M-18 | M-18 landed: 263 kB min / 83 kB gzip out of the entry |
 | First-paint download (entry + its static imports) | LOCAL | `index` + `utils` = 658.1 kB min / **203.7 kB gzip** (was 278.6 kB gzip) | **MISS by 3.7 kB** vs the < 200 kB gzip budget → the remaining lever is the eagerly-bundled Arabic dictionary, which needs an async language load, i.e. a UX decision (see M-18) |
 | Largest lazy chunk | LOCAL | `ToolkitPage` 356.75 kB / 108.21 kB gzip | WARN — 43 tools statically imported |
@@ -220,7 +232,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Total JS emitted | LOCAL | 61 chunks, 1.94 MB minified JS | PASS (splitting works; M-18 moved the bodies between chunks and removed them from the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
-| Test suite wall time | LOCAL | 12.3–13.1 s, 66–71 % of tracked time spent creating 59 jsdom environments (88–124 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet |
+| Test suite wall time | LOCAL | 15.1–15.8 s tracked (16.3 s wall for `npm test`), 69 % of tracked time spent creating 61 jsdom environments (~102 s across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet. Only 8 of the 61 files render a component, so the environment is wasted on the other 53 — the new `tests/net-dns-rebinding.test.ts` (15 tests, 15 ms) included |
 | Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
 | Real-device / mid-tier network | — | **NOT TESTED** |
 

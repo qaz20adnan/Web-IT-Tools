@@ -36,9 +36,9 @@ anywhere, so a Vercel variable named that way would be silently ignored.
 | `AI_VISION_PROVIDER/BASE_URL/MODEL/API_KEY` | no | `env.ts:130-136`, `ai.ts:86-103` | image analysis; each falls back to the matching `AI_*` | one is secret |
 | `AI_TIMEOUT_MS` | no (**60000**) | `env.ts:56`, `ai.ts:258,362` | desired per-attempt fetch timeout; clamped to the 50 s shared request budget (`ai.ts:157`) — see pitfall P-2 | public |
 | `AI_MAX_OUTPUT_TOKENS` | no (2500) | `env.ts:57` | completion cap | public |
-| `AI_ALLOWED_HOSTS` | no | `env.ts:67-70`, `netlify/lib/host.ts:94-113` | **security allowlist** for custom/Ollama base URLs | public |
+| `AI_ALLOWED_HOSTS` | no | `env.ts:67-70`, `netlify/lib/host.ts:114-141` | **security allowlist** for custom/Ollama base URLs | public |
 | `AI_APP_REFERER`, `AI_APP_TITLE` | no | `env.ts:61-63` | OpenRouter attribution | public |
-| `ALLOW_LOCAL_AI` | no | `env.ts:68` | permits `http://localhost:11434` Ollama targets | public |
+| `ALLOW_LOCAL_AI` | no | `env.ts:60`, `netlify/lib/host.ts:84,130` | permits local **loopback-IP** AI targets (`http://127.0.0.1:11434`). The `localhost` spelling does *not* work: `normalizeHost()` rejects single-label names before this flag is consulted, so set it with the IP form (finding L-11, open) | public |
 | `GEMINI_API_KEY` | no (off) | `env.ts:105` | live web research; falls back to `AI_API_KEY` when `AI_PROVIDER=gemini` | **secret** |
 | `GEMINI_MODEL` | no (`gemini-flash-latest`) | `env.ts:106` | grounding model — a moving alias, see P-5 | public |
 | `GEMINI_WEB_SEARCH_ENABLED` | no (false) | `env.ts:107` | master switch for Google Search grounding | public |

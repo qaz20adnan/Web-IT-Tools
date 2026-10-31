@@ -13,12 +13,23 @@ export interface CertificateInfo {
   protocol: string | null
 }
 
-export function inspectCertificate(host: string, port = 443, timeoutMs = 9000): Promise<CertificateInfo> {
+export function inspectCertificate(
+  host: string,
+  port = 443,
+  timeoutMs = 9000,
+  /**
+   * The name to present as SNI when `host` is a literal address. Callers that
+   * resolve-and-validate connect to the IP they checked, and a TLS handshake with
+   * no servername reaches the host's default vhost — or, for a CDN, a different
+   * certificate than the hostname the person typed.
+   */
+  servername?: string,
+): Promise<CertificateInfo> {
   return new Promise<CertificateInfo>((resolve, reject) => {
     const socket = tls.connect({
       host,
       port,
-      servername: net.isIP(host) ? undefined : host,
+      servername: servername ?? (net.isIP(host) ? undefined : host),
       rejectUnauthorized: false,
       timeout: timeoutMs,
     })

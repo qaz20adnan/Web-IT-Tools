@@ -57,30 +57,58 @@ export function normalizeHost(raw: string): string {
 }
 
 export async function assertPublicHost(rawHost: string, options: { allowLocal?: boolean } = {}): Promise<string> {
+  const target = await resolvePublicAddress(rawHost, options)
+  return target.host
+}
+
+export interface PublicTarget {
+  /** The hostname the caller asked for, normalized. */
+  host: string
+  /** The literal address that passed the policy — connect to this, not to `host`. */
+  address: string
+  family: 4 | 6
+}
+
+/**
+ * Resolves **once**, validates every answer, and returns the address to connect
+ * to. `assertPublicHost()` on its own is not enough in front of a socket: a
+ * caller that validates a name and then connects by that name resolves a second
+ * time, and a record that flips between the two lookups gets a public check and
+ * a private connection (finding M-3, DNS rebinding).
+ */
+export async function resolvePublicAddress(
+  rawHost: string,
+  options: { allowLocal?: boolean } = {},
+): Promise<PublicTarget> {
   const host = normalizeHost(rawHost)
   const allowLocal = options.allowLocal ?? serverConfig.allowLocalAi
   const local = host === 'localhost' || host === '::1' || host === '127.0.0.1'
-  if (local) {
-    if (allowLocal) return host
-    throw new HttpError(403, 'blocked_host', 'Local hosts are disabled on this deployment.')
-  }
+  if (local && !allowLocal) throw new HttpError(403, 'blocked_host', 'Local hosts are disabled on this deployment.')
   if (BLOCKED_SUFFIXES.some((suffix) => host.endsWith(suffix))) {
     throw new HttpError(403, 'blocked_host', 'Internal hostnames are not allowed.')
   }
-  if (net.isIP(host)) {
-    if (isPrivateAddress(host)) throw new HttpError(403, 'blocked_host', 'Private or reserved addresses are not allowed.')
-    return host
+
+  const literalFamily = net.isIP(host)
+  if (literalFamily) {
+    if (!local && isPrivateAddress(host)) {
+      throw new HttpError(403, 'blocked_host', 'Private or reserved addresses are not allowed.')
+    }
+    return { host, address: host, family: literalFamily as 4 | 6 }
   }
-  let addresses: Array<{ address: string }>
+
+  let answers: Array<{ address: string; family: number }>
   try {
-    addresses = await dns.lookup(host, { all: true, verbatim: true })
+    answers = await dns.lookup(host, { all: true, verbatim: true })
   } catch {
     throw new HttpError(400, 'blocked_host', 'The hostname could not be resolved.')
   }
-  if (addresses.length === 0 || addresses.some((entry) => isPrivateAddress(entry.address))) {
+  if (answers.length === 0 || (!local && answers.some((entry) => isPrivateAddress(entry.address)))) {
     throw new HttpError(403, 'blocked_host', 'The hostname resolves to a private or reserved address.')
   }
-  return host
+  // Prefer v4 the way the socket-facing helpers in `net-diagnostics.ts` do, so one
+  // hostname gets the same family from the checker and from the connection.
+  const chosen = answers.find((entry) => entry.family === 4) ?? answers[0]
+  return { host, address: chosen.address, family: chosen.family as 4 | 6 }
 }
 
 export function hostAllowed(host: string): boolean {

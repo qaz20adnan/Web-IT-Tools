@@ -119,12 +119,13 @@ function requestHop(url: URL, method: string, timeoutMs: number): Promise<{
   statusText: string
   headers: http.IncomingHttpHeaders
   latencyMs: number
+  peer: string | null
 }> {
   return new Promise((resolve, reject) => {
     const isHttps = url.protocol === 'https:'
     const startedAt = Date.now()
     let settled = false
-    const finish = (error: Error | null, value?: { status: number; statusText: string; headers: http.IncomingHttpHeaders; latencyMs: number }) => {
+    const finish = (error: Error | null, value?: { status: number; statusText: string; headers: http.IncomingHttpHeaders; latencyMs: number; peer: string | null }) => {
       if (settled) return
       settled = true
       if (error) reject(error)
@@ -179,6 +180,7 @@ function requestHop(url: URL, method: string, timeoutMs: number): Promise<{
           statusText: response.statusMessage ?? '',
           headers: response.headers,
           latencyMs,
+          peer: response.socket?.remoteAddress ?? null,
         })
       },
     )
@@ -196,7 +198,7 @@ export async function checkHttp(rawUrl: string, method: 'HEAD' | 'GET' = 'HEAD',
   const redirects: HttpHop[] = []
   const startedAt = Date.now()
   const effectiveMethod = method === 'GET' ? 'GET' : 'HEAD'
-  let last: { status: number; statusText: string; headers: http.IncomingHttpHeaders; latencyMs: number } | null = null
+  let last: { status: number; statusText: string; headers: http.IncomingHttpHeaders; latencyMs: number; peer: string | null } | null = null
 
   for (let step = 0; step <= MAX_REDIRECTS; step += 1) {
     last = await requestHop(current, effectiveMethod, Math.min(15000, Math.max(1500, timeoutMs)))
@@ -225,7 +227,12 @@ export async function checkHttp(rawUrl: string, method: 'HEAD' | 'GET' = 'HEAD',
   if (current.protocol === 'https:') {
     try {
       const port = current.port ? Number(current.port) : 443
-      tls = await inspectCertificate(current.hostname, port, 7000)
+      // Pin the certificate probe to the address the hop actually spoke to. A third
+      // `inspectCertificate(current.hostname, ...)` would re-resolve, and a record that
+      // flipped to a private address after the hop's validating lookup would pass the
+      // probe but be reached by this one (finding M-3, DNS rebinding).
+      const peer = last?.peer ?? null
+      tls = await inspectCertificate(peer ?? current.hostname, port, 7000, peer ? current.hostname : undefined)
     } catch (error) {
       tlsError = describeTlsFailure(error)
     }
