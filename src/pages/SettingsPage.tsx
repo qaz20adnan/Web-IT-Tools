@@ -29,6 +29,12 @@ export function SettingsPage() {
   const scopedKeys = useMemo(() => PRIVATE_KEYS.map((key) => scopedStorageKey(key, userId)), [userId])
   const exportKeys = useMemo(() => [STORAGE_KEYS.settings, ...scopedKeys], [scopedKeys])
 
+  // localDataSize() walks every localStorage key with a getItem per entry, so it
+  // cannot run on each render. None of the five collections appear inside the call
+  // because it reads the browser store rather than props — they are the change
+  // signal, and the figure therefore refreshes when app data changes, not when
+  // another tab or a non-tracked key writes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- deps are signals, not inputs
   const usage = useMemo(() => localDataSize(), [saved, history, localScripts, providers, settings])
 
   const exportData = () => {

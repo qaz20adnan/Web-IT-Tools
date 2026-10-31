@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -84,7 +84,7 @@ export function DashboardPage() {
   const { notify } = useToast()
   const navigate = useNavigate()
   const fileInput = useRef<HTMLInputElement>(null)
-  const L = (en: string, ar: string) => (settings.language === 'ar' ? ar : en)
+  const L = useCallback((en: string, ar: string) => (settings.language === 'ar' ? ar : en), [settings.language])
 
   const [problem, setProblem] = useState('')
   const [category, setCategory] = useState<ProblemCategory>('windows-server')
@@ -116,7 +116,7 @@ export function DashboardPage() {
       { key: 'research', label: L('Research providers', 'مزودو البحث'), ok: health.services.research.configured, detail: health.services.research.providers.join(', ') || L('None', 'لا يوجد') },
       { key: 'db', label: L('Database', 'قاعدة البيانات'), ok: health.services.database.configured, detail: health.services.database.configured ? L('Configured', 'مهيأ') : L('Local fallback', 'تخزين محلي') },
     ]
-  }, [health, settings.language])
+  }, [health, L])
 
   const configuredCount = serviceRows.filter((row) => row.ok).length
   const categoryStats = useMemo(() => {

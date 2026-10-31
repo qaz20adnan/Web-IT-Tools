@@ -187,6 +187,33 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
   **Not verified**: no live dev server was started against an over-cap body — the L-3 claim is the
   source guard plus the mutation check, not an observed 413 round trip. Not deployed.
 
+- **L-7 hook dependencies** (the three warnings that were actual bugs, not style): two pages had a
+  `useMemo` that looked like a cache and was not one. `DashboardPage.tsx:87` defined `const L = (en, ar) =>
+  settings.language === 'ar' …` inside the component, so the closure was a new function every render and
+  the service-row memo at `:119` was keyed partly on something that could not be equal to its previous
+  value; `L` is now a `useCallback` on `[settings.language]` and the memo depends on `L` itself.
+  `DomainPage.tsx` (the finding's `:72`, now `:75`) built `allowed` as a fresh array literal per render, which made the 45-article
+  filter-and-`.sort()` at `:75` re-run on every keystroke-driven re-render; it is memoized on
+  `[filter, config.domains]`, and `config` comes from a module-level `HUBS` object so those deps really
+  are stable.
+  `SettingsPage.tsx` (the finding's `:32`, now `:38`) is **not** a bug and was not "fixed" by deleting deps: `localDataSize()` walks
+  `localStorage` (a `getItem` per key), so it cannot run per render, and the five collections it lists
+  are the change signal rather than inputs. The deps stay, the reason is now written next to them, and
+  the note admits the number refreshes on app-data writes only — a non-tracked key or another tab can
+  leave it stale until the next data change.
+  19 → 16 warnings, and every warning left is `react-refresh/only-export-components`: 11 across the six
+  `src/context/*.tsx` files that keep provider and hook in one module, 5 in `main.tsx`,
+  `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx`.
+  Splitting those is a module-layout refactor with import churn through 33 pages, so it was left alone
+  rather than silenced warning by warning — no `eslint-disable` was added anywhere except the one
+  annotated `SettingsPage` line.
+  **Verified**: `npm run lint` 0 errors / 16 warnings; typecheck clean; `npx vitest run` 54 files / 513
+  tests; `npm run build` 568 ms. **Mutation-checked**: reverting all three edits at once returns exactly
+  3 `exhaustive-deps` warnings plus a `no-unused-vars` error on the orphaned `useCallback` import, then
+  restored and re-run clean.
+  **Not verified**: no browser was opened, so "the catalog memo now caches" is React semantics plus the
+  dependency identities, not a measured render count.
+
 - **W1 honesty and gating batch** (the audit's `Discovered → W1` list, now landed in
   `70e1deb` plus the follow-up commit that carries this line):
   - H-1: `/api/ai/analyze` returns every model-recalled URL with `verified: false`, drops the

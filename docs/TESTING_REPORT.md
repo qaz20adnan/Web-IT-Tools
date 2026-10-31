@@ -14,7 +14,7 @@ match the suite.
 | Gate | Command | Environment | Result | Measured |
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
-| Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 19 warnings (all `react-hooks/exhaustive-deps`, 2 files own 11 of them: `DomainPage.tsx:72-76`, `SettingsPage.tsx:32`) |
+| Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
 | Tests | `npm test` | LOCAL | **PASS** | 54 files, 513 tests, 0 failed, 12.86 s wall (it swings 12–27 s between runs — the M-14 byte tests allocate 4 MB buffers and jsdom is created once per file, 83 s of environment time across workers) |
 | Build | `npm run build` | LOCAL | **PASS** | `tsc --noEmit && vite build && build:vercel-api`, 0.53–0.76 s depending on cache (entry chunk 745.57 kB min / 231.85 kB gzip — those do not move) |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1179 kB, 22 routes |

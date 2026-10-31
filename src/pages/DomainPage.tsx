@@ -69,7 +69,13 @@ export function DomainPage({ hub }: { hub: keyof typeof HUBS }) {
   const [params, setParams] = useSearchParams()
   const config = HUBS[hub]
   const filter = params.get('domain') as ProblemCategory | null
-  const allowed = filter && config.domains.includes(filter) ? [filter] : config.domains
+  // Both branches return a stable reference (a one-element array built here, or
+  // the module-level hub list), otherwise the article memo below recomputes and
+  // re-sorts the whole catalog on every render.
+  const allowed = useMemo(
+    () => (filter && config.domains.includes(filter) ? [filter] : config.domains),
+    [filter, config.domains],
+  )
 
   const articles = useMemo(
     () => KNOWLEDGE_ARTICLES.filter((article) => allowed.includes(article.domain)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
