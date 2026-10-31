@@ -52,9 +52,9 @@ anywhere, so a Vercel variable named that way would be silently ignored.
 | `CONTENT_ADMIN_TOKEN` | **yes for CMS writes** | `env.ts:69`, `netlify/functions/content-admin.ts:28-41` | single static bearer, `timingSafeEqual`, no rate limit (M-11) |
 | `NEWS_FEEDS` | no | `netlify/functions/news.ts:176`, `health.ts:34` | extra RSS URLs |
 | `RATE_LIMIT_WINDOW_MS` (60000), `RATE_LIMIT_MAX` (20) | no | `env.ts:58-59`, `netlify/lib/rate.ts` | in-memory, per warm instance (H-8) |
-| `NET_PROBE_ALLOW_PRIVATE` | no (false) | `env.ts:61`, `netlify/functions/net-port.ts:19`, `net-diagnostics.ts:33` | allows **RFC1918 + loopback** TCP probes. **Missing from `.env.example`** (L-9). Keep off on any cloud host |
+| `NET_PROBE_ALLOW_PRIVATE` | no (false) | `env.ts:61`, `netlify/functions/net-port.ts:19`, `net-diagnostics.ts:33` | allows **RFC1918 + loopback** TCP probes. Documented in `.env.example`, README and `docs/DEPLOYMENT.md` (L-9 closed). Keep off on any cloud host |
 | `PRINTER_ALLOW_PRIVATE` | no (false) | `env.ts:62`, `net-printer.ts` | LAN printer probing; auto-allowed only under `localRuntime()` |
-| `PRINTER_ALLOW_PUBLIC` | no — **code default `true`** | `env.ts:65`, `net-printer.ts` | public IPP/9100/515 probing. `.env.example` and README say off → inverted default (M-2) |
+| `PRINTER_ALLOW_PUBLIC` | no (false) | `env.ts:65`, `net-printer.ts:27` | public IPP/9100/515 probing. The inverted default is **fixed** (M-2): both printer flags go through `envBool()`, which is false unless the value is literally `true` |
 | `LOG_LEVEL` | no (`info`) | `env.ts:66`, `netlify/lib/http.ts:121`, `netlify/lib/auth.ts:438,465` | `silent` suppresses the `[nexora]` error log |
 | `APP_NAME` | no (`Adnan Tech`) | `env.ts:43` | display name |
 
@@ -82,15 +82,15 @@ into the browser bundle by accident, and none was found in `dist/`.
 | `VPREV` has no `SUPABASE_*` | `databaseConfigured=false` on Vercel previews → every internal tool and page returns 503 there | D3 |
 | No `NEXORA_SITE_URL` on Vercel | verification/recovery links would point at `http://localhost:5173/verify?...` | set explicitly, do not rely on `URL` |
 | No AI key on NETLIVE | `ai.configured=false`, `research.configured=false` → the assistant is unreachable in production | D4 |
-| `NET_PROBE_ALLOW_PRIVATE` undocumented | LAN scanning possible with no paper trail | add to `.env.example` + README |
+| `NET_PROBE_ALLOW_PRIVATE` undocumented | LAN scanning possible with no paper trail | **CLOSED** — it is in `.env.example` (with an "never for a public deployment" comment), `README.md:128` and `docs/DEPLOYMENT.md:94` |
 
 ## 7. Pitfalls with a real failure mode
 
 | ID | Pitfall |
 | --- | --- |
-| P-1 | Empty `NEXORA_HASH_PEPPER` silently degrades to `SUPABASE_URL`, then to the literal `'nexora-local-pepper'`, making trial-claim HMACs guessable (`netlify/lib/auth.ts:113`). Fix in flight: fail closed in production |
+| P-1 | Empty `NEXORA_HASH_PEPPER` used to degrade to `SUPABASE_URL`, then to the literal `'nexora-local-pepper'`, making trial-claim HMACs guessable. **Fixed** (M-1): the literal fallback is gone from the source, `hasPepper()` (`netlify/lib/auth.ts:116`) gates the whole path, and an un-peppered deployment now refuses to start a trial (`auth.ts:210`) rather than hash with a guessable key |
 | P-2 | `AI_TIMEOUT_MS=60000` is **per attempt** and retries double it; Netlify standard functions die at 60 s and `vercel.json` sets `maxDuration: 60` → the user gets a platform error page, not the app's JSON error (H-4). **Fixed in code**: every AI request now runs inside one 50 s `Deadline` (`ai.ts:157`), so the value is a wish, not a guarantee — it is clamped to the budget left, and a spent budget returns `504 timeout` instead of a platform kill. Not deployed |
-| P-3 | `PRINTER_ALLOW_PUBLIC` unset ≠ off (M-2) |
+| P-3 | `PRINTER_ALLOW_PUBLIC` unset used to mean *on*. **Fixed** (M-2) — `envBool()` returns false unless the value is exactly `true`, and `tests/secure-defaults.test.ts` pins that a deployment with nothing set cannot probe public printer ports |
 | P-4 | On Vercel, `NEXORA_SITE_URL ?? URL` resolves to the `localhost:5173` default because Vercel does not inject `URL` |
 | P-5 | `gemini-flash-latest` is a moving alias: good for staying current, bad for reproducing an answer during an audit |
 | P-6 | `AI_ALLOWED_HOSTS` gates custom/Ollama base URLs — leaving it empty while `ALLOW_LOCAL_AI=true` in production is how a proxy-to-localhost bug appears |

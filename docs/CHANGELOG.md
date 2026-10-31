@@ -255,6 +255,17 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 - `docs/ADNAN_TECH_*.md` (2026-10-27) are marked as superseded where they disagree with the code —
   the auth "PARTIAL" wording, the printer-default wording, and the stale test counts. Task #6 will
   rewrite those files or delete them with approval.
+- `docs/ENVIRONMENT_VARIABLES.md` was itself three findings behind the code, and each stale row was
+  a live misunderstanding waiting to happen: it said `NET_PROBE_ALLOW_PRIVATE` is "missing from
+  `.env.example`" (L-9 — landed two batches earlier, in `70e1deb`, and also present in `README.md:128`
+  and `docs/DEPLOYMENT.md:94`), that `PRINTER_ALLOW_PUBLIC` has a code default of `true` (M-2 —
+  `envBool()` is false unless the value is exactly `true`, pinned by `tests/secure-defaults.test.ts:26`),
+  and that an empty pepper "silently degrades to the literal `'nexora-local-pepper'`" (M-1 — that
+  literal no longer exists in the source; `hasPepper()` at `netlify/lib/auth.ts:116` refuses the trial
+  instead). All three corrected by reading the current code, then re-verified against the tests.
+  **Verified**: `git log -S` for the `.env.example` line, grep for the deleted literal, the two
+  guard tests exist and pass. **Not verified**: nothing was re-deployed, so the *host* env state is
+  unchanged (Vercel still has no Supabase vars — C-3/D3).
 - Recorded that `adnan-tech.vercel.app` has never been assigned to the Vercel project and that its
   production alias 404s (finding C-1/C-2 in the audit table). Note for the owner: the repo's own
   plan (`README.md:15`, `docs/DEPLOYMENT.md:5-13`) designates **Netlify** as production and Vercel
@@ -264,7 +275,7 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 ### Discovered, not yet fixed (next waves)
 | Wave | Items |
 | --- | --- |
-| W1 safe-now | **11 of 13 fixed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
+| W1 safe-now | **12 of 14 closed** (H-1, M-1, M-2, M-5, M-6, M-7, M-8, L-1, L-2, L-4, L-9, M-10 — see the two W1 batches above and §8.1 of the audit); still open: M-9 export/clear key lists incomplete (needs owner approval, it widens what gets deleted), H-6 light-theme contrast (needs a browser) |
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-3 TLS DNS-rebinding window, M-4 implicit-flow tokens in the URL fragment, H-2 token storage migration, M-11 shared CMS bearer token |
 | W4 resilience/UX | H-9 one root `ErrorBoundary` for 33 pages, H-10 six handlers invent their own error shapes, M-15/M-16 focus and ARIA defects, M-17 clipped tables on phones, M-18 232 kB gzip entry chunk |
