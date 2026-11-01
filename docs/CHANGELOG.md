@@ -6,6 +6,66 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (workspace tenancy batch: 63 handler tests + 16 mutations + L-16, L-17)
+
+`/api/workspace` is the handler that stores every member's cases, notes and chat history. It had no
+test at all, so the audit's "no IDOR found" line was a code read, not a measurement. It is now a
+measurement. No product file was changed by this batch.
+
+### Added (tests only)
+- `tests/workspace-tenancy.test.ts` (63) — the first suite that imports `netlify/functions/workspace.ts`.
+  Same shape as the admin batch: `authenticate`, `writeAudit` and the five Supabase row helpers are
+  stubbed while `requireWorkspace()`, `requireVerified()`, `countOwned()`, `assertItemBudget()` and the
+  real zod schema stay in the loop, so the tests exercise the guards rather than a re-statement of them.
+  The gate ladder (405 before `authenticate` is called → 413 on a 600 kB body against the 512 kB cap →
+  401 → suspended → unverified → plan without the workspace feature, asserted to refuse **before** the
+  body is parsed), the owner filter on every query the six read actions build, a foreign id answered as
+  404 *before* any write, the caller's id stamped on every insert even when the body supplies another
+  one, the budget arithmetic, the column list that keeps message bodies out of `conversation.list`, and
+  the two upstream 502s.
+
+### Found while verifying (registered, not fixed)
+- **L-16 · 7 of the handler's 16 actions have no caller under `src/`** — `case.get`, `case.archive`,
+  `case.restore`, `conversation.get`, `conversation.save`, `conversation.rename`, `feedback.submit`.
+  The last one is the interesting half: `content_feedback` has an admin read path
+  (`AdminPage.tsx:171,260` → `feedback.list` / `feedback.resolve`) and **no writer anywhere in the
+  product**, so the ملاحظات المحتوى tab cannot show a row today. Census, not a hole.
+- **L-17 · `conversation.save` on an existing id deletes the message rows before re-inserting whatever
+  the body carries**, so the same request with `messages: []` empties the conversation — no
+  confirmation, no archive, no audit row. Self-scoped (it can only destroy the caller's own history)
+  and unreachable from today's UI (see L-16), so it is pinned by a test and left as a decision rather
+  than silently changed.
+- One defect found in my own file before committing: `errorOf()` did not declare `detail`, so
+  `npm run typecheck` failed with TS2339 while every test was green — the suite does not type-check,
+  the gate does. Fixed (+2/−2), and the four gates were re-run from a clean tree.
+
+### Verified (LOCAL, 2026-11-01)
+- **16 mutation checks against the new suite, 16 caught**, each applied to `workspace.ts` from a temp
+  copy and reverted from it, with `restored clean: True` at the end: the entitlement gate, the owned-row
+  lookup, `uidFilter`, the two insert stamps, the two ownership pre-checks, the zero-storage refusal,
+  `>=` → `>` on the ceiling, the archived exclusion, the matched-nothing update, the 512 kB cap, the
+  conversation 502, `select=id,title,…` → `select=*`, the delete order and the audit actor. Each defect
+  fails 51–62 of the 63 cases; ten of the sixteen leave exactly one test standing.
+- Gates after the fix: typecheck 0 errors; lint **0 errors / 16 warnings** (unchanged — the new file is
+  clean); `vitest run` **66 files / 853 tests** green, including the new file's 63 in isolation (1.59 s,
+  58 ms inside test bodies); `vite build` 701 ms and `api/index.js` still 1180 kB / 22 routes, with the
+  entry chunk at the same 484.91 kB / 149.51 kB gzip — expected, since no product or frontend file moved.
+- Coverage census re-derived by script rather than memory: `netlify/lib` **23/23**, `netlify/functions`
+  **10/22** (was 9/22; `workspace.ts` left the unimported list, 12 remain), 8 of 66 test files render a
+  component.
+- Numbers carried into all six docs: PROJECT_AUDIT (§1 gate row, §4 tenancy bullet, §5 tests row, L-16
+  and L-17 in the register, a Workspace-guard row in §8.1), SECURITY_AUDIT §3, TESTING_REPORT §1/§2/§6/§8,
+  ARCHITECTURE's jsdom paragraph, DEPLOYMENT_GUIDE's pre-deploy state line.
+
+### Not verified
+- Nothing was deployed, no browser was opened, and **no live database was touched**: every assertion
+  runs against stubbed row helpers, so RLS — the second half of the "no IDOR" claim — is still
+  unproven end to end (D5/D6). The suite proves what the handler *sends*, not what PostgREST *allows*.
+- L-17's wipe is proven against a stub; the actual `conversation_messages` rows were never observed.
+
+### Register counts
+LOW/INFO **15 → 17** (L-16, L-17). CRITICAL/HIGH/MEDIUM unchanged.
+
 ## Unreleased — 2026-11-01 (server-guard coverage batch: L-12, L-13 + 203 tests)
 
 The last three unimported server libraries and the entire admin surface now have tests, and the two
@@ -85,8 +145,8 @@ have never run on either host.
 ## Unreleased — 2026-10-31 (audit phase + foundation repair)
 
 ### Added
-- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO (15
-  since this session added L-11 and the 2026-11-01 batch added L-12, L-13, L-14 and L-15),
+- `docs/PROJECT_AUDIT.md` — full findings register: 4 CRITICAL, 10 HIGH, 19 MEDIUM, 10 LOW/INFO (17
+  since this session added L-11 and the 2026-11-01 batches added L-12, L-13, L-14, L-15, L-16 and L-17),
   each with file:line evidence, plus a measured live-environment table and the owner-action list
   D1–D10. **Verified** (live probes against NETLIVE/VPROD/VPREV + LOCAL gate runs).
 - `docs/ENVIRONMENT_VARIABLES.md` — authoritative variable census extracted from code, with the
@@ -639,7 +699,7 @@ have never run on either host.
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token. ~~M-3 TLS DNS-rebinding window~~ **fixed in this session** — it was re-verified open by the documentation pass above and closed by the W3 entry that follows it |
 | W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
-| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts` (done in H-10), `netlify/lib/host.ts` (done in M-3) and `admin.ts` (done 2026-11-01, `tests/admin-rbac-gates.test.ts`) — what is left of this wave is the browser pass, the coverage provider and the 13 unimported functions |
+| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts` (done in H-10), `netlify/lib/host.ts` (done in M-3), `admin.ts` (done 2026-11-01, `tests/admin-rbac-gates.test.ts`) and `workspace.ts` (done the same day, `tests/workspace-tenancy.test.ts`) — what is left of this wave is the browser pass, the coverage provider and the 12 unimported functions |
 
 ### Blocked on the owner (no code change will move these)
 Vercel production build log (D2) · Vercel env vars (D3) · AI/Gemini keys (D4) · authenticated

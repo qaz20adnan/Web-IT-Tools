@@ -58,17 +58,21 @@ review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it
 third-party speed-test endpoints and never sees an `ApiError`.
 
 One claim this section used to make and should not: the layering does **not** keep jsdom out of the
-pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 65 files pay for
-it — ~100 s of environment creation across workers (69% of the tracked time) for a ~15.6 s run, of which only 8 files render a
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 66 files pay for
+it — 122.8–150.2 s of environment creation across workers (61–64 % of the tracked time) for a
+16.6–26.1 s run, of which only 8 files render a
 component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
-recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied. The four newest files in the suite
+recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied. The five newest files in the suite
 (`admin-rbac-gates`, `net-error-texts`, `supabase-rest-errors`, `json-extract` — 203 tests, 77 ms of
-them inside test bodies, 1.20 s of wall in isolation) are now the starkest example: none renders
-anything, none calls a DOM API (`grep -n "window|document|localStorage"` over the four files returns two
-false positives — the words "validity window" and "documented by"), and they still build four environments before asserting strings.
+them inside test bodies, 1.20 s of wall in isolation — and `workspace-tenancy`, 63 tests, 58 ms of body,
+1.59 s of wall of which 68 % is the environment) are now the starkest example: none renders
+anything, none calls a DOM API (`grep -n "window|document|localStorage"` over the four older files returns two
+false positives — the words "validity window" and "documented by"), and they still build five environments before asserting strings.
 This is no longer only a latency nit: on 2026-11-01 the four extra files were enough to push
 `tests/command-palette.test.tsx` past the 5 s default timeout inside a full run while it passed in
-0.8 s alone (registered as L-15, mitigated with a per-test budget rather than a global one).
+0.81 s alone at the moment it was diagnosed — and 2.20 s alone (5.24 s for the file) on a fresh
+re-measure the same day, which is the point: the case is load-bound, not behaviour-bound
+(registered as L-15, mitigated with a per-test budget rather than a global one).
 
 Two behaviours the shared UI kit owns rather than the pages that use it, both new in W4 and both
 pinned by `tests/modal-focus.test.tsx` / `tests/command-palette.test.tsx`: `Modal` keeps a module-level

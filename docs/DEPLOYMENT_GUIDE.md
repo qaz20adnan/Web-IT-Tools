@@ -173,8 +173,8 @@ npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 Current measured state: all four PASS (0 lint errors / 16 warnings, all of them `react-refresh`
-module-layout hints rather than defects; 790 tests in 65 files; a 0.45–0.69 s Vite build inside a
-~17 s `npm run build`, which also regenerates `src/data/knowledgeMeta.ts` and `api/index.js`). If `npm run build` fails, nothing downstream is
+module-layout hints rather than defects; 853 tests in 66 files, 16.6–26.1 s; a 0.84–1.31 s build that
+also regenerates `src/data/knowledgeMeta.ts` and the 1180 kB `api/index.js`). If `npm run build` fails, nothing downstream is
 deployable — that is how the site sat broken for four days before 2026-10-31.
 
 One local-only difference worth knowing before you trust a dev run: since L-3 the dev API adapter

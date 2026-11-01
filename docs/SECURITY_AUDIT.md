@@ -90,7 +90,14 @@ Verified correct, and this is the strongest part of the platform:
   a second privileged account exists, and do not treat a *suspended* owner as protected (that
   account must stay reclaimable, or a suspension becomes an unrecoverable lockout).
 - Tenancy: every workspace query filters `user_id=eq.<authenticated id>` and RLS mirrors it —
-  **no IDOR found** (`netlify/functions/workspace.ts:121,247-249`, `0001:398-410`).
+  **no IDOR found** (`netlify/functions/workspace.ts:121,247-249`, `0001:398-410`). Since 2026-11-01
+  that is a measured claim, not a code read: `tests/workspace-tenancy.test.ts` (63 tests) asserts the
+  owner filter on every query the handler builds, that a foreign id is answered as absent, that a
+  caller-supplied `user_id`/`role`/`is_admin` in the body is dropped rather than honoured, and that the
+  entitlement check runs before the body is parsed. **16/16 guard mutations caught** (51–62 of the 63
+  cases fail per mutation), so the suite would notice the next time someone edits a filter. What it
+  still cannot prove is the database half: no live round trip, so RLS itself remains unverified
+  end-to-end (D5/D6).
 - The owner's three roles map cleanly onto what already exists: Owner → `owner`, Admin →
   `admin`, User → `premium_member`/`standard_member`/`trial_member`. No new role work is needed;
   the remaining question is whether `super_admin` (legacy) should be retired.
