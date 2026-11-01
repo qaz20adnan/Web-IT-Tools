@@ -88,8 +88,26 @@ was ever printed here.
   The five READY previews came from the file list this section says was wrong.
 - The runtime a future Vercel build actually runs on (`engines.node = "22.x"` overriding the project's
   24.x dropdown is still an assumption).
-- **Nothing deployed.** The failed production deployment is kept — deleting it, and deleting the four
-  dev accounts' old passwords' usefulness, are your decisions, and I took neither.
+- **Nothing deployed.** The failed production deployment is kept, and those four dev passwords are not
+  reset — deleting deployments and rotating dev credentials are your decisions, and I took neither.
+
+### Decided after this section was written (same day, owner answers to two questions)
+- **D1 — Netlify only.** With that answer the Vercel side stops being a repair list: no production
+  redeploy is queued, `adnan-tech.vercel.app` will not be assigned, and the credential-free state of
+  that project becomes the intended configuration rather than a CRITICAL defect. C-1 and C-2 are
+  reclassified accordingly and **D3 is declined** — I wrote **nothing** to Vercel, no variable created,
+  updated or deleted, so the parity script described earlier in this file was never run and never will
+  be unless the host decision changes.
+- **D11 added** (there was no such row before): the assistant needs `AI_PROVIDER`, `AI_API_KEY`,
+  `AI_MODEL` on Netlify, which only the owner can supply, through the dashboard, never in chat.
+- **Production drift, measured after the decision, and it is now the headline.** Netlify's
+  `published_deploy` is `6ae24c40a4a3be3ea790b498` created **2026-10-28T19:25:52Z** with no commit
+  reference — the site has no Git connection, every deploy there is an upload. The live entry chunk is
+  `assets/index-DbzK_PZr.js`, downloaded and measured at **745,390 bytes raw / 231,146 gzipped**,
+  against `dist/assets/index-Dbs3Tuo9.js` at **484,918 / 148,360** built here. `git log --since=2026-10-28`
+  counts **31 commits**. So the whole fix program since the 28th — H-9, H-10, M-15, M-16, M-17, M-18, the
+  server-guard coverage batch and today's H-11 repair — is invisible to users, and visitors still pay
+  ~83 kB of gzip on first paint for a saving that exists only on this machine. **Gated on D10.**
 
 ---
 
