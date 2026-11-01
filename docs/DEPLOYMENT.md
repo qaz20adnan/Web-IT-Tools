@@ -8,20 +8,34 @@ what the AI and research routes need. The trade-off is the credit budget — the
 300 credits a month and the site pauses when they run out (bandwidth costs 20 credits per GB,
 function compute 10 credits per GB-hour), so heavy AI traffic means watching the meter.
 
-Vercel is used for preview and testing only. `vercel.json` and the `vercel/` dispatcher exist so
+Vercel was used for preview and testing only. `vercel.json` and the `vercel/` dispatcher exist so
 the same commit runs there, but the Hobby plan is restricted to non-commercial personal use and
 caps a deployment at 12 Serverless Functions — see
 [`docs/VERCEL_DEPLOYMENT.md`](VERCEL_DEPLOYMENT.md) for how that limit is worked around and for
 the measured limits of the other free hosts.
 
-**Owner decision 2026-11-01 (audit item D1):** this is now decided, not provisional. Because nobody
-is served from Vercel, its project deliberately holds **no** environment variables — `/v9/projects`
-and `/v10/projects` both answer zero user variables — and that is the intended state, not a gap to
-"fix". Copying `SUPABASE_SERVICE_ROLE_KEY` or `CONTENT_ADMIN_TOKEN` there would place a second copy
-of a key that bypasses RLS on a host with no users, so audit item D3 is closed as declined. If Vercel
-ever becomes a real second production host, `NEXORA_HASH_PEPPER` has to match Netlify's value exactly
-or the existing `trial_claims.email_hash` rows orphan, and `NEXORA_SITE_URL` must be the Vercel origin
-rather than a copy of `https://adnan-tech.netlify.app`.
+**Owner decision 2026-11-01 (audit item D1), reversed the same day by `D10`:** the first half of this
+paragraph is history and is kept so the reversal is visible. It said Vercel deliberately holds **no**
+environment variables and that D3 was declined — true while Netlify was the chosen host. Then the
+Netlify account moved to **operational credits**: published sites stay online, **production deploys and
+Agent Runners are paused**, and the owner will not pay. The owner ordered a Vercel publish
+("اريد منك نشر عبر vercel"), so at 12:33Z `adnan-tech.vercel.app` became the production origin serving
+the current tree, while Netlify keeps serving its 2026-10-28 build.
+
+Two consequences the owner should read, not inherit silently:
+1. **Vercel Hobby's non-commercial clause now applies to the live site.** This was a footnote while
+   Vercel held previews; it is the production terms. Whether Adnan Tech counts as commercial is the
+   owner's call to make knowingly — if it does, the free options that permit it are Netlify (once
+   deploys unblock), Cloudflare Pages or a paid Vercel plan. Nothing here forced the choice.
+2. **The variable copy is half done.** `SUPABASE_URL`, `NEXORA_SITE_URL` (= the Vercel origin, *not* a
+   copy of the Netlify one), `OWNER_EMAIL`, `AI_PROVIDER`, `AI_MODEL` and `GEMINI_WEB_SEARCH_ENABLED`
+   are set; `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER`,
+   `CONTENT_ADMIN_TOKEN` and `AI_API_KEY` are not, because Netlify stores the first four encrypted and
+   the fifth never existed. So auth, the database and the CMS fail closed on Vercel today.
+   If the pepper cannot be recovered, it must match Netlify's value exactly or the existing
+   `trial_claims.email_hash` rows orphan — see `netlify/lib/auth.ts:201-213` for what an orphan actually
+   costs (a second free trial per returning user, silently) and what an absent pepper costs (no trial
+   starts at all).
 
 ## Netlify
 

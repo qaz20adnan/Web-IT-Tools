@@ -6,6 +6,96 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 12:33Z (Vercel is the production host now; Netlify cannot deploy anymore)
+
+The owner reported a Netlify banner: the account runs on **operational credits**, published sites stay
+online but **production deploys and Agent Runners are paused**, and the owner stated they cannot pay.
+Their instruction was "اريد منك نشر عبر vercel". That reverses the D1 decision recorded earlier the same
+day, and it is the owner's call to reverse, so this section documents the reversal instead of arguing
+with it. The instruction was an explicit order to publish, so it was taken as the approval phrase
+("انشر للإنتاج") rather than being asked for a second time.
+
+**Nothing new was written to Netlify in this section, and nothing was deleted anywhere.**
+
+### What changed of substance
+- **Production moved.** `vercel deploy --prod --yes` from `ba6be54` (clean tree) created
+  `dpl_6UtxvoqEdB6WKqvWcHVk6vCXMgLU` → `READY`, `errorCode: null`, one lambda
+  (`functions: {"api/index.js": {maxDuration: 60}}`), `alias: ["adnan-tech.vercel.app",
+  "adnan-tech-adnan-mohamed.vercel.app"]`, `aliasAssigned: true`, `Ready in 34s`,
+  `Build Completed in /vercel/output [25s]`. `adnan-tech.vercel.app` worked for the first time ever:
+  the row in `docs/PROJECT_AUDIT.md` §2 that said `FAIL — DEPLOYMENT_NOT_FOUND` is now `PASS 200`.
+- **Six variables written to the Vercel project** (`type: encrypted`, `target: ["production"]`, through
+  `/v9/projects/{id}/env`, re-read by name from `/v10/…`): `SUPABASE_URL`, `AI_PROVIDER`, `AI_MODEL`,
+  `GEMINI_WEB_SEARCH_ENABLED`, `OWNER_EMAIL` — each copied from the Netlify entry that is stored
+  **unmasked** — plus `NEXORA_SITE_URL` = `https://adnan-tech.vercel.app`, deliberately *not* copied,
+  because the Netlify value names an origin that is no longer the site. No value was printed by any
+  command, in any log, or in chat: the copy script reads Netlify's array, POSTs to Vercel, and echoes
+  `WROTE <KEY> len=<n> http=200`.
+- **The four encrypted Netlify entries cannot be moved by me at all.** `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER` and `CONTENT_ADMIN_TOKEN` come back as twenty
+  asterisk characters (`is_secret=true`), and the single-key route `GET /api/v1/sites/{id}/env/{KEY}`
+  answers **404**. So they are one file the owner pastes, not an API call: `.secrets/vercel-sync.env`
+  (git-ignored, verified by `git check-ignore -v` → `.gitignore:14:.secrets/`) holds five empty slots —
+  those four plus `AI_API_KEY` — and `nexora-vercel-push-secrets.js` writes only the non-empty ones,
+  rejecting placeholders and values containing spaces. Dry-run today with all five empty: `written=0
+  skipped=5`, existing six untouched. `.secrets/ai.env` was **deleted** (it held no value) so that one
+  file is the only secret landing spot; `nexora-set-netlify-key.js` is retired with it because Netlify
+  cannot be deployed to anymore.
+- `.gitignore` gained `.secrets/` earlier today, and `.vercelignore` was already in place. **Both were
+  verified by the deploy itself** — see the census below.
+
+### Verified (measured in this session)
+- `GET https://adnan-tech.vercel.app/` → **200**, `Content-Length: 3131`, full security-header set
+  (CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy, COOP) served by
+  Vercel from `vercel.json`, and **no SSO redirect** despite the project setting `ssoProtection.
+  deploymentType: all_except_custom_domains` — so public delivery needs no relaxation from anyone.
+  **Measured, not reconstructed**: why that setting does not bite the production alias was not
+  investigated.
+- `GET /api/health` → **200** `{"ok":true,"version":"1.0.0"}`, `news.configured=true, sources=19`,
+  `ai/vision/research/database/contentAdmin = false`. The endpoint answering at all is the single-bridge
+  function working in production — the direct proof that C-1's cause (12-functions Hobby cap) is gone.
+- **L-10 and S-2 closed at the source.** The uploaded file tree of this deployment was walked through
+  `/v13/deployments/{id}/files`: 607 entries, `api/index.js` present, and the only env-shaped path is
+  `src/.env.example` — **no** `.env.local`, **no** `.local-auth/store.json`, **no** `.secrets/`, **no**
+  `dist/`, **no** `node_modules`. That is the first upload made after `.vercelignore` existed, so the
+  file is now proven to be honoured, and the store that rode on all six earlier archives can no longer
+  ride on a new one.
+- **M-12's open question answered.** The deployment reports `nodeVersion: "22.x"` and
+  `projectSettings.nodeVersion: "22.x"`, while all six previous deployments reported `"24.x"`. A build
+  from the pinned tree runs on 22, so `engines.node` + `.nvmrc` do win over the stale project dropdown.
+- Gates before deploying: `npm run build` green (entry `index-Dbs3Tuo9.js` 484.91 kB min / 149.51 kB
+  gzip, `api/index.js ready (1180 kB)`), `vitest run` **904 passed** in 16.24 s, typecheck 0 errors.
+- The first `vercel deploy --prod` died locally with `Error: fetch failed` **before uploading** (same
+  transient network fault already logged against api.netlify.com); the retry succeeded. Recorded because
+  a deploy that fails this way leaves no deployment behind.
+
+### Not verified
+- **Nothing has been proven to work for a real visitor beyond the HTML shell and `/api/health`.** No
+  signup, no login, no AI answer, no CMS write has been exercised on Vercel — auth and the database are
+  fail-closed there until the five values arrive. Task #5 is still open.
+- The **Netlify site is untouched and still serves its 2026-10-28 build** (31 commits stale, pre-M-18
+  entry chunk). It cannot be redeployed while the credit pause stands, so the two hosts now run **two
+  different versions against one Supabase project**, and each has its own `NEXORA_SITE_URL`. Nothing in
+  the code enforces one origin, so this is a live inconsistency, not a hypothetical.
+- Whether the Supabase project's own Auth settings (site URL / redirect allowlist) accept
+  `adnan-tech.vercel.app` is **unknown** — it is the next thing to break after the keys arrive, and it is
+  a dashboard check, not a code check.
+- `public: false` on the new deployment alongside an anonymous 200 is a combination I did not explain.
+- `.vercelignore` excludes `dist` and the CLI regenerates it; `api/index.js` shipped because the build
+  makes it on Vercel — but `functions: {"api/index.js"}` is also satisfied by the local copy, so nothing
+  here proves which of the two Vercel used.
+
+### Decided here, and what I need from you
+Five lines, one file, then one reply of «تم»: `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` from
+Supabase → Settings → API Keys; `NEXORA_HASH_PEPPER` and `CONTENT_ADMIN_TOKEN` from wherever you kept
+them (if the old pepper is unrecoverable say so and I will generate a new one and tell you the cost:
+`netlify/lib/auth.ts:201-213` makes a mismatch silently re-issue a 30-day trial to every returning user,
+and an absent pepper refuses to start any trial at all); `AI_API_KEY` from Google AI Studio. After the
+paste: push, redeploy, and re-read `/api/health` until `database.configured` and `ai.configured` are
+true.
+
+---
+
 ## Unreleased — 2026-11-01 (three AI names written to Netlify; the fourth is a secret only the owner has)
 
 The owner asked for the environment variables to be added now. Three were added; **`AI_API_KEY` was

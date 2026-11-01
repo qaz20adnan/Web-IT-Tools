@@ -1,19 +1,19 @@
 # DEPLOYMENT GUIDE — Adnan Tech | منصة عدنان تك
 
-Operator runbook, current as of 2026-10-31. It supersedes nothing in `docs/DEPLOYMENT.md`
-(technical build settings) or `docs/VERCEL_DEPLOYMENT.md` (platform comparison) — it adds the
-order of operations, the verification gates, and the two things those files predate:
-**Vercel production is currently dead** and **Vercel has no Supabase variables**.
+Operator runbook. **Rewritten at 2026-11-01 12:40Z, when the production host changed:** Netlify can
+no longer deploy (operational credits — published sites stay up, production deploys and Agent Runners
+are paused) and the owner ordered a Vercel publish. What this file predates is now the opposite of what
+it said: **Vercel production is live** and **Netlify production is frozen mid-deploy**.
 
 Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variable list.
 
 ## 0. State you are deploying into (measured, do not skip)
 
-| Target | State on 2026-10-31 | Consequence |
+| Target | State on 2026-11-01 | Consequence |
 | --- | --- | --- |
-| `https://adnan-tech.netlify.app` | **LIVE and working** — SPA, `/api/health`, `/api/auth`, `/api/news`, `/api/content` all 200; Supabase connected; **no AI key** | Netlify is the only production host today |
-| Vercel project `adnan-mohamed/adnan-tech` | **production alias → 404 `DEPLOYMENT_NOT_FOUND`**; the 2026-10-28 production deployment is in `Error`; `adnan-tech.vercel.app` was never assigned. Cause now measured from the deployment object, not guessed: `exceeded_serverless_functions_per_deployment` at `patchBuild` (the pre-bridge 22-function layout against Hobby's 12), with `aliasAssigned: false` on the alias above | Re-deploying is the owner's phrase ("انشر للإنتاج"), not a dashboard task — D2 closed by measurement, and the tree that broke no longer exists: the five later previews are one lambda and READY |
-| Vercel previews | Reachable only through Vercel SSO (Deployment Protection ON) and answer `/api/health` with `database.configured=false` | Env vars D3 must be added with **Preview + Production** scopes |
+| `https://adnan-tech.netlify.app` | **LIVE but FROZEN** — SPA, `/api/health`, `/api/auth`, `/api/news`, `/api/content` all 200 and Supabase connected, serving the build published `2026-10-28T19:25:52Z` (`6ae24c40a4a3be3ea790b498`), 31 commits behind the tree | Operational credits keep it online but **block new production deploys**, so no fix made after 2026-10-28 reaches its visitors |
+| Vercel project `adnan-mohamed/adnan-tech` | **LIVE — production since 2026-11-01 12:33Z.** `dpl_6UtxvoqEdB6WKqvWcHVk6vCXMgLU`, `READY`, one lambda, `alias: adnan-tech.vercel.app`, `aliasAssigned: true`, anonymous `GET /` → 200 with the full header set, `/api/health` → 200. The earlier `exceeded_serverless_functions_per_deployment` failure is confirmed gone rather than inferred | It carries the current tree — and **only six variables**, so `database/ai/contentAdmin` answer `configured=false` until the five secrets arrive. It is live and partly blind |
+| Vercel previews | Still behind Vercel SSO (the project setting `ssoProtection.deploymentType: all_except_custom_domains`), so anonymous preview checks 302 — **but production on `*.vercel.app` answered 200 anonymously**, measured 2026-11-01, which is the row this file used to say was impossible | Verify production with a plain `curl`, verify previews through the API |
 | Supabase project `zrlhtrujorfodccetkne` | reachable, migrations 0001–0002 applied (profiles/trials/…), `articles` table returns 0 published rows | content pipeline is live but empty (M-19) |
 
 ## 1. Rules for this runbook (they come from the owner, not from preference)
@@ -72,7 +72,12 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
   `npm run build` overwrites the edit, and `tests/knowledge-meta.test.ts` fails the mismatch first.
   Edit `src/data/knowledge.ts` and regenerate instead.
 
-## 4. Deploy path A — Netlify (the working host)
+## 4. Deploy path A — Netlify (the working host, **frozen since 2026-11-01**)
+
+> **Netlify production deploys are paused by the account's operational credits** — the published site
+> stays online, the CLI refuses nothing locally, but no new deploy is accepted, and the owner will not
+> pay. Steps 1–4 below therefore cannot reach users from this host anymore; they describe the route for
+> the day credits return. §5 is where production actually lives.
 
 Dashboard route (recommended; no terminal needed):
 
@@ -92,7 +97,17 @@ npx netlify deploy       # draft deploy, returns a preview URL — safe, not pro
 npx netlify deploy --prod  # ONLY after "انشر للإنتاج"
 ```
 
-## 5. Deploy path B — Vercel (blocked until D2–D4 are done)
+## 5. Deploy path B — Vercel (**this is production since 2026-11-01 12:33Z**; steps 1–3 below predate that deploy)
+
+> What changed since this section was written: **step 1 is closed and was never needed** — the failure
+> reason came from the deployment object through the REST API (`exceeded_serverless_functions_per_deployment`
+> at `patchBuild`), not from a dashboard log, and the tree that caused it no longer exists. **Step 2 is
+> partly done** — `SUPABASE_URL`, `NEXORA_SITE_URL` (= `https://adnan-tech.vercel.app`) and `OWNER_EMAIL`
+> are set on Production; `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER` and
+> `CONTENT_ADMIN_TOKEN` are **not**, because Netlify stores them encrypted and no API returns them.
+> **Step 3**: `AI_ALLOWED_HOSTS` is not needed for a built-in provider (`host.ts:6-11` already allows
+> `generativelanguage.googleapis.com`), and only `AI_API_KEY` is outstanding. The deploy that has already
+> happened used `vercel deploy --prod --yes` from a clean tree — 34 s, one lambda, alias assigned.
 
 Order matters. Do not re-deploy before step 3 or you will reproduce the same `Error`.
 
