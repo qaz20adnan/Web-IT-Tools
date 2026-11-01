@@ -58,16 +58,17 @@ review. `src/lib/speedtest.ts` is the nearest case and stays in `lib` because it
 third-party speed-test endpoints and never sees an `ApiError`.
 
 One claim this section used to make and should not: the layering does **not** keep jsdom out of the
-pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 66 files pay for
-it — 122.8–150.2 s of environment creation across workers (61–64 % of the tracked time) for a
-16.6–26.1 s run, of which only 8 files render a
+pure-logic tests. `vitest.config.ts:13` sets `environment: 'jsdom'` globally, so all 67 files pay for
+it — 104.62–129.87 s of environment creation across workers (64–67 % of the tracked time) for a
+16.77–20.89 s run, of which only 8 files render a
 component. The fix is `pool: 'vmThreads'` or per-file `// @vitest-environment node`, and it is
-recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied. The five newest files in the suite
+recorded as a WARN in `docs/TESTING_REPORT.md` §6, not applied. The six newest files in the suite
 (`admin-rbac-gates`, `net-error-texts`, `supabase-rest-errors`, `json-extract` — 203 tests, 77 ms of
-them inside test bodies, 1.20 s of wall in isolation — and `workspace-tenancy`, 63 tests, 58 ms of body,
-1.59 s of wall of which 68 % is the environment) are now the starkest example: none renders
-anything, none calls a DOM API (`grep -n "window|document|localStorage"` over the four older files returns two
-false positives — the words "validity window" and "documented by"), and they still build five environments before asserting strings.
+them inside test bodies, 1.20 s of wall in isolation — plus `workspace-tenancy`, 63 tests, 58 ms of body,
+1.59 s of wall of which 68 % is the environment, and `content-admin-gates`, 51 tests, 36–44 ms of body,
+0.97–1.15 s of wall) are now the starkest example: none renders
+anything, none calls a DOM API (`grep -n "window|document|localStorage"` over the four oldest of them returns two
+false positives — the words "validity window" and "documented by"), and they still build six environments before asserting strings.
 This is no longer only a latency nit: on 2026-11-01 the four extra files were enough to push
 `tests/command-palette.test.tsx` past the 5 s default timeout inside a full run while it passed in
 0.81 s alone at the moment it was diagnosed — and 2.20 s alone (5.24 s for the file) on a fresh
@@ -158,7 +159,7 @@ that guard only runs when someone runs the suite locally.
 | AI | `POST /api/ai/chat`, `POST /api/ai/analyze`, `POST /api/ai/script` | `ai.use` via `enforceAiAccess` | billed-capable paths; daily limit enforced server-side |
 | AI meta | `GET /api/ai/models`, `POST /api/ai/test` | sign-in + **`ai.use`**, and the call is recorded | Fixed in W1 (was the `requireMember` default `workspace.read`, and uncounted). BYOK requests still count as the member's own spend, not platform quota |
 | research | `POST /api/research` | sign-in + **`research.read`**, and the call is recorded | Fixed in W1 (was `workspace.read` and uncounted, so paid Tavily/Brave calls were invisible) |
-| content | `GET /api/content`, `ANY /api/content/admin` | public read / `CONTENT_ADMIN_TOKEN` | admin token is a shared secret (M-11) |
+| content | `GET /api/content`, `ANY /api/content/admin` | public read / `CONTENT_ADMIN_TOKEN` (gate now handler-tested: `tests/content-admin-gates.test.ts`, 51 tests, 23/23 mutations) | admin token is a shared secret (M-11), and the two paths send different credentials — the admin *read* uses the anon key while its writes use the service role, so under `articles_public_read` the endpoint cannot list the drafts it writes and nothing in the app can publish one (**H-11**) |
 | news | `GET /api/news` | none | real feeds, cached |
 | network | `GET/POST /api/net/{analyzer,dns,tls,latency,path,port,http,url,printer}` | mixed | public-internet targets only on hosts |
 | data | `ANY /api/workspace`, `ANY /api/admin` | `workspace.*` / explicit permissions | service-role used server-side, RLS still enforced for user tokens |

@@ -6,6 +6,79 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (content-admin gate batch: 51 handler tests + 23 mutations + **H-11**)
+
+`/api/content/admin` is the only write surface on the platform guarded by a shared bearer token instead
+of a session, and it had no test. Its fail-closed behaviour, its token-compare ordering and its delete
+filter were code-read claims. They are measurements now, and writing them found a HIGH bug in the
+feature. No product file was changed by this batch.
+
+### Added (tests only)
+- `tests/content-admin-gates.test.ts` (51) — the first suite that imports `netlify/functions/content-admin.ts`.
+  It mocks **only** `fetchText()` and leaves the whole Supabase client real, so `authorize()`,
+  `supabaseDelete()`'s encoding, `rest()`'s credential choice and both zod schemas execute, and every
+  assertion reads the URL, method, headers and body the handler actually asked for. `serverConfig` is
+  mutated, not mocked, so the two `*Configured()` gates are production code.
+- Groups: method gate before authentication; 503 with `CONTENT_ADMIN_TOKEN` unset on the read path as
+  well as the write, with no database call made; seven wrong-token shapes refused (absent, equal-length
+  wrong, shorter, longer, empty, whitespace, trailing space) plus a prefix of the real token, and the
+  bare/lowercase-scheme forms accepted on purpose; `authorize()` before any body parsing; the read's
+  exact 200-row query; the delete's id requirement (`{}`, empty, whitespace, `null`) and its
+  `encodeURIComponent` (`kb-1&or=1=1` leaves as one filter, not two); upstream 500 → structured 502;
+  and the whole `articleSchema` — defaults, undeclared keys stripped, the six honesty labels accepted
+  and a seventh refused, closed `domain`, four bad slug shapes, empty titles/bodies, a 100 001-character
+  body, empty and 51-item batches, 31 tags, a non-URL source, exactly three of five problems reported,
+  absent/unparseable/over-`MAX_BODY_BYTES` → 400, 400, 413.
+
+### Found while verifying
+- **H-11 (HIGH, open)** — the admin **read** leaves with the anon key while its writes use the service
+  role. `articles_public_read` (`0001_nexora.sql:414`) shows anon only rows where `published` is true,
+  `articleSchema` does not declare `published` so zod strips it from every write, and the column default
+  is `false` (`0001_nexora.sql:279`). So the endpoint cannot list the drafts it writes, and **nothing in
+  the product can publish an article** — `grep -rn published` over `netlify/ src/ shared/ scripts/ supabase/`
+  finds no writer. Not an escalation (the read is the narrower side) but a dead-end feature. Left unfixed
+  on purpose: both candidate repairs — `supabaseSelectAs()` for the admin read, or declaring `published`
+  in the schema — widen what a token-holder can read or set, which is an owner decision, not an ordinary
+  code fix.
+- A method trap worth remembering: the first draft stubbed the exported row helpers
+  (`supabaseSelect`, `supabaseUpsert`, `supabaseDeleteWhere`) and four delete cases returned 502 or hit
+  the 5 s timeout, because **mocking a module's exported function does not intercept that module's own
+  internal calls** — `supabaseDelete()` still called the real `supabaseDeleteWhere()` and the real
+  network. Stubbing the leaf (`fetchText`) fixed it and produced a stronger test.
+- My own assertion was too weak once: the error-cap mutation (`slice(0, 3)` → `slice(0, 1)`) survived the
+  first harness pass because the test said "at most three". Rewritten to demand exactly three of five
+  wrong fields, re-run, caught. Also fixed in place: a `TS2322` in my own test file that `vitest` does
+  not see (it does not type-check), caught only because `npm run typecheck` was run afterwards.
+
+### Verified
+- **23 mutations run, 23 caught**, each applied to a temp copy and reverted from it: 1–13 of the 51 cases
+  fail per mutation (widest: the `difficulty` default removal, 13; the length-guard removal, 9).
+  `restored clean: True`. The harness rewrote `content-admin.ts` and `netlify/lib/supabase.ts` with CRLF
+  endings; both were normalised back to LF and `git status` then showed neither as changed — this commit
+  touches no product file.
+- Gates: typecheck 0 errors; lint unchanged at 0 errors / 16 `react-refresh` warnings; full suite green
+  three times at **16.77, 20.09 and 20.89 s**, **67 files / 904 tests** (66 → 67, 853 → 904), the new file alone
+  0.97–1.15 s with 36–44 ms inside test bodies; `api/index.js` still 1180 kB and `index-Dbs3Tuo9.js` still
+  484.91 kB min / 149.51 kB gzip, which is what a no-product-change batch should look like.
+- Coverage census re-derived by script: `netlify/lib` **23/23**, `netlify/functions` **10/22 → 11/22**
+  (unimported now: `content.ts`, `ai-script.ts` and the nine `net-*` handlers).
+- **A documentation error corrected**: the "`npm run build` 0.44–1.31 s" figure these docs had been
+  repeating is the *bundler* step (`vite build` 589–714 ms, 1.66 s cold). Timed end to end for the first
+  time, the pipeline is **38.15 s**, of which `tsc --noEmit` is 33.61 s and `build:knowledge-index` 0.19 s.
+  PROJECT_AUDIT §2, TESTING_REPORT §1 and DEPLOYMENT_GUIDE §"pre-deploy state" now say so.
+
+### Not verified
+- Nothing deployed, no browser opened, **no live database** — every query runs against a stubbed
+  transport. In particular H-11's RLS consequence is derived from the policy SQL and the handler's
+  credential choice, both read directly, but no `articles` row was ever listed or written. The public
+  catalog's behaviour under the same policy is likewise unobserved.
+- M-11's actual subject is still open: one shared secret for every operator, no rate limit, no user
+  binding, no rotation story. What is now proven is only that the gate fails closed as written.
+
+### Register counts
+HIGH **10 → 11** (H-11). CRITICAL/MEDIUM/LOW/INFO unchanged. `netlify/functions` handler coverage
+10/22 → 11/22.
+
 ## Unreleased — 2026-11-01 (workspace tenancy batch: 63 handler tests + 16 mutations + L-16, L-17)
 
 `/api/workspace` is the handler that stores every member's cases, notes and chat history. It had no
@@ -699,7 +772,7 @@ have never run on either host.
 | W2 platform | **all nine named items closed locally** — H-4, H-3, H-5, M-12, M-13, M-14, L-3, L-5 and L-6 (shared 50 s request budget; one `shared/upload-limits.ts` for every body/image cap; `npm run build` regenerates the Vercel bundle plus a filesystem-derived route-parity test; one Node major pinned in four places; CSP left intact and guarded against drift; the Vercel bridge keeps request bytes intact as base64; the dev adapter refuses what the hosts refuse and `readJsonBody` has no silent default — see the batches above; none deployed). L-6 was closed **without a code change** as an accepted platform difference, verified rather than assumed. H-5's original wording said "add the guard to CI" — there is no CI in this repository, so the guard was placed in the test suite instead; wiring CI is a separate owner decision |
 | W3 security depth | H-7 data left in `localStorage` after sign-out, H-8 in-memory and spoofable rate limiter, M-4 implicit-flow tokens (already mitigated for the history half by `clearAuthHash()`; the remainder is PKCE, a Supabase dashboard setting plus a client path), H-2 token storage migration, M-11 shared CMS bearer token. ~~M-3 TLS DNS-rebinding window~~ **fixed in this session** — it was re-verified open by the documentation pass above and closed by the W3 entry that follows it |
 | W4 resilience/UX | **H-9, H-10, M-15, M-16 and M-17 closed locally** — the route tree is wrapped in `<ErrorBoundary key={pathname}>` inside `AppShell`, so a throwing page blanks only the content slot and the sidebar/topbar stay usable (`tests/error-boundary.test.tsx`, mutation-checked); one `describeError()` in `src/services/apiError.ts` replaced ~45 catch sites' worth of invented error shapes across 20 files, wired to the `errors.<code>` i18n dictionary that existed but was never consumed, with `Retry-After` carried from the limiter to a countdown and a single guarded 401 refresh-and-replay (`tests/api-error.test.ts` 24, mutation-checked six ways); dialogs now inert-ate the background, return focus to the trigger, and stopped stealing the caret from their own content (`tests/modal-focus.test.tsx` 13); the command palette announces its active option and answers Home/End (`tests/command-palette.test.tsx` 10); and the three clipped diagnostics tables scroll behind a source-wide guard (`tests/responsive-tables.test.ts` 2); and M-18 took the 44 article bodies out of first paint with a generated metadata index (`src/data/knowledgeMeta.ts`, `tests/knowledge-meta.test.ts` 6) — entry chunk 232.60 → **149.51 kB gzip**, static closure 278.6 → **203.7 kB gzip**, so the <200 kB budget is missed by 3.7 kB and the only lever left at that size is an async Arabic dictionary, which is a UX call for the owner. None of it browser-verified. Not deployed |
-| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts` (done in H-10), `netlify/lib/host.ts` (done in M-3), `admin.ts` (done 2026-11-01, `tests/admin-rbac-gates.test.ts`) and `workspace.ts` (done the same day, `tests/workspace-tenancy.test.ts`) — what is left of this wave is the browser pass, the coverage provider and the 12 unimported functions |
+| W5 verification | browser pass over the §7 "NOT TESTED" list, coverage provider installed, tests for `src/services/api.ts` (done in H-10), `netlify/lib/host.ts` (done in M-3), `admin.ts` (done 2026-11-01, `tests/admin-rbac-gates.test.ts`) and `workspace.ts` (done the same day, `tests/workspace-tenancy.test.ts`) and `content-admin.ts` (done the same day, `tests/content-admin-gates.test.ts`) — what is left of this wave is the browser pass, the coverage provider and the 11 unimported functions |
 
 ### Blocked on the owner (no code change will move these)
 Vercel production build log (D2) · Vercel env vars (D3) · AI/Gemini keys (D4) · authenticated

@@ -49,7 +49,7 @@ anywhere, so a Vercel variable named that way would be silently ignored.
 
 | Variable | Required | Used by | Purpose |
 | --- | --- | --- | --- |
-| `CONTENT_ADMIN_TOKEN` | **yes for CMS writes** | `env.ts:69`, `netlify/functions/content-admin.ts:28-41` | single static bearer, `timingSafeEqual`, no rate limit (M-11) |
+| `CONTENT_ADMIN_TOKEN` | **yes for CMS writes** | `env.ts:69`, `netlify/functions/content-admin.ts:28-41`, `tests/content-admin-gates.test.ts` | single static bearer, `timingSafeEqual` behind a length guard, no rate limit (M-11). Gate is handler-tested (51 tests, 23/23 mutations): unset → 503 on read *and* write with no database call. Note the endpoint needs **both** Supabase keys to work at all — the service role for writes/deletes, the anon key for its own listing — and because the listing runs as `anon`, RLS hides the drafts it writes (H-11) |
 | `NEWS_FEEDS` | no | `netlify/functions/news.ts:176`, `health.ts:34` | extra RSS URLs |
 | `RATE_LIMIT_WINDOW_MS` (60000), `RATE_LIMIT_MAX` (20) | no | `env.ts:58-59`, `netlify/lib/rate.ts` | in-memory, per warm instance (H-8) |
 | `NET_PROBE_ALLOW_PRIVATE` | no (false) | `env.ts:61`, `netlify/functions/net-port.ts:19`, `net-diagnostics.ts:33` | allows **RFC1918 + loopback** TCP probes. Documented in `.env.example`, README and `docs/DEPLOYMENT.md` (L-9 closed). Keep off on any cloud host |

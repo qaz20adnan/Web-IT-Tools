@@ -15,8 +15,8 @@ match the suite.
 | --- | --- | --- | --- | --- |
 | Types | `npm run typecheck` | LOCAL | **PASS** | 0 errors |
 | Lint | `npm run lint` | LOCAL | **PASS with warnings** | 0 errors, 16 warnings — down from 19 when the three real `react-hooks/exhaustive-deps` bugs were fixed (`DashboardPage.tsx:87`, `DomainPage.tsx:75`, `SettingsPage.tsx:38`). Every warning left is `react-refresh/only-export-components`: 11 in the six `src/context/*.tsx` provider+hook modules, 5 in `main.tsx`, `components/charts/index.tsx`, `components/ui/index.tsx` and `components/tools/PortCheckTool.tsx` |
-| Tests | `npm test` | LOCAL | **PASS** | 66 files, 853 tests, 0 failed. Wall time **20.8, 26.0 and 26.1 s** on the three 2026-11-01 confirmation runs of the 853-test suite (the same night, two runs of the 852-test tree before the last case landed, came in at 16.6 and 18.7 s; the range across the week is 11–27 s, so treat anything inside it as normal). jsdom is created once per file: **66 environments, 122.8–150.2 s cumulative, 61–64 % of tracked time**. The newest file adds 63 tests and costs 1.59 s in isolation on a quiet machine (239 ms inside test bodies; 10.47 s when the machine was loaded, 60–70 % of it environment) — it renders nothing and touches no DOM API, yet still pays for an environment, which is what L-15 is about. The suite is still load-sensitive in exactly one place: `command-palette.test.tsx > never leaves the pointer outside the option range` failed twice at >5 s on 2026-11-01 (0.81 s alone when diagnosed, 2.20 s alone on a fresh re-measure the same day, 10.2–11.3 s inside a full run). That was a load timeout, not a behaviour change — recorded as **L-15** and given a per-test 30 s budget, deliberately not a global `testTimeout` raise, so every other test still hangs loudly |
-| Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`, 0.44–1.31 s depending on cache and load (`vite build` itself 504–701 ms; `api/index.js` 1180 kB, 22 routes) — entry chunk 484.91 kB min / 149.51 kB gzip after M-18, unchanged by the 2026-11-01 batches, which touch no frontend code |
+| Tests | `npm test` | LOCAL | **PASS** | 67 files, 904 tests, 0 failed. Wall time **16.77, 20.09 and 20.89 s** on the three confirmation runs of the 904-test suite (the earlier 853-test tree measured 20.8, 26.0 and 26.1 s the same day, and 16.6/18.7 s twice before its last case landed; the range across the week is 11–27 s, so treat anything inside it as normal — the file count moved by one and the time did not). jsdom is created once per file: **67 environments, 104.62–129.87 s cumulative, 64–67 % of tracked time**. The newest file adds 51 tests and costs **0.97–1.15 s in isolation (36–44 ms inside test bodies)** — it renders nothing and touches no DOM API, yet still pays for an environment, which is what L-15 is about; `workspace-tenancy` one file back behaved the same way (63 tests, 1.59 s on a quiet machine, 10.47 s when the machine was loaded). The suite is still load-sensitive in exactly one place: `command-palette.test.tsx > never leaves the pointer outside the option range` failed twice at >5 s on 2026-11-01 (0.81 s alone when diagnosed, 2.20 s alone on a fresh re-measure the same day, 10.2–11.3 s inside a full run). That was a load timeout, not a behaviour change — recorded as **L-15** and given a per-test 30 s budget, deliberately not a global `testTimeout` raise, so every other test still hangs loudly |
+| Build | `npm run build` | LOCAL | **PASS** | `build:knowledge-index && tsc --noEmit && vite build && build:vercel-api`. **Attribution corrected 2026-11-01**: the "0.44–1.31 s" figure these docs carried was the bundler step, not the pipeline — `vite build` alone is 504–714 ms (1.66 s cold), `build:knowledge-index` 0.19 s, `tsc --noEmit` **33.61 s**, and the whole script measured **38.15 s** the first time it was timed end to end. `api/index.js` 1180 kB, 22 routes — entry chunk 484.91 kB min / 149.51 kB gzip after M-18, unchanged by the 2026-11-01 batches, which touch no frontend code (re-verified after the content-admin batch: `index-Dbs3Tuo9.js` hash and size identical, which is what a test-only batch should produce) |
 | Generated knowledge index | `npm run build:knowledge-index` | LOCAL | **PASS** | `src/data/knowledgeMeta.ts` regenerated: 44 articles, 62 kB, byte-identical to the committed artifact; `tests/knowledge-meta.test.ts` fails if it drifts |
 | Vercel API bundle | now inside `npm run build` | LOCAL | **PASS** | `api/index.js` 1180 kB (was 1179 until M-3's resolver landed in it), 22 routes |
 | Dependency audit | `npm audit --omit=dev` | LOCAL | **PASS** | 0 vulnerabilities in the 9 production deps |
@@ -25,24 +25,24 @@ match the suite.
 `npm run build` was broken for 4 days before this session (2 × TS6133 from dead imports left by the
 removed English Coach page). Restored in commit `6612d0f`; the green row above is the proof.
 
-## 2. What the 853 tests actually cover
+## 2. What the 904 tests actually cover
 
 Top of the suite by test count:
-`admin-rbac-gates 79 · workspace-tenancy 63 · net-error-texts 60 · supabase-rest-errors 46 · x509 37 ·
+`admin-rbac-gates 79 · workspace-tenancy 63 · net-error-texts 60 · content-admin-gates 51 · supabase-rest-errors 46 · x509 37 ·
 ai-adapter 26 · csv 25 · api-error 24 · gemini-research 23 · cidr-overlap 21 · vercel-bridge 20 ·
 permissions 19 · json-extract 18 · incidents 17 · diff 16 · operations 15 · net-dns-rebinding 15 ·
 mtu 14 · trial 14 · calculators 13 · modal-focus 13 · net-analysis 13 · capacity 12 · speedtest 12 ·
 tool-ui 11 · command-palette 10 · local-auth 10 · rbac 10`
 
-Server-side (the part that holds secrets and money) — **all 23 `netlify/lib/*` files and 10 of 22
-`netlify/functions/*` files** are imported by at least one test (LOCAL scan 2026-11-01: every
-`netlify/lib/*.ts` basename appears in a `tests/` import, and the only unimported functions are
-`content.ts`, `content-admin.ts`, `ai-script.ts` and the 9 `net-*` handlers):
+Server-side (the part that holds secrets and money) — **all 23 `netlify/lib/*` files and 11 of 22
+`netlify/functions/*` files** are imported by at least one test (LOCAL scan 2026-11-01, re-derived by
+script rather than memory: every `netlify/lib/*.ts` basename appears in a `tests/` import, and the only
+unimported functions are `content.ts`, `ai-script.ts` and the 9 `net-*` handlers):
 
 | Covered | Not covered by any test |
 | --- | --- |
 | `ai`, `auth`, `env`, `fetch`, `gemini`, **`host`**, `http`, **`json`**, `local-auth`, `net-analysis`, `net-diagnostics`, `net-doh`, **`net-errors`**, `net-latency`, `net-path`, `net-probe`, `prompts`, **`rate`**, `rbac`, `schema`, **`supabase`**, **`tls`**, `trial` — `host.ts` and `tls.ts` were untested guards until M-3, and `json.ts`, `net-errors.ts`, `supabase.ts` until the 2026-11-01 batch, so the shared server library now has at least one test importing every file | *(none left — the last three landed in this batch)* |
-| functions: `admin`, `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `health`, `news`, `research`, `workspace` | the other 12 functions: `content.ts`, `content-admin.ts`, `ai-script.ts` and the nine `net-*` handlers (`net-tls` has only a source-shape guard, because the handler sits behind auth + rate limiting) |
+| functions: `admin`, `ai-analyze`, `ai-chat`, `ai-models`, `ai-test`, `auth`, `content-admin`, `health`, `news`, `research`, `workspace` | the other 11 functions: `content.ts`, `ai-script.ts` and the nine `net-*` handlers (`net-tls` has only a source-shape guard, because the handler sits behind auth + rate limiting) |
 
 Frontend: 27 `src/lib/*` pure modules are unit-tested, plus `src/services/apiError.ts` and
 `src/services/api.ts` (see below), and 7 UI files render under test (`tool-ui`,
@@ -200,6 +200,40 @@ Notable behavioural tests that exist and pass (these are the ones worth keeping 
   conversation list to `select=*`, delete the parent before its messages, and null the audit actor.
   Every mutation was caught by 51–62 of the 63 cases (ten of them leave exactly one test standing);
   no guard survives its own removal silently.
+- `tests/content-admin-gates.test.ts` (51) — the first test that runs `netlify/functions/content-admin.ts`
+  and therefore the first that executes the only write surface guarded by a shared bearer token (M-11)
+  rather than a session. Method note, because it changed the design: the first draft stubbed the exported
+  row helpers (`supabaseSelect`, `supabaseUpsert`, `supabaseDeleteWhere`) and four delete cases came back
+  502 or timed out, because mocking a module's export does not intercept that module's own internal calls
+  — `supabaseDelete()` still reached the real `supabaseDeleteWhere()` and the real network. The file now
+  stubs only `fetchText()` and asserts on the request the real client actually emits, which is the
+  stronger version: it also proves which credential each path carries. `serverConfig` is mutated, not
+  mocked, so `supabaseAdminConfigured()` and `supabasePublicConfigured()` are production code.
+  Groups: the method gate (PUT/PATCH/HEAD/OPTIONS refused with no database call made); the token gate
+  failing closed with `CONTENT_ADMIN_TOKEN` unset on both the read and the write path; the seven wrong-token
+  shapes (absent header, equal-length wrong, shorter, longer, empty, whitespace, trailing space) plus the
+  prefix of the configured token, and the bare/lowercase-scheme forms that are *accepted* because header
+  parsing is not the control; `authorize()` ordered before any body parsing, so an unauthenticated caller
+  cannot induce a parse; the read's exact 200-row query and the delete's id requirement (`{}`, `{id:''}`,
+  `{id:'   '}`, `{id:null}` all answered 400 with no call) and its encoding (`kb-1&or=1=1` emits one
+  filter, not two); the whole `articleSchema` (defaults, stripped undeclared keys, the six honesty labels
+  accepted and a seventh refused, `domain:'quantum'` refused, four bad slug shapes refused, empty
+  title/body refused, 100 001 characters refused, empty batch and 51 items refused, 31 tags refused,
+  a non-URL source refused while a full one round-trips, exactly three of five problems reported, absent /
+  unparseable / over-`MAX_BODY_BYTES` bodies → 400, 400, 413).
+  **Mutation-checked 23/23**, each applied to a temp copy and reverted: unset token allowed to pass, the
+  length guard before `timingSafeEqual()` removed, exact compare replaced by a prefix compare, the
+  service-role presence check dropped, PUT allowed through, the token check skipped on the read path,
+  a whitespace-only delete id accepted, the delete id interpolated raw, the read's row ceiling dropped,
+  `verification`/`domain` enums opened to strings, the batch floor and ceiling lifted, uppercase slugs
+  accepted, the body ceiling raised an order of magnitude, `MAX_BODY_BYTES` swapped for 64 MB, sources
+  allowed to be non-URLs, the tag ceiling raised, `on_conflict` moved to `slug`, the server clock frozen,
+  the issue cap cut to one, the difficulty default dropped, and `z.object` opened to `z.looseObject`.
+  Each is caught by 1–13 of the 51 cases. **The first pass was 22/23**: cutting the error cap to
+  `slice(0, 1)` survived, because my own assertion read "at most three" — rewritten to demand exactly
+  three of the five wrong fields, re-run, caught. Writing the file is also what surfaced **H-11**: the
+  admin read goes out with the anon key while the mutations carry the service role, and RLS shows anon
+  only `published` rows, which the writer can never set.
 - `tests/supabase-rest-errors.test.ts` (46) — the DB client's whole failure surface, with `fetchText`
   stubbed so nothing touches the network: the full `restError()` status table, `extractMessage()`
   precedence (`msg` → `message` → `error_description` → `error` → nested `.message`) with the 300-char
@@ -317,7 +351,7 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Total JS emitted | LOCAL | 61 chunks, 1.94 MB minified JS | PASS (splitting works; M-18 moved the bodies between chunks and removed them from the entry) |
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
-| Test suite wall time | LOCAL | 16.6–26.1 s tracked (66 files / 853 tests), **61–64 % of tracked time spent creating 66 jsdom environments** (122.8–150.2 s cumulative across workers) | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet, and the cost stopped being theoretical on 2026-11-01: the added files tipped an existing render test over the 5 s timeout (see **L-15**). Only 8 of the 66 files render a component, so the environment is wasted on the other 58. The five newest server files are the clearest example — `admin-rbac-gates`, `net-error-texts`, `supabase-rest-errors`, `json-extract` (203 tests, 77 ms of test body, 1.20 s of wall in isolation) plus `workspace-tenancy` (63 tests, 58 ms of body, 1.59 s of wall, 68 % of it environment) — all five assert strings, filters and status codes and never touch the DOM; they pay the global `environment: 'jsdom'` from `vitest.config.ts`, and a per-file `@vitest-environment node` comment is the cheap fix and is **not** applied, because it is a config-level change to how every suite runs. The slowest single file is `command-palette.test.tsx` at 10.2–11.3 s for 10 tests |
+| Test suite wall time | LOCAL | **16.77, 20.09 and 20.89 s** tracked (67 files / 904 tests), **64–67 % of tracked time spent creating 67 jsdom environments** (104.62–129.87 s cumulative across workers). The tree one file back measured 16.6–26.1 s for 66/853, so the extra file moved the count and not the clock | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet, and the cost stopped being theoretical on 2026-11-01: the added files tipped an existing render test over the 5 s timeout (see **L-15**). Only 8 of the 67 files render a component, so the environment is wasted on the other 59. The six newest server files are the clearest example — `admin-rbac-gates`, `net-error-texts`, `supabase-rest-errors`, `json-extract` (203 tests, 77 ms of test body, 1.20 s of wall in isolation) plus `workspace-tenancy` (63 tests, 58 ms of body, 1.59 s of wall, 68 % of it environment) and `content-admin-gates` (51 tests, 36–44 ms of body, 0.97–1.15 s of wall) — all six assert strings, filters and status codes and never touch the DOM; they pay the global `environment: 'jsdom'` from `vitest.config.ts`, and a per-file `@vitest-environment node` comment is the cheap fix and is **not** applied, because it is a config-level change to how every suite runs. The slowest single file is `command-palette.test.tsx` at 10.2–11.3 s for 10 tests |
 | Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
 | Real-device / mid-tier network | — | **NOT TESTED** |
 
@@ -349,7 +383,7 @@ plus 7 rendering tests, which is not enough to claim any of the following:
    register now carries as L-16 (7 of 16 workspace actions, including the only writer of
    `content_feedback`, have no UI caller) and L-17 (re-saving a conversation with `messages: []`
    deletes its history).
-2. The nine `net-*` handlers and `content.ts` / `content-admin.ts` / `ai-script.ts` — 12 of 22 functions still have no test importing them. `content-admin.ts` is the one that holds a shared bearer token (M-11). **Still open.**
+2. ~~`content-admin.ts`~~ **done 2026-11-01** — `tests/content-admin-gates.test.ts` (51) now imports and drives it, which closes the M-11 claim that its token gate fails closed and exposed **H-11** in the process. What is left of this item: the nine `net-*` handlers plus `content.ts` and `ai-script.ts` — **11 of 22 functions** still have no test importing them.
 3. The whole AI answer chain on a real provider (H-1 fake citations, M-7 key redaction in upstream errors). **Still open — blocked on D4.**
 4. Entitlement enforcement against a live deployment: a member without `ai.use` calling `/api/ai/test` (M-6). The handler logic is now tested; the live repro needs a token. **Blocked on D5/D6.**
 5. 26 of 33 pages and 5 of 18 tool modules render no test at all — jsdom coverage exists for the shared kit and the two fixed surfaces only.
