@@ -54,7 +54,7 @@ Findings:
 | M-4 | MEDIUM | Verification/recovery hands tokens through the URL fragment (implicit flow) before persisting them (`src/services/authSession.ts:48-63`, `VerifyEmailPage.tsx:31-33`, `ResetPasswordPage.tsx:27-29`) | PKCE `?code=` exchange; the app already clears the hash after reading |
 | M-1 | MEDIUM | Weak/absent `NEXORA_HASH_PEPPER` makes trial-claim HMACs predictable (`netlify/lib/auth.ts:113`) | fail closed in production |
 | F-3 | MEDIUM | Rate limiting is per-warm-instance in memory and keyed on spoofable `x-forwarded-for[0]` (`netlify/lib/rate.ts:9`, `vercel/serverless.ts:56-59`) | trust the platform's verified client IP, or move to a shared store; until then, never present quotas as hard. Same caveat now applies to the `Retry-After` header H-10 added: the seconds come from that per-instance bucket, so the countdown the UI shows is a hint for *this* serverless instance and a second request may land on a cold one. It is honest about the window it was given; it is not a global guarantee, and must not be described as one |
-| M-11 | MEDIUM | `CONTENT_ADMIN_TOKEN` is one static shared bearer with no rate limit and no user binding (`netlify/functions/content-admin.ts:28-41`). Since 2026-11-01 the **gate** is measured rather than read — see the §3 bullet: fail-closed when unset, seven wrong-token shapes refused, checks ordered before the body, delete filter un-widenable, **23/23 mutations caught** — so what is still open is the finding's actual subject: one secret shared by every operator, no rate limit, no user binding, no rotation story, plus the read-scope question **H-11** it exposed | rotate, scope per operator, rate limit |
+| M-11 | MEDIUM | `CONTENT_ADMIN_TOKEN` is one static shared bearer with no rate limit and no user binding (`netlify/functions/content-admin.ts:29-42`). Since 2026-11-01 the **gate** is measured rather than read — see the §3 bullet: fail-closed when unset, seven wrong-token shapes refused, checks ordered before the body, delete filter un-widenable, **26/26 mutations caught** — so what is still open is the finding's actual subject: one secret shared by every operator, no rate limit, no user binding, no rotation story. **H-11 is now fixed in the direction that raises M-11's stakes**: the same token buys a read of every `articles` row, drafts included, because the admin listing moved onto the service role | rotate, scope per operator, rate limit |
 | S-1 | INFO | `emailHash` normalizes case/trim before HMAC — correct; no enumeration oracle found in the register/recover responses (they return generic copy) | keep |
 
 ## 3. Authorization (RBAC)
@@ -78,7 +78,7 @@ Verified correct, and this is the strongest part of the platform:
   `ai/models|test` → `requireMember`; all `net/*` and `research` → `requireMember` + per-IP rate;
   `content`, `health`, `news` public read-only; `content/admin` static token.
 - `/api/content/admin` is the only surface guarded by a shared bearer rather than a session, and that
-  gate is now measured instead of read. `tests/content-admin-gates.test.ts` (51 tests, **23/23 guard
+  gate is now measured instead of read. `tests/content-admin-gates.test.ts` (51 tests, **26/26 guard
   mutations caught**, 1–13 of the file failing per mutation) proves it fails closed when
   `CONTENT_ADMIN_TOKEN` is unset — on the read path as well as the write, with no database call made —
   refuses a missing, empty, whitespace, shorter, longer, prefixed and exactly-equal-length-wrong token
@@ -86,13 +86,19 @@ Verified correct, and this is the strongest part of the platform:
   the method gate and the token before the body is parsed, and needs a Supabase service role before it
   will accept anything. The delete path cannot be widened from its parameter: `id=eq.` +
   `encodeURIComponent` was asserted with `kb-1&or=1=1`, which emits one filter and not two. What the
-  same test exposed is **H-11**: the admin *read* leaves with the anon key while only the mutations
-  carry the service role, and because `articles_public_read` (`0001_nexora.sql:414`) shows anon only
-  `published` rows while `articleSchema` strips `published` from every write, the endpoint cannot list
-  its own drafts and nothing in the product can publish an article. Not an escalation — the read is the
-  narrower side — but it is an unresolved access-scope question, and the two candidate repairs each
-  widen what a token-holder can read or set, so neither was applied without the owner. **No live
-  database**, so that RLS consequence is derived from the policy SQL rather than observed.
+  same test exposed was **H-11**, and on 2026-11-01 the owner chose repair (أ): the admin *read* now
+  uses `supabaseSelectAs()` too, so all three paths go out with the service role and the listing can
+  see the drafts it writes. **This is a deliberate widening of read scope, not a hardening.** The
+  endpoint no longer needs `SUPABASE_ANON_KEY` at all, the service-role key is now sent on `GET`, and
+  the read no longer passes through `articles_public_read` — so a leaked `CONTENT_ADMIN_TOKEN` yields
+  every article row, not only published ones, which is exactly why **M-11** (one shared static bearer,
+  no rate limit, no user binding, no rotation) remains open and is now more worth closing. Still not
+  fixed: `articleSchema` has no `published` field, so nothing in the product can publish an article
+  from the API — a body-supplied `published: true` is stripped before the row is written, and
+  publishing is still a Supabase-dashboard edit. **No live database**, so the before-and-after RLS
+  behaviour is derived from the policy SQL (`0001_nexora.sql:414`) rather than observed; mutations A24
+  (revert the read to the anon path), A25 (drop `service: true` inside `supabaseSelectAs`) and A26
+  (delete the bearer from `adminHeaders()`) are what pin the new contract at the handler.
 - A user cannot change their own role: writes only `full_name`
   (`netlify/functions/auth.ts:429-444`), signup forces `standard_member`
   (`netlify/lib/auth.ts:174`), and a DB trigger rejects non-admin role/status changes

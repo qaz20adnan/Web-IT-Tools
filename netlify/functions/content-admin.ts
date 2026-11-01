@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { serverConfig } from '../lib/env'
 import { HttpError, json, readJsonBody, requireMethod, wrap, header, type Handler } from '../lib/http'
-import { supabaseAdminConfigured, supabaseDelete, supabaseSelect, supabaseUpsert } from '../lib/supabase'
+import { supabaseAdminConfigured, supabaseDelete, supabaseSelectAs, supabaseUpsert } from '../lib/supabase'
 import { MAX_BODY_BYTES } from '../../shared/upload-limits'
 
 const articleSchema = z.object({
@@ -46,7 +46,9 @@ export const handler: Handler = wrap(async (event) => {
   authorize(event)
 
   if (event.httpMethod === 'GET') {
-    const items = await supabaseSelect<Record<string, unknown>>('articles', 'select=*&order=updated_at.desc&limit=200')
+    // The service role, not the anon key: `articles_public_read` (0001_nexora.sql:414) hides
+    // unpublished rows from anon, and every row this endpoint writes starts unpublished.
+    const items = await supabaseSelectAs<Record<string, unknown>>('articles', 'select=*&order=updated_at.desc&limit=200')
     return json(200, { items, source: 'supabase' })
   }
 

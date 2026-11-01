@@ -173,7 +173,7 @@ npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 Current measured state: all four PASS (0 lint errors / 16 warnings, all of them `react-refresh`
-module-layout hints rather than defects; 904 tests in 67 files, 16.77–20.89 s; a build that takes
+module-layout hints rather than defects; 904 tests in 67 files, 15.68–20.89 s across two batches; a build that takes
 **≈38 s end to end** — `tsc --noEmit` is 33.6 s of that and `vite build` only 0.59–0.71 s, so the
 "under 1.4 s" figure this guide carried before 2026-11-01 described the bundler, not the pipeline.
 The same script also regenerates `src/data/knowledgeMeta.ts` and the 1180 kB `api/index.js`).

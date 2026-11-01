@@ -99,7 +99,7 @@ configure the Supabase Auth site URL and email templates documented in
 | `TAVILY_API_KEY` / `BRAVE_SEARCH_API_KEY` | – | Research providers |
 | `NEWS_FEEDS` | – | Comma-separated feeds that replace the defaults |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | – | Optional persistence; service key is server-only |
-| `CONTENT_ADMIN_TOKEN` | – | Required by `POST /api/content/admin` |
+| `CONTENT_ADMIN_TOKEN` | – | Required by every `/api/content/admin` method — read, write and delete |
 | `LOG_LEVEL` | `info` | Structured logging |
 
 See `.env.example` for the annotated list.

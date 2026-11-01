@@ -6,6 +6,70 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (H-11 repair, option أ: the CMS listing now sees its own drafts)
+
+The owner chose repair (أ) for **H-11**: the admin read moves from the anon key to the service role, so
+what the endpoint writes is what it lists. One product line changed. **This is a deliberate widening of
+read scope, not a hardening** — it trades a broken feature for a bigger M-11 stake, and that trade is
+recorded rather than glossed.
+
+### Changed (product)
+- `netlify/functions/content-admin.ts:51` — `supabaseSelect(...)` → `supabaseSelectAs(...)` on the
+  `GET /api/content/admin` path, with a two-line comment naming the policy (`articles_public_read`,
+  `0001_nexora.sql:414`) that made the old read blind. `netlify/lib/supabase.ts` was **not** modified:
+  the mutation harness rewrote it and it is verified byte-identical.
+
+### Changed (tests, same file — 51 in, 51 out)
+- `'fails the read closed when the anon key is missing, even though the write path never asks for it'`
+  → `'needs only the service key, so a deployment with no anon key can still list its own drafts'`. The
+  old test pinned the bug as if it were the contract; the new one pins the fix: with
+  `SUPABASE_ANON_KEY` empty, `GET` returns 200 and `POST` still works, and no request header is an empty
+  `apikey`.
+- `'sends the anon key on the read path and keeps the service-role key on the write paths'` →
+  `'sends the service-role key on every path, including the read, and never the browser key'`: exact
+  `apikey` **and** `Authorization: Bearer <service key>` on GET/POST/DELETE, the three methods in order,
+  and the anon value asserted absent from every serialised header set.
+
+### Why the bearer is asserted, not just `apikey`
+A PostgREST request that carries an `apikey` but no `Authorization` is documented to run with the `anon`
+role from the server's own configuration, so choosing `service: true` is not by itself proof that the
+service role was sent. **(Reasoning from documented behaviour — no live database was involved in this
+session. What was measured is that mutation A26, which deletes only that header, fails the suite.)**
+
+### Verified
+- **26/26 guard mutations caught**, 1–13 of the 51 cases failing per mutation, `restored clean: True`.
+  Three are new and all three target this fix: **A24** reverts the handler to the anon read (2 failing),
+  **A25** silently drops `service: true` inside `supabaseSelectAs()` (2 failing), **A26** deletes the
+  bearer from `adminHeaders()` (1 failing). A24 and A25 arrive at the same two tests from two different
+  files, which is the contract being pinned from both sides. The other 23 were re-run unchanged against
+  the new product code and are still caught.
+- Harness fix, not a product fix: the previous batch's mutation runs left `content-admin.ts` and
+  `supabase.ts` as **CRLF** on disk — `git diff` empty, `git status` modified. This run opens every
+  product file with `newline=""` on read and write, so `git status` showed only the two intended files,
+  both LF, `netlify/lib/supabase.ts` untouched.
+- Typecheck 0 errors. Lint unchanged at 0 errors / 16 `react-refresh` warnings. Full suite **904 passed
+  in 67 files** across three runs (15.68, 16.10, 16.56 s); `tests/content-admin-gates.test.ts` alone
+  0.84 s. `npm run build` green: the `vite build` step 477 ms, `api/index.js` still 1180 kB and the
+  entry chunk still `index-Dbs3Tuo9.js` 484.91 kB min / **149.51 kB gzip** — no bundle movement, as
+  expected from a one-line server change.
+
+### Not verified
+- **No live database.** That RLS hid the drafts before, and that it no longer does, is read off
+  `0001_nexora.sql:414` and the migration's column default — not observed. Nothing is deployed, and no
+  browser was opened.
+- **The other half of the original finding is still open**: `articleSchema` has no `published` field, so a
+  body-supplied `published: true` is still stripped before the row is written (still asserted, at
+  `tests/content-admin-gates.test.ts:324`), and **publishing an article remains a Supabase-dashboard
+  edit**. Repair (ب) — declaring `published` — is a separate, still-unapproved change.
+- M-11 is untouched and now matters more: one shared static `CONTENT_ADMIN_TOKEN`, no rate limit, no
+  per-operator binding, no rotation story — buying a read of *every* article row, drafts included.
+
+### Register counts
+H-11 moves from open to **fixed locally / not verified live**; no other ID changes. HIGH stays at 11,
+MEDIUM stays at 19. `netlify/functions` handler coverage is unchanged at 11 of 22.
+
+---
+
 ## Unreleased — 2026-11-01 (content-admin gate batch: 51 handler tests + 23 mutations + **H-11**)
 
 `/api/content/admin` is the only write surface on the platform guarded by a shared bearer token instead
@@ -31,7 +95,8 @@ feature. No product file was changed by this batch.
   absent/unparseable/over-`MAX_BODY_BYTES` → 400, 400, 413.
 
 ### Found while verifying
-- **H-11 (HIGH, open)** — the admin **read** leaves with the anon key while its writes use the service
+- **H-11 (HIGH, open at the time of this batch — closed later the same day by the owner choosing repair
+  أ; see the section above)** — the admin **read** leaves with the anon key while its writes use the service
   role. `articles_public_read` (`0001_nexora.sql:414`) shows anon only rows where `published` is true,
   `articleSchema` does not declare `published` so zod strips it from every write, and the column default
   is `false` (`0001_nexora.sql:279`). So the endpoint cannot list the drafts it writes, and **nothing in

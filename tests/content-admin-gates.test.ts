@@ -11,8 +11,9 @@ import { MAX_BODY_BYTES } from '../shared/upload-limits'
  * The whole Supabase client is left real — `authorize()`, `supabaseDelete()`'s encoding, `rest()`'s
  * header selection and both zod schemas all execute — and only `fetchText()` is stubbed, so nothing
  * reaches the network while every assertion reads the URL, method and headers the handler actually
- * asked for. That distinction matters here: the read path turns out to go out with the anon key and
- * the mutations with the service role, which only a client-left-real test can see. `serverConfig` is
+ * asked for. That distinction matters here: which credential each path sends — all three now go out
+ * with the service role, which is what closes H-11 — is only visible to a client-left-real test.
+ * `serverConfig` is
  * mutated rather than mocked, so `supabaseAdminConfigured()` is production code reading
  * production-shaped fields.
  */
@@ -221,26 +222,31 @@ describe('the read and delete paths', () => {
     expect(payload(response)).toMatchObject({ source: 'supabase' })
   })
 
-  it('fails the read closed when the anon key is missing, even though the write path never asks for it', async () => {
-    // The two paths gate on different config: `supabaseSelect` on url + anon key, `supabaseUpsert` on
-    // url + service role. A deployment with only the service key can publish but cannot list.
+  it('needs only the service key, so a deployment with no anon key can still list its own drafts', async () => {
+    // H-11 was the opposite shape: the read gated on url + anon key while the write gated on
+    // url + service role, so a service-key-only deployment could save an article and then see an
+    // empty list. Both paths gate on `supabaseAdminConfigured()` in `authorize()` now.
     serverConfig.supabaseAnonKey = ''
     const read = await handler(event({ method: 'GET' }), {})
-    expect(read.statusCode).toBe(503)
-    expect(errorOf(read).message).toBe('Supabase is not configured on this deployment.')
-    expect(mocks.fetchText).not.toHaveBeenCalled()
+    expect(read.statusCode).toBe(200)
+    expect(payload(read)).toMatchObject({ source: 'supabase' })
     expect((await handler(event({ items: [article()] }), {})).statusCode).toBe(200)
+    for (const call of calls()) expect(call.headers).not.toHaveProperty('apikey', '')
   })
 
-  it('sends the anon key on the read path and keeps the service-role key on the write paths', async () => {
-    // The admin catalog read is a normal RLS-bound query; only the mutations carry the service role,
-    // so an authorised GET response can never be the way this secret leaks.
+  it('sends the service-role key on every path, including the read, and never the browser key', async () => {
+    // This is the deliberate trade in the H-11 fix: the admin read bypasses RLS, so it can list what
+    // it writes, and the price is that the service role now leaves the server on GET too.
+    // The bearer must be tested exactly, not with `toMatch`: PostgREST answers a missing
+    // `Authorization` with the anon key from its own config, which is the failure mode being closed.
     await handler(event({ method: 'GET' }), {})
-    expect(lastCall().headers).toMatchObject({ apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` })
+    expect(lastCall().headers).toMatchObject({ apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` })
     await handler(event({ items: [article()] }), {})
     expect(lastCall().headers).toMatchObject({ apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` })
     await handler(event({ method: 'DELETE', queryStringParameters: { id: ARTICLE_ID } }), {})
     expect(lastCall().headers).toMatchObject({ apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` })
+    expect(calls().map((call) => call.method)).toEqual(['GET', 'POST', 'DELETE'])
+    for (const call of calls()) expect(JSON.stringify(call.headers)).not.toContain(ANON_KEY)
     const rejected = await handler(event({ method: 'GET', authorization: 'Bearer wrong' }), {})
     expect(rejected.statusCode).toBe(401)
     expect(calls()).toHaveLength(3)
