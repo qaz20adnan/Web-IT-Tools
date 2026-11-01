@@ -12,7 +12,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Target | State on 2026-10-31 | Consequence |
 | --- | --- | --- |
 | `https://adnan-tech.netlify.app` | **LIVE and working** — SPA, `/api/health`, `/api/auth`, `/api/news`, `/api/content` all 200; Supabase connected; **no AI key** | Netlify is the only production host today |
-| Vercel project `adnan-mohamed/adnan-tech` | **production alias → 404 `DEPLOYMENT_NOT_FOUND`**; the 2026-10-28 production deployment is in `Error`; `adnan-tech.vercel.app` was never assigned | Do not treat Vercel as a fallback until owner action D2 |
+| Vercel project `adnan-mohamed/adnan-tech` | **production alias → 404 `DEPLOYMENT_NOT_FOUND`**; the 2026-10-28 production deployment is in `Error`; `adnan-tech.vercel.app` was never assigned. Cause now measured from the deployment object, not guessed: `exceeded_serverless_functions_per_deployment` at `patchBuild` (the pre-bridge 22-function layout against Hobby's 12), with `aliasAssigned: false` on the alias above | Re-deploying is the owner's phrase ("انشر للإنتاج"), not a dashboard task — D2 closed by measurement, and the tree that broke no longer exists: the five later previews are one lambda and READY |
 | Vercel previews | Reachable only through Vercel SSO (Deployment Protection ON) and answer `/api/health` with `database.configured=false` | Env vars D3 must be added with **Preview + Production** scopes |
 | Supabase project `zrlhtrujorfodccetkne` | reachable, migrations 0001–0002 applied (profiles/trials/…), `articles` table returns 0 published rows | content pipeline is live but empty (M-19) |
 

@@ -18,6 +18,17 @@ netlify.toml + netlify/functions  unchanged — Netlify stays a valid target
 `vercel/` is in `tsconfig.json` and is type-checked by `npm run build`. `api/` is not,
 because it is build output; it is listed in `.gitignore`.
 
+## What the CLI uploads
+
+`.vercelignore`, not `.gitignore`, decides this. Measured 2026-11-01 by walking the file list the
+Vercel API returns for each of this project's six deployments: all six contained
+`.local-auth/store.json`, `dist/`, `.netlify/functions/*.zip` and `tests/` even though `.gitignore`
+has named those paths since the commit they were uploaded from — the CLI simply never consults
+`.gitignore` when it builds its upload list. `.vercelignore` now excludes the secrets and the build
+artifacts, and excludes nothing that `tsc --noEmit` reads (its `include` is `src`, `shared`,
+`tests`, `netlify`, `vercel`) or that `npm run build` regenerates. Whether the file is honoured is
+**not yet verified** — that takes one real upload.
+
 ## Why one function instead of 22
 
 Two Vercel facts decide the shape:
@@ -25,6 +36,10 @@ Two Vercel facts decide the shape:
 1. **The Hobby plan allows at most 12 Serverless Functions per deployment.** The platform
    exposes 22 `/api/*` routes, so one file per route fails the build outright. Rather than
    upgrade the plan or drop routes, every route is dispatched by a single function.
+   This is no longer an assumption: the failed 2026-10-28 production deployment still carries
+   `errorCode: exceeded_serverless_functions_per_deployment` at `errorStep: patchBuild`, with
+   `functions` set to the old `api/*.ts` + `api/*/*.ts` globs, while every deployment after the
+   bridge reports one lambda and reaches READY.
 2. **`@vercel/node` does not bundle.** For a TypeScript entry it renames `.ts` → `.js` and
    lets Node run it. This codebase uses extensionless relative imports
    (`from '../netlify/lib/http'`), which ESM cannot resolve — the deployed function died

@@ -1,0 +1,26 @@
+# Upload exclusions for `vercel deploy`.
+#
+# The Vercel CLI builds its file list from this file, not from .gitignore — measured on the six
+# existing deployments of this project, whose archives all contain .local-auth/store.json, dist/
+# and .netlify/functions/*.zip even though .gitignore has named those paths since 2026-10-25.
+# Anything secret or build-generated that must stay on this machine is therefore named here too.
+#
+# Kept out deliberately: files the build needs stay in. `tsc --noEmit` reads tsconfig.json's
+# include list (src, shared, tests, netlify, vercel), and `npm run build` regenerates dist/ and
+# api/index.js, so nothing below is an input to either step.
+.env
+.env.*
+!.env.example
+.env.local
+.local-auth
+.netlify
+.vercel
+dist
+dist-ssr
+out
+coverage
+node_modules
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

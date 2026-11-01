@@ -6,6 +6,73 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (Vercel read-only diagnosis: C-1 cause found, D2 closed, L-10 was wrong)
+
+No product code changed in this batch. The owner said "بعطيك وصول وانت ضبط الامور", so the Vercel side
+stopped being a list of dashboard actions (D2, D3) and became a measurement. Every call was a **GET**
+against the Vercel REST API using the token the Vercel CLI already keeps in its own local auth file;
+nothing was created, updated, deleted or deployed, and no value from that file or from `.env.local`
+was ever printed here.
+
+### Found (measurements)
+- **C-1 root cause, and it is not a compile error.** `dpl_ERHtYBGR8xqkdvAeoLNZaq91ACbK` carries
+  `errorCode: exceeded_serverless_functions_per_deployment`, `errorStep: patchBuild` and the message
+  "No more than 12 Serverless Functions can be added to a Deployment on the Hobby plan", against
+  `plan: hobby` and function globs `api/*.ts` + `api/*/*.ts` — the pre-bridge 22-route layout. The
+  build itself completed (`buildSkipped: false`, `ready − buildingAt` = 51.8 s), so **C-3's row was
+  wrongly credited with being C-1's cause** and is corrected: the typecheck break was in the dirty tree
+  at that moment, but the deployment did not die on it, and why a build that should have stopped on two
+  unused imports completed is left **unexplained** rather than reconstructed.
+- **The cause is already gone.** All five later deployments are `functions: {"api/index.js": …}`,
+  `lambdas: 1`, READY; the two before that used `api/index.ts`. Only production was never retried.
+  The 404 alias is `alias: ["adnan-tech-adnan-mohamed.vercel.app"]` with `aliasAssigned: false`.
+- **C-2 measured:** `/v9/projects/{id}/env` and `/v10/…` both return **zero** user variables. The
+  135-entry `env` array on a deployment object is Vercel's *system* variable names (`CI`, `VERCEL_ENV`,
+  `TURBO_*`, `NX_DAEMON`…), which is why reading it as a configuration would have been a false positive.
+- **L-10 was a false claim.** The six deployment archives were walked recursively (361–381 files each)
+  and every one contains `.local-auth/store.json` — 4 dev accounts (email, role, scrypt salt+hash) and
+  10 access/refresh session hashes — plus `dist/` (77 files), `.netlify/functions/*.zip` (25) and
+  `tests/` (44), all of which `.gitignore` has named since `529a826` (2026-10-25), three days before the
+  first upload. **The Vercel CLI does not consult `.gitignore`.** `.env.local` (created 2026-10-28
+  09:33Z, before all six) is absent from all six, so the file that holds real secrets stayed out through
+  some rule inside the CLI itself — inferred from the archives, not quoted from documentation.
+- Also in the archives and not in the local tree: a stray `src/-w` file, and `meta.gitCommitSha` is
+  `529a826` with `gitDirty: 1` on all six, author `engineer@nexora.local` — every deployment here is a
+  dirty local upload with no Git connection. `nodeVersion: "24.x"` on the project and on all six (M-12's
+  pin landed five days later, so this says nothing about a future build). `public: false` on all six —
+  no preview was ever public.
+
+### Added
+- `.vercelignore` — `.env`, `.env.*` (with `!.env.example` kept), `.local-auth`, `.netlify`, `.vercel`,
+  `dist`, `dist-ssr`, `out`, `coverage`, `node_modules`, `*.log`, `.DS_Store`, `Thumbs.db`. Chosen so
+  that nothing excluded is an input to `tsc --noEmit` (tsconfig `include` = src, shared, tests, netlify,
+  vercel) or to `npm run build`, which regenerates `dist/` and `api/index.js` itself.
+
+### Changed (docs only)
+- `docs/PROJECT_AUDIT.md` — C-1 rewritten with the measured error and a RESOLVED-IN-TREE status; C-2
+  gains the env count and the system-variable caveat; C-3 corrected as above; L-10 rewritten as the
+  false claim it was, with the file census; M-12 gains the measured `nodeVersion`; **D2 closed with no
+  owner action** (its old instructions were wrong twice: a CLI upload's build log is not on that
+  dashboard page and `vercel logs` serves only runtime/requests); D3 corrected — `NEXORA_SITE_URL` must
+  be the Vercel URL, not a copy, and `CONTENT_ADMIN_TOKEN` is **dropped** because it guards an endpoint
+  no client calls; new §8.1 row for this batch.
+- `docs/SECURITY_AUDIT.md` — S-2 raised INFO → LOW with the archive census and the reason it is not a
+  compromise (`localAuthEnabled()` cannot fire under `NETLIFY`/`AWS_LAMBDA_FUNCTION_NAME`/
+  `LAMBDA_TASK_ROOT`, `public: false`, archives need the owner token).
+- `docs/VERCEL_DEPLOYMENT.md` — new "What the CLI uploads" section; the 12-function limit now cited from
+  the failed deployment instead of stated as a platform fact.
+- `docs/DEPLOYMENT_GUIDE.md` — the Vercel row now names the cause and stops asking for D2.
+
+### Not verified
+- **Whether `.vercelignore` is honoured** — that takes one real upload, and uploading is your call.
+  The five READY previews came from the file list this section says was wrong.
+- The runtime a future Vercel build actually runs on (`engines.node = "22.x"` overriding the project's
+  24.x dropdown is still an assumption).
+- **Nothing deployed.** The failed production deployment is kept — deleting it, and deleting the four
+  dev accounts' old passwords' usefulness, are your decisions, and I took neither.
+
+---
+
 ## Unreleased — 2026-11-01 (H-11 repair, option أ: the CMS listing now sees its own drafts)
 
 The owner chose repair (أ) for **H-11**: the admin read moves from the anon key to the service role, so
