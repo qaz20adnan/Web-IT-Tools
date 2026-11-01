@@ -63,6 +63,12 @@ session. What was measured is that mutation A26, which deletes only that header,
   edit**. Repair (ب) — declaring `published` — is a separate, still-unapproved change.
 - M-11 is untouched and now matters more: one shared static `CONTENT_ADMIN_TOKEN`, no rate limit, no
   per-operator binding, no rotation story — buying a read of *every* article row, drafts included.
+- **No screen changes today.** `grep -rn "content/admin\|contentAdmin" src/` finds only i18n labels
+  (`src/i18n/en.ts:799-800`, `ar.ts:801-802`) and the health badge at `src/pages/AdminPage.tsx:302` — no
+  client code calls this endpoint. So repair (أ) fixes the **API contract** for whoever drives it
+  (server-to-server, curl, or a future CMS UI), not a listing someone is staring at now. The honest
+  framing of H-11's impact is therefore narrower than "the admin page was broken": the write surface
+  had no reader, and it now does.
 
 ### Register counts
 H-11 moves from open to **fixed locally / not verified live**; no other ID changes. HIGH stays at 11,
