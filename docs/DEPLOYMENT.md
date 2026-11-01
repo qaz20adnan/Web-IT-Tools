@@ -27,15 +27,21 @@ Two consequences the owner should read, not inherit silently:
    Vercel held previews; it is the production terms. Whether Adnan Tech counts as commercial is the
    owner's call to make knowingly — if it does, the free options that permit it are Netlify (once
    deploys unblock), Cloudflare Pages or a paid Vercel plan. Nothing here forced the choice.
-2. **The variable copy is half done.** `SUPABASE_URL`, `NEXORA_SITE_URL` (= the Vercel origin, *not* a
-   copy of the Netlify one), `OWNER_EMAIL`, `AI_PROVIDER`, `AI_MODEL` and `GEMINI_WEB_SEARCH_ENABLED`
-   are set; `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER`,
-   `CONTENT_ADMIN_TOKEN` and `AI_API_KEY` are not, because Netlify stores the first four encrypted and
-   the fifth never existed. So auth, the database and the CMS fail closed on Vercel today.
-   If the pepper cannot be recovered, it must match Netlify's value exactly or the existing
-   `trial_claims.email_hash` rows orphan — see `netlify/lib/auth.ts:201-213` for what an orphan actually
-   costs (a second free trial per returning user, silently) and what an absent pepper costs (no trial
-   starts at all).
+2. **The variable copy is half done — and now three quarters.** `SUPABASE_URL`, `NEXORA_SITE_URL`
+   (= the Vercel origin, *not* a copy of the Netlify one), `OWNER_EMAIL`, `AI_PROVIDER`, `AI_MODEL`,
+   `GEMINI_WEB_SEARCH_ENABLED` were set at 12:33Z, and `NEXORA_HASH_PEPPER` + `CONTENT_ADMIN_TOKEN` were
+   added at 14:53Z, so eight names exist and production was redeployed at 14:54:20Z to pick them up.
+   What is still absent is `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and `AI_API_KEY`: Netlify
+   returns 20 asterisks for the first two, the single-key route answers 404, and the owner's Supabase
+   personal access token turned out to be scoped to a *different* project (`mabpgibohsxxmwwtihoe` —
+   Fluently), giving 403 for `zrlhtrujorfodccetkne`. `AI_API_KEY` never existed anywhere. So auth, the
+   database and the assistant still fail closed on Vercel; only the CMS token gate is now live.
+   **The pepper was deliberately regenerated, not recovered** — the owner's instruction was «نعم حط قيم
+   جديدة لكل الحقل» once it was measured that recovery was impossible. That accepts the orphan cost
+   recorded at `netlify/lib/auth.ts:201-213`: the existing `trial_claims.email_hash` rows no longer
+   match, so each returning user looks new and can take a second 30-day trial, silently. The same two
+   fresh values were written back onto Netlify so that when its deploys unblock, the two hosts agree
+   rather than fork a third state. An *absent* pepper would have been worse — no trial starts at all.
 
 ## Netlify
 
