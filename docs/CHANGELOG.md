@@ -42,6 +42,20 @@ was ever printed here.
   pin landed five days later, so this says nothing about a future build). `public: false` on all six —
   no preview was ever public.
 
+- **The env census, from both hosts' own APIs (names and presence only).** Netlify `adnan-tech`
+  holds **exactly seven** variables — `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER`, `NEXORA_SITE_URL`, `OWNER_EMAIL`,
+  `CONTENT_ADMIN_TOKEN` — and **no `AI_*`, `GEMINI_*`, `TAVILY_*` or `BRAVE_*` name at all**. Vercel
+  holds zero. `.env.local` holds one variable, `VERCEL_OIDC_TOKEN`, so there is no local copy of
+  anything. `/api/health` re-measured 2026-11-01: `ai.configured=false`, `vision.configured=false`,
+  `research.configured=false`, `database.configured=true`, `contentAdmin.configured=true`. Two
+  conclusions the registers had not stated: the assistant is off for **every** visitor of the live
+  site (D4, and only the owner's own key can fix it), and `CONTENT_ADMIN_TOKEN` **is live on
+  Netlify**, so the H-11 widening and the M-11 exposure are not hypothetical once this batch deploys.
+- A Netlify list-API entry returns no `value` field, so the "all seven are EMPTY" reading of that
+  response was a masking artifact rather than a fact; the presence conclusion above comes from the key
+  names plus the live health flags.
+
 ### Added
 - `.vercelignore` — `.env`, `.env.*` (with `!.env.example` kept), `.local-auth`, `.netlify`, `.vercel`,
   `dist`, `dist-ssr`, `out`, `coverage`, `node_modules`, `*.log`, `.DS_Store`, `Thumbs.db`. Chosen so
@@ -56,6 +70,12 @@ was ever printed here.
   dashboard page and `vercel logs` serves only runtime/requests); D3 corrected — `NEXORA_SITE_URL` must
   be the Vercel URL, not a copy, and `CONTENT_ADMIN_TOKEN` is **dropped** because it guards an endpoint
   no client calls; new §8.1 row for this batch.
+- `docs/ENVIRONMENT_VARIABLES.md` — new measured census table at the top (Netlify's seven keys,
+  Vercel's zero, `.env.local`'s one unrelated variable) and what each implies.
+- D4 rewritten from "add these variables" to **"the only gap in this register that I cannot close"** —
+  no AI credential exists on either host or on this machine, so the assistant is off for every visitor,
+  and the fix needs the owner's key entered in the dashboard, never in chat. D3 also corrected: it said
+  the parity script reads `.env.local`; the values exist only on Netlify, so it reads them from there.
 - `docs/SECURITY_AUDIT.md` — S-2 raised INFO → LOW with the archive census and the reason it is not a
   compromise (`localAuthEnabled()` cannot fire under `NETLIFY`/`AWS_LAMBDA_FUNCTION_NAME`/
   `LAMBDA_TASK_ROOT`, `public: false`, archives need the owner token).

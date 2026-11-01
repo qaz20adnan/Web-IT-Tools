@@ -8,6 +8,14 @@ Presence in the live environments was measured where possible:
 `NETLIVE` = https://adnan-tech.netlify.app (read through `/api/health` and `/api/auth?action=config`),
 `VPREV` = a Vercel preview (`/api/health`), `LOCAL` = this machine's `.env.local`.
 
+### Census measured 2026-11-01 (API reads, values never printed)
+
+| Host | What the config store actually holds | Consequence |
+| --- | --- | --- |
+| Netlify `adnan-tech` (`9b5bd170-ab23-41bb-88fe-67539716b8bf`) | **7 keys and nothing else**: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXORA_HASH_PEPPER`, `NEXORA_SITE_URL`, `OWNER_EMAIL`, `CONTENT_ADMIN_TOKEN`. The list endpoint masks values, so presence was confirmed two ways: the key names, and `/api/health` answering `database.configured=true` and `contentAdmin.configured=true` | Auth, trials, the admin surface and news work; **`AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL` and every `GEMINI_*`/`TAVILY_*`/`BRAVE_*` name is absent on this host**, which is why the live health says `ai.configured=false`, `vision.configured=false`, `research.configured=false` |
+| Vercel `adnan-tech` (`prj_Nt6noTngtbq27eHOYdYitLhXBnTX`) | **0 user variables** in every scope — `/v9/projects/{id}/env` and `/v10/…` both return an empty `envs` array | C-2 stands: `auth`, `admin`, `workspace` are permanently fail-closed there |
+| Local `.env.local` | **1 variable: `VERCEL_OIDC_TOKEN`.** Nothing else | Any `LOCAL` cell in the tables below that implies Supabase credentials sit in this file describes an older state of the file, not today's. **The only copy of the seven Netlify values is Netlify itself** — so a Vercel parity pass has to read them from there, and there is no local file that can leak them |
+
 ## 1. Supabase / auth / database
 
 | Variable | Required | Used by | Purpose | Dev | Preview | Prod | Secret | Present? |
