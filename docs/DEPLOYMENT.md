@@ -14,6 +14,15 @@ caps a deployment at 12 Serverless Functions — see
 [`docs/VERCEL_DEPLOYMENT.md`](VERCEL_DEPLOYMENT.md) for how that limit is worked around and for
 the measured limits of the other free hosts.
 
+**Owner decision 2026-11-01 (audit item D1):** this is now decided, not provisional. Because nobody
+is served from Vercel, its project deliberately holds **no** environment variables — `/v9/projects`
+and `/v10/projects` both answer zero user variables — and that is the intended state, not a gap to
+"fix". Copying `SUPABASE_SERVICE_ROLE_KEY` or `CONTENT_ADMIN_TOKEN` there would place a second copy
+of a key that bypasses RLS on a host with no users, so audit item D3 is closed as declined. If Vercel
+ever becomes a real second production host, `NEXORA_HASH_PEPPER` has to match Netlify's value exactly
+or the existing `trial_claims.email_hash` rows orphan, and `NEXORA_SITE_URL` must be the Vercel origin
+rather than a copy of `https://adnan-tech.netlify.app`.
+
 ## Netlify
 
 The repository is ready for a standard Netlify build; no adapter is required.
