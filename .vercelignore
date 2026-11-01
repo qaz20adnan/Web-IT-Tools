@@ -15,6 +15,7 @@
 .local-auth
 .netlify
 .vercel
+.secrets
 dist
 dist-ssr
 out

@@ -11,6 +11,7 @@ supabase/.temp/
 .env
 .env.*
 *.local
+.secrets/
 .DS_Store
 Thumbs.db
 .vscode/*

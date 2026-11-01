@@ -6,6 +6,53 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 (three AI names written to Netlify; the fourth is a secret only the owner has)
+
+The owner asked for the environment variables to be added now. Three were added; **`AI_API_KEY` was
+not**, because no such value exists on Netlify, on Vercel or anywhere in this repository — and guessing
+one is refused by rule 5. Gemini was chosen, so the three names that carry no secret are:
+`AI_PROVIDER=gemini`, `AI_MODEL=gemini-flash-latest`, `GEMINI_WEB_SEARCH_ENABLED=true`.
+
+### Measured while doing it
+- **The REST routes for writing env vars do not work with this token; the CLI does.**
+  `POST /api/v1/sites/{id}/env` and `POST /api/v1/siteenv` both answered **404 `Not Found`** (a write
+  permission problem wearing a 404, most likely), and `netlify env:set … --scope builds --scope
+  functions --scope runtime` answered `Missing required path variable 'account_id'`. The plain
+  `netlify env:set AI_PROVIDER gemini --site adnan-tech` succeeded, and `env:list --site adnan-tech`
+  now shows the name. So the values went in **all contexts and all scopes**, not the narrower
+  builds+functions+runtime set originally planned — recorded as a difference, not smoothed over.
+- **`env:set` prints the truth the docs had never written down:** *"Changes will require a redeploy to
+  take effect on any deployed versions of your project."* Setting variables does **not** change the
+  live site. `https://adnan-tech.netlify.app/api/health` still answers `ai.configured=false`, and it
+  will keep answering that until both the key and a deploy happen — `health.ts:23` needs provider
+  **and** model **and** (a key or `provider=ollama`).
+- **`AI_ALLOWED_HOSTS` is not needed for Gemini**, although action item D4 listed it among the
+  variables to add. `host.ts:6-11` builds `BUILTIN_HOSTS` from `DEFAULT_BASE_URLS` for the five known
+  providers, so `generativelanguage.googleapis.com` is already allowed at `host.ts:116`. The variable
+  only matters for a custom `AI_BASE_URL`.
+- **A single name is enough for the key.** `env.ts:102-108` falls back to the provider settings when
+  `AI_PROVIDER=gemini`, so `AI_API_KEY` feeds both the assistant and the Gemini research path;
+  duplicating it as `GEMINI_API_KEY` would put the same secret in two places for nothing.
+
+### Found and fixed on the way
+- **`.gitignore` did not ignore `.secrets/`, while this register claimed it did** (D7's route for a
+  Supabase token was "saved to a git-ignored file such as `D:\Adnan-Web\.secrets\pat.txt`" —
+  `git check-ignore` answered *not ignored*). Added `.secrets/` to `.gitignore` and, because the
+  Vercel CLI ignores `.gitignore` entirely (the L-10 finding above), added it to `.vercelignore` too.
+  The secret file for this task is `.secrets/ai.env`, and the harness verified it is ignored:
+  `git status --short` shows only `.gitignore` and `.vercelignore` modified, never `.secrets/ai.env`.
+
+### The one line still owed
+`AI_API_KEY=` in `D:\Adnan-Web\.secrets\ai.env` (git-ignored, and now excluded from Vercel uploads).
+Paste the key after the equals sign and save, then `node %TEMP%/nexora-set-netlify-key.js` reads that
+line and calls `netlify env:set AI_API_KEY <value> --site adnan-tech --secret` — the value is passed as
+argv to the child process, the child's output is discarded, and the script prints only the key name and
+its character length. Its refusal path is **tested**: with the template still empty it printed
+`NOT SET: AI_API_KEY is still empty` and exited 2 rather than writing a blank secret. `--secret` makes
+the value unreadable afterwards. **After that, none of it reaches users until D10.**
+
+---
+
 ## Unreleased — 2026-11-01 (Vercel read-only diagnosis: C-1 cause found, D2 closed, L-10 was wrong)
 
 No product code changed in this batch. The owner said "بعطيك وصول وانت ضبط الامور", so the Vercel side
