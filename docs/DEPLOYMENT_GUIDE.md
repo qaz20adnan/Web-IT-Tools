@@ -12,7 +12,7 @@ Read `docs/ENVIRONMENT_VARIABLES.md` first if you need the authoritative variabl
 | Target | State on 2026-11-01 | Consequence |
 | --- | --- | --- |
 | `https://adnan-tech.netlify.app` | **LIVE but FROZEN** — SPA, `/api/health`, `/api/auth`, `/api/news`, `/api/content` all 200 and Supabase connected, serving the build published `2026-10-28T19:25:52Z` (`6ae24c40a4a3be3ea790b498`), 31 commits behind the tree | Operational credits keep it online but **block new production deploys**, so no fix made after 2026-10-28 reaches its visitors |
-| Vercel project `adnan-mohamed/adnan-tech` | **LIVE — production since 2026-11-01 12:33Z, redeployed 14:54:20Z as `dpl_GcV9jNYbfEPnnesRumAkgEscgt4m` (`target=production`, `● Ready`)** after two more variables were written at 14:53:10Z. The original publish was `dpl_6UtxvoqEdB6WKqvWcHVk6vCXMgLU`, `READY`, one lambda, `alias: adnan-tech.vercel.app`, `aliasAssigned: true`, anonymous `GET /` → 200 with the full header set, `/api/health` → 200. The earlier `exceeded_serverless_functions_per_deployment` failure is confirmed gone rather than inferred | It carries the current tree — and **eight variables** (`NEXORA_HASH_PEPPER` and `CONTENT_ADMIN_TOKEN` were regenerated and added, proven live by `/api/content/admin` answering 401 `invalid_key` where it answered 503 before), so **three are still missing**: `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `AI_API_KEY`. `database/ai/contentAdmin` stay `configured=false`. It is live and partly blind |
+| Vercel project `adnan-mohamed/adnan-tech` | **LIVE — production since 2026-11-01 12:33Z, redeployed 14:54:20Z as `dpl_GcV9jNYbfEPnnesRumAkgEscgt4m` (`target=production`, `● Ready`)** after two more variables were written at 14:53:10Z. The original publish was `dpl_6UtxvoqEdB6WKqvWcHVk6vCXMgLU`, `READY`, one lambda, `alias: adnan-tech.vercel.app`, `aliasAssigned: true`, anonymous `GET /` → 200 with the full header set, `/api/health` → 200. The earlier `exceeded_serverless_functions_per_deployment` failure is confirmed gone rather than inferred | It carries the current tree — and **ten variables** as of 20:02Z: the eight (`NEXORA_HASH_PEPPER` and `CONTENT_ADMIN_TOKEN` were regenerated and added, proven live by `/api/content/admin` answering 401 `invalid_key` where it answered 503 before) plus `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`, each written only after it answered **http 200** from a REST probe. Redeployed 20:03:14Z (`adnan-tech-l2h8ctroe`, `● Ready`, 39 s) and production now answers `database.configured=true`, `contentAdmin.configured=true`, `GET /api/content` → `{"items":[],"source":"supabase"}`. **One is still missing: `AI_API_KEY`** — never issued on any host, so `ai/vision/research` stay `configured=false`. Live, and no longer blind except for the assistant |
 | Vercel previews | Still behind Vercel SSO (the project setting `ssoProtection.deploymentType: all_except_custom_domains`), so anonymous preview checks 302 — **but production on `*.vercel.app` answered 200 anonymously**, measured 2026-11-01, which is the row this file used to say was impossible | Verify production with a plain `curl`, verify previews through the API |
 | Supabase project `zrlhtrujorfodccetkne` | reachable, migrations 0001–0002 applied (profiles/trials/…), `articles` table returns 0 published rows | content pipeline is live but empty (M-19) |
 
@@ -110,6 +110,18 @@ npx netlify deploy --prod  # ONLY after "انشر للإنتاج"
 > happened used `vercel deploy --prod --yes` from a clean tree — 34 s, one lambda, alias assigned.
 
 Order matters. Do not re-deploy before step 3 or you will reproduce the same `Error`.
+
+> **State as of 2026-11-01 20:04Z — steps 2 and 3 are now closed except for the AI key.** The project has
+> **ten** variables: the eight above plus `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`, written at
+> 20:02Z after each answered **http 200** from a REST probe against ref `zrlhtrujorfodccetkne`, and made
+> live by the 20:03:14Z redeploy (`adnan-tech-l2h8ctroe`, `target=production`, `● Ready` in 39 s).
+> Production now reports `database.configured=true`, `contentAdmin.configured=true` and
+> `GET /api/content` → `{"items":[],"source":"supabase"}`. Still exactly one gap: `AI_API_KEY`, which has
+> never existed on any host — it is issued at aistudio.google.com, not recovered. **Do not re-run the
+> dashboard step for the Supabase pair**; the provenance, the loopback transfer and the transcript
+> exposure it caused are in `ENVIRONMENT_VARIABLES.md` §6.1, and the Supabase **Site URL / redirect
+> allowlist** is still unchecked against `https://adnan-tech.vercel.app` — that is the next thing to
+> verify before claiming email links work (task #5).
 
 > **State as of 2026-11-01 14:53Z — steps 1–3 are now partly history.** The project has eight
 > variables: `SUPABASE_URL`, `NEXORA_SITE_URL`, `OWNER_EMAIL`, `AI_PROVIDER`, `AI_MODEL`,

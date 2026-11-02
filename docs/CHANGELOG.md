@@ -6,6 +6,47 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-01 20:02Z writes, 20:03Z deploy, 20:04Z verify (the Supabase pair is live; one name left)
+
+C-2 was the last CRITICAL that could not be closed by editing code: three secrets had to arrive from
+outside. Two of them did, without the owner being asked to paste a key into this conversation.
+
+- **What changed.** `SUPABASE_ANON_KEY` (208 chars, legacy JWT with `role=anon`) and
+  `SUPABASE_SERVICE_ROLE_KEY` (219 chars, `role=service_role`) — both for project
+  `zrlhtrujorfodccetkne` — are now Vercel project variables. `/v10/projects/{id}/env` went from 8 names
+  to **10**, both `type=encrypted`, `target=["production"]`, `createdAt` 20:02Z. The same two values
+  were re-written onto Netlify with `netlify env:set … --secret --context production deploy-preview`
+  (both `ok`), where they stay inert until that host's credit freeze lifts. `AI_API_KEY` is still
+  empty everywhere: it is issued by Google, not by us, and rule 5 forbids guessing it.
+- **How the values were moved.** The channels that failed and the one that worked, with the measured
+  error for each, are recorded as **S-3** in `docs/SECURITY_AUDIT.md` §4 — including the cost: reading
+  the Legacy API Keys page rendered both JWTs into readonly inputs, and the accessibility snapshot used
+  to read them copied both into the local session transcript. Nothing was deleted to hide that; the
+  accept-or-rotate decision is the owner's and the row says why it must be taken whole.
+- **Verified before writing, not after.** `GET https://zrlhtrujorfodccetkne.supabase.co/rest/v1/articles?select=id&limit=1`
+  with each key as `apikey` + `Bearer` answered **200 / `role=anon`** and **200 / `role=service_role`**.
+  Both were decoded (`jwt payload → role + audience`) first, so a Fluently-scoped key could not be
+  written onto the Adnan Tech project by mistake. The new publishable `sb_publishable_…` key was
+  deliberately **not** used — it was never probed.
+- **Verified (VPROD, 20:04:16Z).** Production redeployed at 20:03:14Z (`adnan-tech-l2h8ctroe`, `● Ready`)
+  and then measured: `/api/health` → `database.configured=true`, `contentAdmin.configured=true`;
+  `GET /api/content` → **200 `{"items":[],"source":"supabase"}`** (the first time this endpoint has
+  returned real Supabase data on Vercel rather than a seeded fallback); `GET /api/content/admin` without
+  a bearer → **401 `invalid_key`**; `action=config` → `provider=supabase`, `localMode=false`,
+  `siteUrl=https://adnan-tech.vercel.app`. Still `false`: `ai.configured` and `research.configured` —
+  the single remaining missing name — and `adminConfigured`, which is only `Boolean(ADMIN_EMAIL)`
+  (`netlify/functions/auth.ts:185`) and is not an error.
+- **Not verified.** Supabase's **Site URL / Redirect URL allowlist** against
+  `https://adnan-tech.vercel.app`: every dashboard route I could reach either 404'd or redirected, and
+  the platform's internal API paths guessed from the app failed. Auth is now *configured* on Vercel, not
+  *proven end-to-end* — email confirmation and password recovery are the first things that break if
+  those two fields still name `localhost:5173` or the Netlify origin.
+- **What this batch touched.** Docs only (6 files: `PROJECT_AUDIT`, `ENVIRONMENT_VARIABLES`, `SECURITY_AUDIT`,
+  `DEPLOYMENT`, `DEPLOYMENT_GUIDE`, plus this file). Transfer scripts, the temp key files and the
+  self-signed cert were overwritten and deleted; the listeners on 8783/8784/8785/8786/8443 were killed.
+
+---
+
 ## Unreleased — 2026-11-01 14:53Z writes, 14:54Z deploy, 19:07Z verify (two secrets regenerated, not recovered)
 
 The owner's answer to "the four encrypted Netlify values cannot be read back" was «نعم حط قيم جديدة لكل

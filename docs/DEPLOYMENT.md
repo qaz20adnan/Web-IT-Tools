@@ -36,6 +36,17 @@ Two consequences the owner should read, not inherit silently:
    personal access token turned out to be scoped to a *different* project (`mabpgibohsxxmwwtihoe` —
    Fluently), giving 403 for `zrlhtrujorfodccetkne`. `AI_API_KEY` never existed anywhere. So auth, the
    database and the assistant still fail closed on Vercel; only the CMS token gate is now live.
+   **Corrected again at 20:04:16Z, and this closes it for everything except AI:** `SUPABASE_ANON_KEY`
+   and `SUPABASE_SERVICE_ROLE_KEY` were written at 20:02Z (`encrypted/production`, after each returned
+   **http 200** from the REST probe), production was redeployed at **20:03:14Z** and
+   `GET /api/health` on the live origin now answers `database.configured=true` and
+   `contentAdmin.configured=true`, with `GET /api/content` returning `{"items":[],"source":"supabase"}`.
+   Ten names are on the project; the only value still missing is `AI_API_KEY`, which has never existed on
+   any host and can only be issued, not recovered. The keys came out of the Supabase dashboard's Legacy
+   API Keys page over a loopback transfer — how that happened, and the fact that it also left the
+   `service_role` JWT in this session's transcript file, is written up in
+   `docs/ENVIRONMENT_VARIABLES.md` §6.1, along with the still-unverified Supabase Site URL / redirect
+   allowlist that is the most likely next break for email links.
    **The pepper was deliberately regenerated, not recovered** — the owner's instruction was «نعم حط قيم
    جديدة لكل الحقل» once it was measured that recovery was impossible. That accepts the orphan cost
    recorded at `netlify/lib/auth.ts:201-213`: the existing `trial_claims.email_hash` rows no longer
