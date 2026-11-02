@@ -45,14 +45,31 @@ Two consequences the owner should read, not inherit silently:
    any host and can only be issued, not recovered. The keys came out of the Supabase dashboard's Legacy
    API Keys page over a loopback transfer — how that happened, and the fact that it also left the
    `service_role` JWT in this session's transcript file, is written up in
-   `docs/ENVIRONMENT_VARIABLES.md` §6.1, along with the still-unverified Supabase Site URL / redirect
-   allowlist that is the most likely next break for email links.
+   `docs/ENVIRONMENT_VARIABLES.md` §6.1, along with how the keys were transferred without anyone typing
+   them into a chat. **And the predicted next break was found to be already broken, and fixed at
+   2026-11-02 05:47Z** — consequence **3** below, whose numbering was checked against this list.
    **The pepper was deliberately regenerated, not recovered** — the owner's instruction was «نعم حط قيم
    جديدة لكل الحقل» once it was measured that recovery was impossible. That accepts the orphan cost
    recorded at `netlify/lib/auth.ts:201-213`: the existing `trial_claims.email_hash` rows no longer
    match, so each returning user looks new and can take a second 30-day trial, silently. The same two
    fresh values were written back onto Netlify so that when its deploys unblock, the two hosts agree
    rather than fork a third state. An *absent* pepper would have been worse — no trial starts at all.
+3. **The database was still pointing its e-mails at the retired host, and that was fixed on the Supabase
+   side, not in code.** Measured 2026-11-02 05:47Z through `GET/PATCH
+   https://api.supabase.com/v1/projects/zrlhtrujorfodccetkne/config/auth` (the dashboard's own session
+   bearer; a PAT or the service-role key does not authenticate that route): `site_url` was
+   `https://adnan-tech.netlify.app` and `uri_allow_list` was `https://adnan-tech.netlify.app,http://localhost:5173`
+   — no Vercel origin at all, while `auth.ts:365` and `:383` build every recovery/confirmation link from
+   `NEXORA_SITE_URL=https://adnan-tech.vercel.app`. It now reads `site_url=https://adnan-tech.vercel.app`
+   with three exact origins allowed (Vercel first, Netlify kept so published links do not break,
+   `localhost:5173` kept for local development) and a re-`GET` returned **200 with both values
+   persisted**. No wildcard was added, and no table row was touched — this is reversible by PATCHing the
+   original two strings back. **Not verified:** that a delivered e-mail now lands on Vercel. `POST
+   /auth/v1/recover?redirect_to=…` answered **200 `{}` for every value tried, including
+   `https://example.com`**, because the probed address does not exist and GoTrue short-circuits before
+   rendering a link — so that route cannot prove or disprove anything. Only a real signup can, which is
+   D5. `/auth/v1/settings` is not a substitute: with the anon key *or* the service-role key it returns
+   the same 8 public fields and says nothing about URLs.
 
 ## Netlify
 
@@ -172,6 +189,12 @@ npm run build
 
 ## Post-deploy checklist
 
+0. **Before checking anything else after a host move: Supabase `config/auth` must name the new origin.**
+   `GET https://api.supabase.com/v1/projects/{ref}/config/auth` (dashboard session bearer — a PAT scoped
+   to the wrong project answers 403 and the service-role key does not authenticate this route at all) and
+   compare `site_url` / `uri_allow_list` against `NEXORA_SITE_URL` on the host. This row was added because
+   the check failed in reality on 2026-11-02: the app and the database disagreed about which host owns the
+   e-mail links, and nothing in `/api/health` shows it.
 1. `GET /api/health` returns 200 and reports the expected provider/model.
 2. `GET /api/news?refresh=1` returns items and an empty `errors` array.
 3. `/providers` → **Refresh models** lists the live catalog.

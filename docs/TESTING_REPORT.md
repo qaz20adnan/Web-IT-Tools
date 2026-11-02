@@ -367,8 +367,8 @@ Full write-up in `docs/SECURITY_AUDIT.md`; verdicts only here.
 | Slowest live endpoint | NETLIVE | `/api/news` 7.16 s | WARN — first call after idle |
 | Typical API call | NETLIVE | 1.1–2.1 s | PASS for serverless cold starts |
 | Test suite wall time | LOCAL | **16.77, 20.09 and 20.89 s** tracked (67 files / 904 tests), **64–67 % of tracked time spent creating 67 jsdom environments** (104.62–129.87 s cumulative across workers). The tree one file back measured 16.6–26.1 s for 66/853, so the extra file moved the count and not the clock | WARN — `pool: 'vmThreads'` or `isolate: false` is the documented fix; not applied yet, and the cost stopped being theoretical on 2026-11-01: the added files tipped an existing render test over the 5 s timeout (see **L-15**). Only 8 of the 67 files render a component, so the environment is wasted on the other 59. The six newest server files are the clearest example — `admin-rbac-gates`, `net-error-texts`, `supabase-rest-errors`, `json-extract` (203 tests, 77 ms of test body, 1.20 s of wall in isolation) plus `workspace-tenancy` (63 tests, 58 ms of body, 1.59 s of wall, 68 % of it environment) and `content-admin-gates` (51 tests, 36–44 ms of body, 0.97–1.15 s of wall) — all six assert strings, filters and status codes and never touch the DOM; they pay the global `environment: 'jsdom'` from `vitest.config.ts`, and a per-file `@vitest-environment node` comment is the cheap fix and is **not** applied, because it is a config-level change to how every suite runs. The slowest single file is `command-palette.test.tsx` at 10.2–11.3 s for 10 tests |
-| Lighthouse | — | **NOT TESTED** — no browser run recorded in this phase |
-| Real-device / mid-tier network | — | **NOT TESTED** |
+| Lighthouse | — | — | **NOT TESTED** — no browser run recorded in this phase |
+| Real-device / mid-tier network | — | — | **NOT TESTED** |
 
 ## 7. UI, accessibility, responsive — NOT TESTED
 

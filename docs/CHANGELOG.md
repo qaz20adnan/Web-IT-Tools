@@ -6,6 +6,44 @@ Older undated history is not reconstructed here; `git log` is authoritative for 
 
 ---
 
+## Unreleased — 2026-11-02 05:47Z (Supabase was still pointing its e-mails at the retired host)
+
+The next thing that was going to break after auth became *configured* turned out to be already broken:
+the database's own URL settings had never followed the production move.
+
+- **What changed.** Supabase project `zrlhtrujorfodccetkne`, Auth URL configuration. Measured before:
+  `site_url=https://adnan-tech.netlify.app`, `uri_allow_list=https://adnan-tech.netlify.app,http://localhost:5173`.
+  `PATCH https://api.supabase.com/v1/projects/{ref}/config/auth` then set
+  `site_url=https://adnan-tech.vercel.app` and a three-origin list with Vercel first; a fresh `GET`
+  returned **200 with both values persisted**. Netlify stays in the list on purpose (its published site
+  still serves old links) and nothing was added as a wildcard. No product file changed; no row in any
+  table was touched, created or deleted — this is auth *configuration*, not data, and it is reversible
+  by PATCHing the original two values back.
+- **Why it mattered.** `netlify/functions/auth.ts:383` and `:365` build the confirmation and recovery
+  links from `NEXORA_SITE_URL`, which is the Vercel origin, but GoTrue validates that `redirect_to`
+  against its own allowlist and falls back to `SITE_URL` — so every e-mail was routing users to the host
+  that cannot deploy any more. The app was configured correctly and the database was not.
+- **Not verified, and how it was NOT proved.** Four `POST /auth/v1/recover?redirect_to=…` probes
+  (Vercel, Netlify, `https://example.com`, none) all returned **200 `{}`** because the address does not
+  exist — GoTrue short-circuits before rendering anything, so this route cannot distinguish an accepted
+  redirect from a rejected one. Only a real signup proves the flow end to end, which is D5 and still the
+  owner's call. `disable_signup=false` and `mailer_autoconfirm=false` were read at the same time, so
+  signup really does require confirmation.
+- **Route that worked, for next time.** `/auth/v1/settings` returns 8 public keys with *either* the anon
+  or the service-role key and says nothing about URLs. `/settings/authentication` 404s, `/auth/settings`
+  and `/auth/policies` redirect elsewhere, `api.supabase.com/platform/projects/{ref}/config/auth` is
+  `404 Cannot GET`, and direct `api.supabase.com/v1/...` from outside the browser is `401` — the
+  dashboard's own session bearer is what the management API accepts.
+
+- **Docs hygiene found by the same validator that checks these tables.** Four rows in two registers had
+  lost a cell separator and were silently rendering one column short — `SECURITY_AUDIT.md` §1 SSRF and
+  Path traversal (3 pipes against a 4-pipe header) and `TESTING_REPORT.md` §Lighthouse / Real-device
+  (4 against 5). Repaired with a verdict cell each, no meaning changed, and the checker was itself
+  fixed to stop counting `\|` inside code spans, which had been reporting two false positives per run.
+  Re-run over all 20 files in `docs/` → **ALL_TABLES_OK**.
+
+---
+
 ## Unreleased — 2026-11-01 20:02Z writes, 20:03Z deploy, 20:04Z verify (the Supabase pair is live; one name left)
 
 C-2 was the last CRITICAL that could not be closed by editing code: three secrets had to arrive from
